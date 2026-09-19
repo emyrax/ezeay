@@ -1,0 +1,23 @@
+{
+  "name": "ezeay-server",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch index.ts",
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
+    "@clerk/backend": "^1.25.0",
+    "@neondatabase/serverless": "^1.1.0",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "0.44.5",
+    "express": "^4.21.2",
+    "openai": "^7.15.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.4",
+    "typescript": "~5.9.2"
+  }
+}

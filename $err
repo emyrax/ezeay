@@ -1,0 +1,2 @@
+[Server] OPENAI_API_KEY missing — OpenAI requires a key in .env or from the app
+[Server] ANTHROPIC_API_KEY missing — Anthropic requires a key in .env or from the app

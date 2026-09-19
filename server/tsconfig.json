@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "..",
+    "downlevelIteration": true,
+    "baseUrl": "..",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "declaration": false
+  },
+  "include": ["index.ts", "../db/**/*.ts", "../lib/**/*.ts"],
+  "exclude": ["../lib/uploadFile.ts"]
+}

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "expo-react-native-typescript": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "expo-react-native-typescript/SKILL.md",
+      "computedHash": "ae6a3db1d4b800bf9d69e64600bbdccadbacd22b127feeb71a041c56ad4f1e55"
+    },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/systematic-debugging/SKILL.md",
+      "computedHash": "7246fdd3a795fc3daff0af72044ca99bf836e4e6a46844742858786fdfb86488"
+    },
+    "vercel-react-native-skills": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-native-skills/SKILL.md",
+      "computedHash": "41d24eafa7c3d82e270439808f7cfbc4d51aeb2d14f2809a2267c16275784d06"
+    }
+  }
+}

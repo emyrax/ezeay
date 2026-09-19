@@ -1,0 +1,85 @@
+{
+  "expo": {
+    "name": "ezeay",
+    "slug": "ezeay",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "ezeay",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ezeay.app",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "softwareKeyboardLayoutMode": "resize",
+      "package": "com.ezeay.app"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-web-browser",
+      "@clerk/expo",
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Yuinx to record audio for voice notes.",
+          "enableBackgroundRecording": false
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Yuinx to listen while you record voice notes.",
+          "speechRecognitionPermission": "Allow Yuinx to transcribe your voice notes in real time."
+        }
+      ],
+      "expo-font",
+      [
+        "expo-ai-kit",
+        {
+          "llm": true
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Yuinx to use your current location to set your profile location and find universities near you."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

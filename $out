@@ -1,0 +1,7 @@
+
+> ezeay@1.0.0 start:server
+> node scripts/free-port.mjs && tsx server/index.ts
+
+[free-port] port 3001 is free
+[Server] Running on http://localhost:3001
+[Server] DB host: ep-cool-recipe-ap0x35nd-pooler.c-7.us-east-1.aws.neon.tech
