@@ -49,7 +49,6 @@ import FormatToolbar from "../../component/notes/FormatToolbar";
 import GlassSheet from "../../component/notes/GlassSheet";
 import InfoTip from "../../component/notes/InfoTip";
 import NoteChatSheet from "../../component/notes/NoteChatSheet";
-import NotesLocalOnlyBanner from "../../component/notes/NotesLocalOnlyBanner";
 import RichTextEditor, {
   type EditorToolbarState,
   type RichTextEditorHandle,
@@ -2514,10 +2513,6 @@ export default function NoteEditorScreen() {
                 { backgroundColor: theme.primary + "30" },
               ]}
             />
-
-            <View style={styles.localBannerWrap}>
-              <NotesLocalOnlyBanner />
-            </View>
 
             <RichTextEditor
               ref={editorRef}

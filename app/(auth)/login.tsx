@@ -3,7 +3,6 @@ import { useSignIn, useSignUp } from "@clerk/expo/legacy";
 import {
   AntDesign,
   FontAwesome,
-  Ionicons,
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -120,7 +119,6 @@ export default function Login() {
   }, [cardSlide, cardOpacity]);
 
   // Mounted state for animated crossfade between mode switches
-  const [formVisible, setFormVisible] = useState(true);
   const formFade = useRef(new Animated.Value(1)).current;
 
   const switchMode = (fn: () => void) => {
@@ -241,11 +239,10 @@ export default function Login() {
 const handleGoogleLogin = async () => {
     try {
       setIsExchanging(true);
-      setAuthReady(false); // Reset before starting
-      const result = await startGoogleFlow();
-      const { createdSessionId } = result;
-      if (createdSessionId) {
-        setActive({ session: createdSessionId });
+      setAuthReady(false);
+      const { createdSessionId, setActive } = await startGoogleFlow();
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
         setAuthReady(true);
       } else {
         Alert.alert(
@@ -254,8 +251,8 @@ const handleGoogleLogin = async () => {
         );
       }
     } catch (error: any) {
+      console.error("Google OAuth Error:", error);
       if (error.code !== "ERR_CANCELED") {
-        console.error("Google OAuth Error:", error);
         const message =
           error.errors?.[0]?.message ||
           error.message ||
@@ -271,8 +268,8 @@ const handleGoogleLogin = async () => {
     try {
       setIsExchanging(true);
       setAuthReady(false); // Reset before starting
-      const { createdSessionId } = await startAppleFlow();
-      if (createdSessionId) {
+      const { createdSessionId, setActive } = await startAppleFlow();
+      if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
         setAuthReady(true);
       } else {

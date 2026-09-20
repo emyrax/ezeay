@@ -78,6 +78,8 @@ export interface CommunityFeedPost {
   creatorAvatar?: string;
   thumbnailUrl?: string;
   sharedAt: string;
+  likeCount: number;
+  likedByMe: boolean;
   chapterIndex: FeedChapter[];
 }
 

@@ -69,12 +69,11 @@ function NavigationGuard() {
   const prevReadyRef = useRef<boolean>(false);
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [restoreStuck, setRestoreStuck] = useState(false);
+  const strayArmedRef = useRef(false);
 
-  const ready = !!user && !!profile && !loading && loadedOnce;
+  const ready = !!user && !!profile && !loading && loadedOnce && !accountError;
   const becameReady = ready && !prevReadyRef.current;
   prevReadyRef.current = ready;
-  const accountErrorRef = useRef(accountError);
-  accountErrorRef.current = accountError;
 
   // Watchdog: while signed in and data is still loading for 20s, surface a retry
   useEffect(() => {
@@ -101,7 +100,13 @@ function NavigationGuard() {
     };
   }, [user, ready, restoreStuck, accountError]);
 
-useEffect(() => {
+  // The Clerk OAuth deep-link callback (ezeay://.../oauth-native-callback)
+  // re-enters the app and can push a stray route (e.g. (notes)/[noteId]) a beat
+  // AFTER the one-shot becameReady redirect already ran. Arm a short "post-auth"
+  // window on becameReady; while armed, any non-(tabs) route for a ready user is
+  // forced back to home so the stray can never stick. It disarms the moment the
+  // tab home renders, so normal in-session navigation is never intercepted.
+  useEffect(() => {
     if (!loading) {
       SplashScreen.hideAsync();
     }
@@ -109,6 +114,10 @@ useEffect(() => {
     const isPublicPage = !segments[0];
     const inAuthGroup = segments[0] === "(auth)";
     const inTabsGroup = segments[0] === "(tabs)";
+
+    if (becameReady) {
+      strayArmedRef.current = true;
+    }
 
     if (!user) {
       prevReadyRef.current = false;
@@ -128,13 +137,7 @@ useEffect(() => {
 
     if (!ready) return;
 
-    // If account error is present (tracked via ref), show retry screen
-    if (accountErrorRef.current) {
-      setRestoreStuck(true);
-      return;
-    }
-
-    if (!inTabsGroup && (becameReady || isPublicPage)) {
+    if (!inTabsGroup && (becameReady || isPublicPage || strayArmedRef.current)) {
       // dismissAll dispatches POP_TO_TOP unconditionally. During cold start the
       // navigator (and its stack) may not be mounted/registered yet, so the
       // action has no handler and warns. canDismiss() returns false in that
@@ -143,10 +146,12 @@ useEffect(() => {
         router.dismissAll();
       }
       router.replace("/(tabs)");
+    } else if (inTabsGroup && strayArmedRef.current) {
+      strayArmedRef.current = false;
     }
   }, [user, profile, loading, loadedOnce, ready, becameReady, accountError, segments, router]);
 
-  if (user && (accountErrorRef.current || (loading && restoreStuck))) {
+  if (user && (accountError || (loading && restoreStuck))) {
     return (
       <View style={[styles.restoreWrap, { backgroundColor: theme.bg }]}>
         <Text style={[styles.restoreTitle, { color: theme.text }]}>

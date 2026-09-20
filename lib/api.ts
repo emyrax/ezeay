@@ -485,6 +485,12 @@ export const api = {
     feed: (token: string, limit = 20) =>
       apiFetch<CommunityFeed>(`/api/community/feed?limit=${limit}`, { token }),
 
+    feedLike: (courseId: string, token: string) =>
+      apiFetch<{ liked: boolean; likeCount: number }>(
+        `/api/community/feed/${courseId}/like`,
+        { method: "POST", token },
+      ),
+
     posts: {
       list: (token: string, limit = 20) =>
         apiFetch<CommunityPostsResponse>(`/api/community/posts?limit=${limit}`, { token }),

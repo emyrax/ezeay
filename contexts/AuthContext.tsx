@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../lib/api';
 import type { ApiUserProfile } from '../lib/api';
 import { getAvatarUrl } from '../lib/dicebear';
+import { consumePendingGoals } from '../lib/pendingGoals';
 import type { UserProfile, MappedUser } from '../types/user';
 import { useUserStore } from '../store/userStore';
 import { useModelRatingStore } from '../store/modelRatingStore';
@@ -103,6 +104,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchingRef = useRef(false);
   const [accountLoadTick, setAccountLoadTick] = useState(0);
 
+  const applyPendingGoalsIfAny = useCallback(
+    async (current: UserProfile) => {
+      const pending = await consumePendingGoals();
+      if (!pending || pending.length === 0) return;
+
+      const updated: UserProfile = {
+        ...current,
+        learningGoals: pending,
+        onBoarded: true,
+      };
+      setProfile(updated);
+      setStoreProfile(updated);
+      await AsyncStorage.setItem("userProfile", JSON.stringify(updated));
+
+      getToken()
+        .then((token) => {
+          if (!token) return;
+          return api.users.update(
+            updated.uid,
+            { learningGoals: pending, onBoarded: true },
+            token,
+          );
+        })
+        .catch((err) => {
+          console.warn("[AuthContext] pending goals save failed:", err);
+        });
+    },
+    [getToken, setStoreProfile],
+  );
+
   useEffect(() => {
     if (!isLoaded) {
       setLoading(true);
@@ -189,6 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setStoreProfile(userProfile);
             await AsyncStorage.setItem("userProfile", JSON.stringify(userProfile));
           }
+          await applyPendingGoalsIfAny(useUserStore.getState().profile ?? userProfile);
           setAccountError(false);
         } catch (err: any) {
           if (err.message?.includes("Not found") || err.status === 404) {
@@ -203,16 +235,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setProfile(userProfile);
               setStoreProfile(userProfile);
               await AsyncStorage.setItem("userProfile", JSON.stringify(userProfile));
+              await applyPendingGoalsIfAny(userProfile);
               setAccountError(false);
             } catch {
-              // server unreachable for create
+              // server unreachable for create — only hard-error if no cache
               if (!cached) {
                 setAccountError(true);
+              } else {
+                // use local profile as fallback (already set from cache above)
+                setAccountError(false);
               }
             }
           } else {
             // Server error / connection failure / offline
-            setAccountError(true);
+            // If we already loaded from cache above, let the user proceed
+            if (!cached) {
+              setAccountError(true);
+            } else {
+              // Cache is valid — user can work offline, don't block them
+              setAccountError(false);
+            }
           }
         }
       } finally {
@@ -221,7 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchingRef.current = false;
       }
     })();
-  }, [isLoaded, isSignedIn, user, setStoreProfile, getToken, accountLoadTick]);
+  }, [isLoaded, isSignedIn, user, setStoreProfile, getToken, accountLoadTick, applyPendingGoalsIfAny]);
 
   useEffect(() => {
     useModelRatingStore.getState().setRatings(profile?.modelRatings ?? {});
