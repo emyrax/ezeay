@@ -10,8 +10,8 @@ export interface QuickApp {
 }
 
 export const ALL_APPS: QuickApp[] = [
-  { id: "study", icon: "book-open-variant", label: "Study", route: "/(study)" },
-  { id: "notes", icon: "note-outline", label: "My Notes", route: "/(notes)" },
+  { id: "study", icon: "book-open-page-variant", label: "Study", route: "/(study)" },
+  { id: "notes", icon: "notebook-multiple", label: "My Notes", route: "/(notes)" },
   { id: "paddi", icon: "infinity", label: "MY Paddi" },
   { id: "resources", icon: "bank-outline", label: "Resources" },
   { id: "courses", icon: "school-outline", label: "Courses", route: "/(tabs)/quests" },

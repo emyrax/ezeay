@@ -3,6 +3,7 @@ export interface Chapter {
   description: string;
   order: number;
   subtopics: Subtopic[];
+  isPrivate?: boolean;
 }
 
 export interface Subtopic {

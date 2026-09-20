@@ -418,7 +418,12 @@ export const api = {
 
     updateFlags: (
       id: string,
-      data: { pinned?: boolean; favorite?: boolean; isPublic?: boolean },
+      data: {
+        pinned?: boolean;
+        favorite?: boolean;
+        isPublic?: boolean;
+        chapterPrivate?: { order: number; isPrivate: boolean };
+      },
       token: string,
     ) =>
       apiFetch<Course>(`/api/courses/${id}`, {
@@ -482,8 +487,11 @@ export const api = {
     overview: (token: string) =>
       apiFetch<CommunityOverview>(`/api/community/overview`, { token }),
 
-    feed: (token: string, limit = 20) =>
-      apiFetch<CommunityFeed>(`/api/community/feed?limit=${limit}`, { token }),
+    feed: (token: string, limit = 20, includeMine = false) =>
+      apiFetch<CommunityFeed>(
+        `/api/community/feed?limit=${limit}&includeMine=${includeMine ? "1" : "0"}`,
+        { token },
+      ),
 
     feedLike: (courseId: string, token: string) =>
       apiFetch<{ liked: boolean; likeCount: number }>(

@@ -32,6 +32,7 @@ import {
   communityPosts,
   communityPostReactions,
   communityPostComments,
+  courseFeedLikes,
 } from "../db/schema";
 import { generateFallbackBounties } from "./bountyTemplates";
 import { buildCourseGenerationPrompt, buildThumbnailGenerationPrompt } from "./prompts/courseGeneration";
@@ -746,6 +747,7 @@ app.get("/api/community/overview", async (req, res) => {
 interface FeedChapterRaw {
   title?: string;
   subtopics?: { title?: string }[];
+  isPrivate?: boolean;
 }
 
 app.get("/api/community/feed", async (req, res) => {
@@ -754,6 +756,14 @@ app.get("/api/community/feed", async (req, res) => {
     const limitRaw = Number(req.query.limit);
     const limit =
       Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 50) : 20;
+    const includeMine = req.query.includeMine === "1" || req.query.includeMine === "true";
+
+    const whereConds = [
+      eq(courses.isPublic, true),
+      isNotNull(courses.sharedAt),
+      isNull(courses.deletedAt),
+    ];
+    if (!includeMine) whereConds.push(ne(courses.creatorId, claims.sub));
 
     const rows = await db
       .select({
@@ -773,14 +783,7 @@ app.get("/api/community/feed", async (req, res) => {
         sharedAt: courses.sharedAt,
       })
       .from(courses)
-      .where(
-        and(
-          eq(courses.isPublic, true),
-          ne(courses.creatorId, claims.sub),
-          isNotNull(courses.sharedAt),
-          isNull(courses.deletedAt),
-        ),
-      )
+      .where(and(...whereConds))
       .orderBy(desc(courses.sharedAt))
       .limit(limit);
 
@@ -811,16 +814,20 @@ app.get("/api/community/feed", async (req, res) => {
       try {
         const parsed = JSON.parse(row.chapters) as FeedChapterRaw[];
         if (Array.isArray(parsed)) {
-          chapterIndex = parsed.map((ch, ci) => ({
-            title: ch?.title || "",
-            order: ci,
-            subtopics: Array.isArray(ch?.subtopics)
-              ? ch.subtopics.map((sub, si) => ({
-                  title: sub?.title || "",
-                  order: si,
-                }))
-              : [],
-          }));
+          const isOwner = row.creatorId === claims.sub;
+          chapterIndex = parsed
+            .map((ch, ci) => ({ ch, ci }))
+            .filter(({ ch }) => isOwner || !ch?.isPrivate)
+            .map(({ ch, ci }) => ({
+              title: ch?.title || "",
+              order: ci,
+              subtopics: Array.isArray(ch?.subtopics)
+                ? ch.subtopics.map((sub, si) => ({
+                    title: sub?.title || "",
+                    order: si,
+                  }))
+                : [],
+            }));
         }
       } catch {
         // ignore malformed chapters JSON
@@ -839,6 +846,7 @@ app.get("/api/community/feed", async (req, res) => {
         creatorAvatar: row.creatorAvatar,
         thumbnailUrl: row.thumbnailUrl,
         sharedAt: row.sharedAt,
+        isMine: row.creatorId === claims.sub,
         likeCount: likeMap.get(row.id) ?? 0,
         likedByMe: myLikeSet.has(row.id),
         chapterIndex,
@@ -1628,9 +1636,9 @@ app.post("/api/courses/:id/thumbnail", async (req, res) => {
 app.patch("/api/courses/:id", async (req, res) => {
   try {
     const claims = await verifyClerkToken(req.headers.authorization);
-    const { pinned, favorite, isPublic } = req.body;
+    const { pinned, favorite, isPublic, chapterPrivate } = req.body;
 
-    if (pinned === undefined && favorite === undefined && isPublic === undefined) {
+    if (pinned === undefined && favorite === undefined && isPublic === undefined && chapterPrivate === undefined) {
       res.status(400).json({ error: "No fields to update" });
       return;
     }
@@ -1657,6 +1665,25 @@ app.patch("/api/courses/:id", async (req, res) => {
     if (isPublic !== undefined) {
       updateData.isPublic = !!isPublic;
       updateData.sharedAt = isPublic ? new Date() : null;
+    }
+    if (chapterPrivate !== undefined) {
+      const { order, isPrivate } = chapterPrivate as { order: number; isPrivate: boolean };
+      let parsedChapters: Record<string, unknown>[] = [];
+      try {
+        const parsed = JSON.parse(existing.chapters ?? "[]");
+        parsedChapters = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        parsedChapters = [];
+      }
+      if (order < 0 || order >= parsedChapters.length) {
+        res.status(400).json({ error: "Invalid chapter order" });
+        return;
+      }
+      parsedChapters[order] = {
+        ...(parsedChapters[order] ?? {}),
+        isPrivate: !!isPrivate,
+      };
+      updateData.chapters = JSON.stringify(parsedChapters);
     }
 
     const [updated] = await db

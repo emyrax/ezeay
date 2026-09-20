@@ -83,6 +83,8 @@ interface ReelItem {
   subtopicTitle: string;
 }
 
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<ReelItem>);
+
 function flattenFeed(posts: CommunityFeedPost[]): ReelItem[] {
   const items: ReelItem[] = [];
   for (const post of posts) {
@@ -261,6 +263,7 @@ function ReelCard({
   }, []);
 
   const like = useCallback(() => {
+    if (item.post.isMine) return;
     animateHeart();
     bumpRailHeart();
     bumpCount();
@@ -589,31 +592,42 @@ function ReelCard({
       )}
 
       <View style={styles.rail} pointerEvents="box-none">
-        <BlurView intensity={72} tint="dark" style={styles.railPill}>
-          <Pressable
-            onPress={like}
-            accessibilityRole="button"
-            accessibilityLabel={liked ? "Unlike this course" : "Like this course"}
-          >
-            <Animated.View
-              style={{ transform: [{ scale: railHeartScale }] }}
+        {item.post.isMine ? (
+          <BlurView intensity={72} tint="dark" style={styles.railPill}>
+            <MaterialCommunityIcons
+              name="account-heart-outline"
+              size={26}
+              color="#FFFFFF"
+            />
+            <Text style={[styles.railCount, { color: "#FFFFFF" }]}>You</Text>
+          </BlurView>
+        ) : (
+          <BlurView intensity={72} tint="dark" style={styles.railPill}>
+            <Pressable
+              onPress={like}
+              accessibilityRole="button"
+              accessibilityLabel={liked ? "Unlike this course" : "Like this course"}
             >
-              <MaterialCommunityIcons
-                name={liked ? "heart" : "heart-outline"}
-                size={26}
-                color={liked ? theme.primary : "#FFFFFF"}
-              />
-            </Animated.View>
-          </Pressable>
-          <Animated.Text
-            style={[
-              styles.railCount,
-              { color: "#FFFFFF", transform: [{ scale: countPop }] },
-            ]}
-          >
-            {item.post.likeCount}
-          </Animated.Text>
-        </BlurView>
+              <Animated.View
+                style={{ transform: [{ scale: railHeartScale }] }}
+              >
+                <MaterialCommunityIcons
+                  name={liked ? "heart" : "heart-outline"}
+                  size={26}
+                  color={liked ? theme.primary : "#FFFFFF"}
+                />
+              </Animated.View>
+            </Pressable>
+            <Animated.Text
+              style={[
+                styles.railCount,
+                { color: "#FFFFFF", transform: [{ scale: countPop }] },
+              ]}
+            >
+              {item.post.likeCount}
+            </Animated.Text>
+          </BlurView>
+        )}
 
         <BlurView intensity={72} tint="dark" style={styles.railPill}>
           <View style={styles.railAvatarWrap}>
@@ -836,7 +850,7 @@ export default function ExploreReels({
       return;
     }
     try {
-      const feed = await api.community.feed(token, 20);
+      const feed = await api.community.feed(token, 20, true);
       setPosts(feed.posts);
       setError(null);
     } catch (err) {
@@ -1021,7 +1035,7 @@ export default function ExploreReels({
           <Text
             style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
           >
-            Doom-scroll lessons shared by learners far and wide
+            Doom-scroll lessons from your camp and fellow learners
           </Text>
         </View>
       </View>
@@ -1095,7 +1109,7 @@ export default function ExploreReels({
             <FeedSkeleton height={reelHeight} />
           </View>
         ) : !feedLoading && reelHeight > 0 ? (
-          <FlatList
+          <AnimatedFlatList
             ref={flatListRef}
             data={filtered}
             keyExtractor={(item) => item.key}
@@ -1144,13 +1158,13 @@ export default function ExploreReels({
                       color={theme.textMuted}
                     />
                     <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                      No community courses yet
+                      The camp is quiet
                     </Text>
                     <Text
                       style={[styles.emptyText, { color: theme.textMuted }]}
                     >
-                      Create your first course, share it to the camp, and lessons
-                      from fellow learners will start scrolling through here.
+                      Create your first course and share it — campmates’ lessons
+                      will scroll in here alongside your own.
                     </Text>
                     <TouchableOpacity
                       style={[
