@@ -24,7 +24,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useStudyStore } from "../../store/studyStore";
 import { useStudyQuizStore } from "../../store/studyQuizStore";
 import { useFlashcardStore } from "../../store/flashcardStore";
-import { api } from "../../lib/api";
+import { api, friendlyError } from "../../lib/api";
 import { useModelStore } from "../../store/modelStore";
 import {
   ensureOfflineActivated,
@@ -139,6 +139,11 @@ export default function StudyMaterialScreen() {
       } else {
         router.push(`/(study)/${material.id}/quiz`);
       }
+    } catch (err: any) {
+      Alert.alert(
+        "Quiz generation failed",
+        friendlyError(err, "Could not generate quiz."),
+      );
     } finally {
       setQuizGenerating(false);
     }
@@ -148,10 +153,22 @@ export default function StudyMaterialScreen() {
     if (flashcardsGenerating) return;
     setFlashcardsGenerating(true);
     try {
-      await useFlashcardStore
+      const result = await useFlashcardStore
         .getState()
         .generateForMaterial(material.id, getToken);
-      router.push("/(study)/flashcards");
+      const storeError = useFlashcardStore.getState().error;
+      if (storeError) {
+        Alert.alert("Flashcard generation failed", storeError);
+        return;
+      }
+      if (result) {
+        router.push("/(study)/flashcards");
+      }
+    } catch (err: any) {
+      Alert.alert(
+        "Flashcard generation failed",
+        friendlyError(err, "Could not generate flashcards."),
+      );
     } finally {
       setFlashcardsGenerating(false);
     }

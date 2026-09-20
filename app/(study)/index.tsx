@@ -82,7 +82,7 @@ export default function StudyScreen() {
         filename = `lecture.${ext}`;
       }
       const url = isImage
-        ? await uploadImage(fileUri)
+        ? await uploadImage(fileUri, getToken)
         : await uploadFile(fileUri, filename, mimeType || "application/octet-stream", getToken);
       await processMaterial({ fileUrl: url, fileType, sourceType }, getToken);
     } catch (err: any) {

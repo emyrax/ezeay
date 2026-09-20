@@ -88,6 +88,7 @@ export interface UserProfile {
   learningGoals?: string[];
   onBoarded?: boolean;
   modelRatings?: Record<string, number>;
+  isPro?: boolean;
 }
 
 export interface MappedUser {

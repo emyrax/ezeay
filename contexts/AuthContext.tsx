@@ -31,6 +31,7 @@ export function toProfile(apiProfile: ApiUserProfile): UserProfile {
     learningGoals: apiProfile.learningGoals ?? [] as string[],
     onBoarded: apiProfile.onBoarded ?? false,
     modelRatings: apiProfile.modelRatings ?? {},
+    isPro: apiProfile.isPro ?? false,
     headline: apiProfile.headline ?? undefined,
     bio: apiProfile.bio ?? undefined,
     location: apiProfile.location ?? undefined,
@@ -74,6 +75,7 @@ function buildLocalProfile(clerkId: string, user: NonNullable<ReturnType<typeof 
     courses: [],
     earnedTrophies: [],
     onBoarded: true,
+    isPro: false,
     createdAt: new Date(),
   };
 }

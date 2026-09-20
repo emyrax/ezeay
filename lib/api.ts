@@ -77,6 +77,19 @@ export class ApiError extends Error {
   }
 }
 
+function mergeSignals(
+  existing?: AbortSignal | null,
+  timeout?: AbortSignal | null,
+): AbortSignal | undefined {
+  if (!timeout) return existing ?? undefined;
+  if (!existing) return timeout ?? undefined;
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  existing.addEventListener("abort", onAbort, { once: true });
+  timeout.addEventListener("abort", onAbort, { once: true });
+  return controller.signal;
+}
+
 export function friendlyError(
   err: unknown,
   fallback = "Something went wrong. Please try again.",
@@ -90,9 +103,9 @@ export function friendlyError(
 
 async function apiFetch<T>(
   path: string,
-  options: RequestInit & { token?: string } = {},
+  options: RequestInit & { token?: string; timeoutMs?: number } = {},
 ): Promise<T> {
-  const { token, ...fetchOptions } = options;
+  const { token, timeoutMs, ...fetchOptions } = options;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(fetchOptions.headers as Record<string, string>),
@@ -102,7 +115,12 @@ async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers });
+  const signal = mergeSignals(
+    fetchOptions.signal,
+    timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
+  );
+
+  const res = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers, signal });
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
@@ -122,13 +140,14 @@ export interface FetchJsonOptions {
   body?: unknown;
   token?: string;
   headers?: Record<string, string>;
+  timeoutMs?: number;
 }
 
 export async function fetchJson<T>(
   path: string,
   options: FetchJsonOptions = {},
 ): Promise<T> {
-  const { token, ...fetchOptions } = options;
+  const { token, timeoutMs, ...fetchOptions } = options;
   return apiFetch<T>(path, {
     method: fetchOptions.method ?? "GET",
     body:
@@ -137,6 +156,7 @@ export async function fetchJson<T>(
         : JSON.stringify(fetchOptions.body),
     headers: fetchOptions.headers,
     token,
+    timeoutMs,
   });
 }
 
@@ -280,6 +300,7 @@ export interface ApiUserProfile {
   learningGoals?: string[];
   onBoarded?: boolean;
   modelRatings?: Record<string, number>;
+  isPro?: boolean;
   createdAt: string;
   updatedAt?: string;
   deletedAt?: string;
@@ -381,7 +402,13 @@ export const api = {
     ) =>
       apiFetch<{ bounties: Record<string, unknown>[]; source: string }>(
         `/api/bounties/generate`,
-        { method: "POST", body: JSON.stringify(data), token, headers: aiModelHeaders() },
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+          token,
+          headers: aiModelHeaders(),
+          timeoutMs: 45_000,
+        },
       ),
 
     claim: (
@@ -407,6 +434,7 @@ export const api = {
         body: JSON.stringify(data),
         token,
         headers: aiModelHeaders(),
+        timeoutMs: 60_000,
       }),
 
     generateThumbnail: (courseId: string, prompt: string, token: string) =>
@@ -459,6 +487,12 @@ export const api = {
         body: JSON.stringify(data),
         token,
       }),
+
+    remove: (id: string, token: string) =>
+      apiFetch<void>(`/api/enrollments/${id}`, {
+        method: "DELETE",
+        token,
+      }),
   },
 
   userTrophies: {
@@ -487,15 +521,21 @@ export const api = {
     overview: (token: string) =>
       apiFetch<CommunityOverview>(`/api/community/overview`, { token }),
 
-    feed: (token: string, limit = 20, includeMine = false) =>
+    feed: (token: string, limit = 20, includeMine = false, offset = 0) =>
       apiFetch<CommunityFeed>(
-        `/api/community/feed?limit=${limit}&includeMine=${includeMine ? "1" : "0"}`,
+        `/api/community/feed?limit=${limit}&includeMine=${includeMine ? "1" : "0"}&offset=${offset}`,
         { token },
       ),
 
     feedLike: (courseId: string, token: string) =>
       apiFetch<{ liked: boolean; likeCount: number }>(
         `/api/community/feed/${courseId}/like`,
+        { method: "POST", token },
+      ),
+
+    trackView: (courseId: string, token: string) =>
+      apiFetch<{ viewCount: number }>(
+        `/api/community/feed/${courseId}/view`,
         { method: "POST", token },
       ),
 
@@ -534,6 +574,7 @@ export const api = {
         body: JSON.stringify(data),
         token,
         headers: aiModelHeaders(),
+        timeoutMs: 30_000,
       }),
   },
 

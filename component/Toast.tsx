@@ -78,7 +78,7 @@ export default function Toast() {
   }, [currentToast, opacity, translateY, dismissCurrent]);
 
   useEffect(() => {
-    const unsubClaim = eventBus.on("bounty:claimed", (data: Omit<ToastMessage, "id">) => {
+    const enqueueSuccess = (data: Omit<ToastMessage, "id">) => {
       setQueue((prev) => {
         const newItem: ToastMessage = { ...data, id: ++toastId, type: "success" };
         if (prev.length === 0 && !currentToast) {
@@ -87,7 +87,11 @@ export default function Toast() {
         }
         return [...prev, newItem];
       });
-    });
+    };
+
+    const unsubClaim = eventBus.on("bounty:claimed", enqueueSuccess);
+
+    const unsubSuccess = eventBus.on("toast:success", enqueueSuccess);
 
     const unsubError = eventBus.on("toast:error", (data: { title: string }) => {
       setQueue((prev) => {
@@ -102,6 +106,7 @@ export default function Toast() {
 
     return () => {
       unsubClaim();
+      unsubSuccess();
       unsubError();
     };
   }, [currentToast]);

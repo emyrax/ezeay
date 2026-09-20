@@ -1,15 +1,15 @@
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useCallback, useMemo, useState } from "react";
 import { useRouter, type Href } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "../../contexts/AuthContext";
+import { trophyData } from "../../data/trophies";
+import { useThemeColors } from "../../hooks/useTheme";
+import { useBountyStore } from "../../store/bountyStore";
 import { useCheckInStore } from "../../store/checkInStore";
 import { useSpinStore } from "../../store/spinStore";
-import { useBountyStore } from "../../store/bountyStore";
-import { useUserTrophyStore } from "../../store/userTrophyStore";
 import { useUserStore } from "../../store/userStore";
-import { useAuth } from "../../contexts/AuthContext";
-import { useThemeColors } from "../../hooks/useTheme";
-import { trophyData } from "../../data/trophies";
+import { useUserTrophyStore } from "../../store/userTrophyStore";
 
 const ICON_MAP: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
   rocket: "rocket-launch",
@@ -76,9 +76,7 @@ export default function MissionsSection() {
   const spunToday = spinStore.lastSpinDate === today;
   const hasClaimableBounty = useMemo(
     () =>
-      bounties.some(
-        (b) => b.status === "completed" || b.status === "claimed",
-      ),
+      bounties.some((b) => b.status === "completed" || b.status === "claimed"),
     [bounties],
   );
   const ownCourses = useMemo(() => {
@@ -129,18 +127,20 @@ export default function MissionsSection() {
     },
     {
       key: "bounty",
-      title: "Claim a bounty",
+      title: "Plan your day",
       subtitle: hasClaimableBounty
-        ? "Reward ready in Quests"
-        : "Complete challenges in Quests",
-      icon: "target",
+        ? "Reward ready to claim"
+        : "Complete challenges to earn XP",
+      icon: "calendar-edit",
       done: hasClaimableBounty,
       onPress: () => router.push("/(tabs)/quests" as Href),
     },
     {
       key: "spin",
       title: "Take a spin",
-      subtitle: spunToday ? "Wheel spun for today" : `${spinStore.spinsRemaining} spins left`,
+      subtitle: spunToday
+        ? "Wheel spun for today"
+        : `${spinStore.spinsRemaining} spins left`,
       icon: "rotate-right",
       done: spunToday,
       onPress: () => spinStore.openWheel(),
@@ -148,7 +148,9 @@ export default function MissionsSection() {
     {
       key: "share",
       title: "Share a course",
-      subtitle: sharedCourse ? "Visible in the Camp" : "Teach the camp something",
+      subtitle: sharedCourse
+        ? "Visible in the Camp"
+        : "Teach the camp something",
       icon: "earth",
       done: !!sharedCourse,
       onPress: handleShare,
@@ -162,7 +164,10 @@ export default function MissionsSection() {
     () => ownCourses.filter((c) => c.progress && c.progress >= 100).length,
     [ownCourses],
   );
-  const earnedIds = useMemo(() => new Set(trophies.map((t) => t.trophyId)), [trophies]);
+  const earnedIds = useMemo(
+    () => new Set(trophies.map((t) => t.trophyId)),
+    [trophies],
+  );
 
   const xp = gameProfile?.xp ?? 0;
   const gamingLevel = gameProfile?.gamingLevel ?? 1;
@@ -173,7 +178,13 @@ export default function MissionsSection() {
       .filter((t) => !earnedIds.has(t.id))
       .map((t) => ({
         trophy: t,
-        progress: computeTrophyProgress(t, xp, gamingLevel, completedCourses, streak),
+        progress: computeTrophyProgress(
+          t,
+          xp,
+          gamingLevel,
+          completedCourses,
+          streak,
+        ),
       }))
       .filter((t) => t.progress.percent > 0 && t.progress.percent < 100)
       .sort((a, b) => b.progress.percent - a.progress.percent)[0];
@@ -183,19 +194,33 @@ export default function MissionsSection() {
     <View style={styles.sectionContainer}>
       <View style={styles.headerRow}>
         <View>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>TODAY'S MISSIONS</Text>
-          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            TODAY'S MISSIONS
+          </Text>
+          <Text
+            style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
+          >
             Tiny quests, daily momentum
           </Text>
         </View>
-        <View style={[styles.progressChip, { backgroundColor: theme.primary + "15" }]}>
-          <Text style={[styles.progressChipText, { color: theme.primary }]}>{doneCount}/{missions.length}</Text>
+        <View
+          style={[
+            styles.progressChip,
+            { backgroundColor: theme.primary + "15" },
+          ]}
+        >
+          <Text style={[styles.progressChipText, { color: theme.primary }]}>
+            {doneCount}/{missions.length}
+          </Text>
         </View>
       </View>
 
       <View style={[styles.progressBg, { backgroundColor: theme.border }]}>
         <View
-          style={[styles.progressFill, { width: `${percent}%`, backgroundColor: theme.primary }]}
+          style={[
+            styles.progressFill,
+            { width: `${percent}%`, backgroundColor: theme.primary },
+          ]}
         />
       </View>
 
@@ -232,7 +257,9 @@ export default function MissionsSection() {
               >
                 {mission.title}
               </Text>
-              <Text style={[styles.missionSubtitle, { color: theme.textMuted }]}>
+              <Text
+                style={[styles.missionSubtitle, { color: theme.textMuted }]}
+              >
                 {mission.subtitle}
               </Text>
             </View>
@@ -247,9 +274,15 @@ export default function MissionsSection() {
               ]}
             >
               {mission.done ? (
-                <MaterialCommunityIcons name="check" size={16} color={theme.success} />
+                <MaterialCommunityIcons
+                  name="check"
+                  size={16}
+                  color={theme.success}
+                />
               ) : (
-                <Text style={[styles.missionCtaText, { color: theme.primary }]}>GO</Text>
+                <Text style={[styles.missionCtaText, { color: theme.primary }]}>
+                  GO
+                </Text>
               )}
             </View>
           </TouchableOpacity>
@@ -269,7 +302,9 @@ export default function MissionsSection() {
               color="#FFD700"
             />
             <View style={styles.nextBody}>
-              <Text style={[styles.nextLabel, { color: theme.textMuted }]}>NEXT TROPHY</Text>
+              <Text style={[styles.nextLabel, { color: theme.textMuted }]}>
+                NEXT TROPHY
+              </Text>
               <Text style={[styles.nextName, { color: theme.text }]}>
                 {nextTrophy.trophy.name}
               </Text>
@@ -282,7 +317,10 @@ export default function MissionsSection() {
             <View
               style={[
                 styles.nextBarFill,
-                { width: `${nextTrophy.progress.percent}%`, backgroundColor: theme.primary },
+                {
+                  width: `${nextTrophy.progress.percent}%`,
+                  backgroundColor: theme.primary,
+                },
               ]}
             />
           </View>

@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { useThemeColors } from "../hooks/useTheme";
 import { useCourseStore } from "../store/courseStore";
 import { useAuth } from "../contexts/AuthContext";
+import { useNavLock } from "../lib/guard";
 import { api } from "../lib/api";
 
 interface Props {
@@ -25,6 +26,7 @@ export default function SearchModal({ visible, onClose }: Props) {
   const theme = useThemeColors();
   const router = useRouter();
   const { getToken } = useAuth();
+  const { navigate } = useNavLock();
   const courses = useCourseStore((s) => s.courses);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"courses" | "users">("courses");
@@ -63,13 +65,17 @@ export default function SearchModal({ visible, onClose }: Props) {
   };
 
   const handleCoursePress = (courseId: string) => {
-    onClose();
-    router.push(`/(course)/${courseId}/chapters`);
+    navigate(() => {
+      onClose();
+      router.push(`/(course)/${courseId}/chapters`);
+    });
   };
 
   const handleUserPress = (uid: string) => {
-    onClose();
-    router.push(`/(tabs)/profile?userId=${uid}`);
+    navigate(() => {
+      onClose();
+      router.push(`/(tabs)/profile?userId=${uid}`);
+    });
   };
 
   return (

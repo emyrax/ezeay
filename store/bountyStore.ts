@@ -462,12 +462,13 @@ export const useBountyStore = create<BountyStore>((set, get) => ({
     const now = Date.now();
     const sixHours = 6 * 60 * 60 * 1000;
     const dateSeed = getDateSeed();
-    const token = await getToken();
 
     let bounties: Bounty[] = [];
 
-    if (token) {
-      try {
+    try {
+      const token = await getToken();
+
+      if (token) {
         const result = await api.bounties.generate(
           {
             courses: courses.map((c) => ({
@@ -500,9 +501,9 @@ export const useBountyStore = create<BountyStore>((set, get) => ({
           generatedAt: now,
           expiresAt: now + sixHours,
         }));
-      } catch {
-        // fall through to template fallback
       }
+    } catch (err) {
+      console.error("[BountyStore] forceRegenerate fetch failed:", err);
     }
 
     if (bounties.length === 0) {

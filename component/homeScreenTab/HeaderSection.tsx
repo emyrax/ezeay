@@ -10,6 +10,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { getNextLevel } from "../../data/levels";
 import { useThemeColors } from "../../hooks/useTheme";
 import { getLevelProgress } from "../../services/LevelService";
+import { useNavLock } from "../../lib/guard";
 import { useCheckInStore } from "../../store/checkInStore";
 import { useEnrollmentStore } from "../../store/courseEnrollmentStore";
 import { useCourseStore } from "../../store/courseStore";
@@ -29,6 +30,7 @@ export default function HeaderSection() {
   const profile = useUserStore((s) => s.profile);
   const theme = useThemeColors();
   const router = useRouter();
+  const { navigate } = useNavLock();
   const { getToken } = useAuth();
   const { width } = useWindowDimensions();
   const [showAppManager, setShowAppManager] = useState(false);
@@ -273,7 +275,11 @@ export default function HeaderSection() {
         <TouchableOpacity
           style={styles.continueRow}
           onPress={() =>
-            router.push(`/(course)/${continueCourse.course.id}/chapters` as any)
+            navigate(() =>
+              router.push(
+                `/(course)/${continueCourse.course.id}/chapters` as any,
+              ),
+            )
           }
           activeOpacity={0.7}
         >

@@ -1,30 +1,33 @@
-const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+import { File } from "expo-file-system";
+import { API_BASE } from "./api";
 
-export async function uploadImage(fileUri: string): Promise<string> {
-  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
-    throw new Error("Cloudinary not configured. Set EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME and EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET in .env");
-  }
+export async function uploadImage(
+  fileUri: string,
+  getToken: () => Promise<string | null>,
+): Promise<string> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
 
-  const formData = new FormData();
   const filename = fileUri.split("/").pop() || "upload.jpg";
   const match = /\.(\w+)$/.exec(filename);
-  const type = match ? `image/${match[1]}` : "image/jpeg";
+  const mimeType = match ? `image/${match[1].toLowerCase()}` : "image/jpeg";
 
-  formData.append("file", { uri: fileUri, name: filename, type } as any);
-  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  const base64 = await new File(fileUri).base64();
 
-  const response = await fetch(CLOUDINARY_URL, {
+  const res = await fetch(`${API_BASE}/api/uploads/cloudinary`, {
     method: "POST",
-    body: formData,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ base64, mimeType }),
   });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Cloudinary upload failed (${response.status}): ${text}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Upload failed" }));
+    throw new Error(body.error || `HTTP ${res.status}`);
   }
 
-  const data = await response.json();
+  const data = await res.json();
   return data.secure_url as string;
 }

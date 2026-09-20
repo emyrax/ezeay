@@ -10,6 +10,7 @@ import { verifyToken } from "@clerk/backend";
 import { neon, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq, and, or, inArray, gte, desc, asc, isNull, isNotNull, ne, sql as drizzleSql, count, sum, gt } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { initGemini, generateCourseContent, generateJsonContent, generateQuizQuestions, generateDailyBounties, generateThumbnailImage, generateTextWithFile, generateEmbedding } from "../lib/gemini";
 import type { GeminiBounty } from "../lib/gemini";
 import { AI_MODEL_DEFAULT, getModelOption, isModelAllowed, parseModelRef } from "../lib/providers/modelRegistry";
@@ -200,6 +201,7 @@ type UserRow = {
   learningGoals: string;
   onBoarded: boolean;
   modelRatings: string;
+  isPro: boolean;
   headline: string | null;
   bio: string | null;
   location: string | null;
@@ -274,6 +276,7 @@ function mapUser(row: UserRow) {
     learningGoals,
     onBoarded: row.onBoarded ?? false,
     modelRatings,
+    isPro: row.isPro ?? false,
     headline: row.headline ?? undefined,
     bio: row.bio ?? undefined,
     location: row.location ?? undefined,
@@ -423,6 +426,7 @@ app.post("/api/users", async (req, res) => {
       nextLevelXp: nextLevelXp,
       courses: JSON.stringify(body.courses ?? []),
       earnedTrophies: JSON.stringify(body.earnedTrophies ?? []),
+      isPro: body.isPro ?? false,
       status: "active" as const,
       createdAt: now,
     };
@@ -471,6 +475,7 @@ app.put("/api/users/:id", async (req, res) => {
     if (body.learningGoals !== undefined) updateData.learningGoals = JSON.stringify(body.learningGoals);
     if (body.onBoarded !== undefined) updateData.onBoarded = body.onBoarded;
     if (body.modelRatings !== undefined) updateData.modelRatings = JSON.stringify(body.modelRatings);
+    if (body.isPro !== undefined) updateData.isPro = Boolean(body.isPro);
     if (body.headline !== undefined) updateData.headline = body.headline || null;
     if (body.bio !== undefined) updateData.bio = body.bio || null;
     if (body.location !== undefined) updateData.location = body.location || null;
@@ -757,13 +762,30 @@ app.get("/api/community/feed", async (req, res) => {
     const limit =
       Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 50) : 20;
     const includeMine = req.query.includeMine === "1" || req.query.includeMine === "true";
+    const offsetRaw = Number(req.query.offset);
+    const offset =
+      Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
+    const whereConds: (SQL | undefined)[] = [];
 
-    const whereConds = [
-      eq(courses.isPublic, true),
-      isNotNull(courses.sharedAt),
-      isNull(courses.deletedAt),
-    ];
-    if (!includeMine) whereConds.push(ne(courses.creatorId, claims.sub));
+    if (includeMine) {
+      whereConds.push(
+        or(
+          eq(courses.creatorId, claims.sub),
+          and(
+            eq(courses.isPublic, true),
+            isNotNull(courses.sharedAt),
+            isNull(courses.deletedAt),
+          ),
+        ),
+      );
+    } else {
+      whereConds.push(
+        ne(courses.creatorId, claims.sub),
+        eq(courses.isPublic, true),
+        isNotNull(courses.sharedAt),
+        isNull(courses.deletedAt),
+      );
+    }
 
     const rows = await db
       .select({
@@ -781,10 +803,12 @@ app.get("/api/community/feed", async (req, res) => {
         thumbnailUrl: courses.thumbnailUrl,
         chapters: courses.chapters,
         sharedAt: courses.sharedAt,
+        views: courses.views,
       })
       .from(courses)
       .where(and(...whereConds))
       .orderBy(desc(courses.sharedAt))
+      .offset(offset)
       .limit(limit);
 
     const courseIds = rows.map((r) => r.id);
@@ -810,7 +834,7 @@ app.get("/api/community/feed", async (req, res) => {
     const myLikeSet = new Set(myLikeRows.map((r) => r.courseId));
 
     const posts = rows.map((row) => {
-      let chapterIndex: { title: string; order: number; subtopics: { title: string; order: number }[] }[] = [];
+      let chapterIndex: { title: string; order: number; isPrivate: boolean; subtopics: { title: string; order: number }[] }[] = [];
       try {
         const parsed = JSON.parse(row.chapters) as FeedChapterRaw[];
         if (Array.isArray(parsed)) {
@@ -821,6 +845,7 @@ app.get("/api/community/feed", async (req, res) => {
             .map(({ ch, ci }) => ({
               title: ch?.title || "",
               order: ci,
+              isPrivate: !!ch?.isPrivate,
               subtopics: Array.isArray(ch?.subtopics)
                 ? ch.subtopics.map((sub, si) => ({
                     title: sub?.title || "",
@@ -849,11 +874,12 @@ app.get("/api/community/feed", async (req, res) => {
         isMine: row.creatorId === claims.sub,
         likeCount: likeMap.get(row.id) ?? 0,
         likedByMe: myLikeSet.has(row.id),
+        viewCount: row.views ?? 0,
         chapterIndex,
       };
     });
 
-    res.json({ posts, refreshedAt: new Date().toISOString() });
+    res.json({ posts, refreshedAt: new Date().toISOString(), hasMore: rows.length === limit });
   } catch (err: any) {
     if (isTokenError(err)) {
       res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
@@ -922,6 +948,50 @@ app.post("/api/community/feed/:id/like", async (req, res) => {
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/feed/:id/like failed");
+  }
+});
+
+app.post("/api/community/feed/:id/view", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const courseId = req.params.id as string;
+
+    const course = await db
+      .select({ id: courses.id })
+      .from(courses)
+      .where(
+        and(
+          eq(courses.id, courseId),
+          eq(courses.isPublic, true),
+          isNotNull(courses.sharedAt),
+          isNull(courses.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (course.length === 0) {
+      res.status(404).json({ error: "Course not found or not in the feed" });
+      return;
+    }
+
+    await db
+      .update(courses)
+      .set({ views: drizzleSql`${courses.views} + 1` })
+      .where(eq(courses.id, courseId));
+
+    const updated = await db
+      .select({ views: courses.views })
+      .from(courses)
+      .where(eq(courses.id, courseId))
+      .limit(1);
+
+    res.json({ viewCount: Number(updated[0]?.views ?? 0) });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/feed/:id/view failed");
   }
 });
 
@@ -1490,6 +1560,65 @@ app.post("/api/courses/generate", async (req, res) => {
       return;
     }
 
+    const recentCutoff = new Date(Date.now() - 2 * 60 * 1000);
+    const [recent] = await db
+      .select()
+      .from(courses)
+      .where(
+        and(
+          eq(courses.creatorId, userId),
+          eq(courses.description, body.description),
+          gte(courses.createdAt, recentCutoff),
+          isNull(courses.deletedAt),
+        ),
+      )
+      .orderBy(desc(courses.createdAt))
+      .limit(1);
+
+    const existing = recent ?? null;
+    if (existing) {
+      let chapters: unknown[] = [];
+      try {
+        chapters = typeof existing.chapters === "string"
+          ? JSON.parse(existing.chapters)
+          : (existing.chapters as unknown[]) ?? [];
+      } catch {
+        chapters = [];
+      }
+      console.debug(`[Server] POST /api/courses/generate — reused existing ${existing.id}`);
+      res.status(200).json({
+        courseTitle: existing.title,
+        courseDescription: existing.description,
+        reused: true,
+        course: {
+          id: existing.id,
+          title: existing.title,
+          description: existing.description,
+          category: existing.category,
+          difficulty: existing.difficulty,
+          totalChapters: existing.totalChapters,
+          rewardXp: existing.rewardXp,
+          icon: existing.icon,
+          creatorId: existing.creatorId,
+          creatorName: existing.creatorName,
+          creatorAvatar: existing.creatorAvatar,
+          chapters,
+          thumbnailPrompt: existing.thumbnailPrompt,
+          thumbnailUrl: undefined,
+          isPublic: !!existing.isPublic,
+          sharedAt: existing.sharedAt
+            ? (existing.sharedAt?.toISOString?.() ?? String(existing.sharedAt))
+            : undefined,
+          createdAt: existing.createdAt
+            ? (existing.createdAt?.toISOString?.() ?? String(existing.createdAt))
+            : undefined,
+        },
+        chapters,
+        thumbnailPrompt: existing.thumbnailPrompt,
+      });
+      return;
+    }
+
     const prompt = buildCourseGenerationPrompt({
       prompt: body.prompt || body.title,
       title: body.title,
@@ -1523,6 +1652,8 @@ app.post("/api/courses/generate", async (req, res) => {
       chapters: JSON.stringify(chapters),
       thumbnailUrl: null,
       thumbnailPrompt,
+      isPublic: true,
+      sharedAt: now,
       createdAt: now,
     };
 
@@ -1561,6 +1692,8 @@ app.post("/api/courses/generate", async (req, res) => {
         chapters,
         thumbnailPrompt,
         thumbnailUrl: undefined,
+        isPublic: true,
+        sharedAt: now.toISOString(),
         createdAt: now.toISOString(),
       },
       chapters,
@@ -1739,7 +1872,10 @@ app.delete("/api/courses/:id", async (req, res) => {
   }
 });
 
-async function uploadToCloudinary(base64: string): Promise<string> {
+async function uploadToCloudinary(
+  base64: string,
+  mimeType = "image/png",
+): Promise<string> {
   const cloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
   const uploadPreset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
@@ -1748,7 +1884,7 @@ async function uploadToCloudinary(base64: string): Promise<string> {
   }
 
   const formData = new URLSearchParams();
-  formData.append("file", `data:image/png;base64,${base64}`);
+  formData.append("file", `data:${mimeType};base64,${base64}`);
   formData.append("upload_preset", uploadPreset);
 
   const res = await fetch(
@@ -1759,6 +1895,30 @@ async function uploadToCloudinary(base64: string): Promise<string> {
   const data = await res.json();
   return data.secure_url;
 }
+
+app.post("/api/uploads/cloudinary", async (req, res) => {
+  try {
+    await verifyClerkToken(req.headers.authorization);
+    const { base64, mimeType } = req.body ?? {};
+
+    if (!base64 || typeof base64 !== "string") {
+      res.status(400).json({ error: "Missing required field: base64" });
+      return;
+    }
+
+    const secure_url = await uploadToCloudinary(
+      base64,
+      typeof mimeType === "string" && mimeType ? mimeType : undefined,
+    );
+    res.json({ secure_url });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/uploads/cloudinary failed");
+  }
+});
 
 // --- Subtopic Quiz Generation Route ---
 
@@ -1831,6 +1991,22 @@ app.post("/api/enrollments", async (req, res) => {
       return;
     }
 
+    const [existingEnrollment] = await db
+      .select()
+      .from(courseEnrollments)
+      .where(
+        and(
+          eq(courseEnrollments.userId, body.userId),
+          eq(courseEnrollments.courseId, body.courseId),
+        ),
+      )
+      .limit(1);
+
+    if (existingEnrollment) {
+      res.status(200).json(existingEnrollment);
+      return;
+    }
+
     const id = `enr_${body.userId}_${body.courseId}_${Date.now()}`;
     const now = new Date();
 
@@ -1853,6 +2029,22 @@ app.post("/api/enrollments", async (req, res) => {
     if (isTokenError(err)) {
       res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
       return;
+    }
+    if (err?.code === "23505") {
+      const [existing] = await db
+        .select()
+        .from(courseEnrollments)
+        .where(
+          and(
+            eq(courseEnrollments.userId, req.body?.userId),
+            eq(courseEnrollments.courseId, req.body?.courseId),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        res.status(200).json(existing);
+        return;
+      }
     }
     sendRouteError(res, err, "[Server] POST /api/enrollments failed");
   }
@@ -1901,6 +2093,41 @@ app.put("/api/enrollments/:id", async (req, res) => {
       return;
     }
     sendRouteError(res, err, "[Server] PUT /api/enrollments/:id failed");
+  }
+});
+
+app.delete("/api/enrollments/:id", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+
+    const [existing] = await db
+      .select({ userId: courseEnrollments.userId })
+      .from(courseEnrollments)
+      .where(eq(courseEnrollments.id, req.params.id))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ error: "Enrollment not found" });
+      return;
+    }
+
+    if (existing.userId !== claims.sub) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    await db
+      .delete(courseEnrollments)
+      .where(eq(courseEnrollments.id, req.params.id));
+
+    console.debug(`[Server] DELETE /api/enrollments/${req.params.id} — deleted`);
+    res.status(204).end();
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      return;
+    }
+    sendRouteError(res, err, "[Server] DELETE /api/enrollments/:id failed");
   }
 });
 

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -54,9 +55,16 @@ export default function StudyQuizScreen() {
   }, [material, storeQuestions, storeMaterialId, materialId]);
 
   const handleGenerate = async () => {
-    await generateQuiz(materialId ?? "", getToken);
-    if (!useStudyQuizStore.getState().error) {
-      setResults(null);
+    try {
+      await generateQuiz(materialId ?? "", getToken);
+      if (!useStudyQuizStore.getState().error) {
+        setResults(null);
+      }
+    } catch (err: any) {
+      Alert.alert(
+        "Quiz generation failed",
+        err?.message || "Could not generate quiz questions. Try again.",
+      );
     }
   };
 

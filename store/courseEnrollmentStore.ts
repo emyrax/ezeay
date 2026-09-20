@@ -10,6 +10,8 @@ import type { CourseEnrollment } from "../types/courseEnrollment";
 
 const ENROLLMENT_STORAGE_KEY = "@yuinx_enrollments_v1";
 
+const completionLocks = new Set<string>();
+
 interface EnrollmentStore {
   enrollments: CourseEnrollment[];
   loaded: boolean;
@@ -32,6 +34,10 @@ interface EnrollmentStore {
     getToken: () => Promise<string | null>,
   ) => Promise<{ success: boolean; error?: string }>;
   complete: (
+    enrollmentId: string,
+    getToken: () => Promise<string | null>,
+  ) => Promise<{ success: boolean; error?: string }>;
+  unenroll: (
     enrollmentId: string,
     getToken: () => Promise<string | null>,
   ) => Promise<{ success: boolean; error?: string }>;
@@ -88,6 +94,11 @@ export const useEnrollmentStore = create<EnrollmentStore>((set, get) => ({
   },
 
   enroll: async (userId, courseId, getToken) => {
+    const existing = get().enrollments.find(
+      (e) => e.courseId === courseId && e.userId === userId,
+    );
+    if (existing) return { success: true };
+
     const token = await getToken();
     if (!token) return { success: false, error: "Not authenticated" };
 
@@ -97,11 +108,15 @@ export const useEnrollmentStore = create<EnrollmentStore>((set, get) => ({
         token,
       );
 
-      set((state) => ({
-        enrollments: [...state.enrollments, enrollment],
-      }));
+      set((state) => {
+        const alreadyPresent = state.enrollments.some(
+          (e) => e.id === enrollment.id || (e.courseId === courseId && e.userId === userId),
+        );
+        if (alreadyPresent) return state;
+        return { enrollments: [...state.enrollments, enrollment] };
+      });
 
-      const updated = [...get().enrollments, enrollment];
+      const updated = get().enrollments;
       await AsyncStorage.setItem(ENROLLMENT_STORAGE_KEY, JSON.stringify(updated));
 
       return { success: true };
@@ -140,13 +155,18 @@ export const useEnrollmentStore = create<EnrollmentStore>((set, get) => ({
   },
 
   complete: async (enrollmentId, getToken) => {
+    if (completionLocks.has(enrollmentId)) {
+      return { success: true };
+    }
     const token = await getToken();
     if (!token) return { success: false, error: "Not authenticated" };
 
-    try {
-      const enrollment = get().enrollments.find((e) => e.id === enrollmentId);
-      if (!enrollment) return { success: false, error: "Enrollment not found" };
+    const enrollment = get().enrollments.find((e) => e.id === enrollmentId);
+    if (!enrollment) return { success: false, error: "Enrollment not found" };
+    if (enrollment.isCompleted) return { success: true };
 
+    completionLocks.add(enrollmentId);
+    try {
       await api.enrollments.update(
         enrollmentId,
         { isCompleted: true, progress: 1 },
@@ -189,6 +209,28 @@ export const useEnrollmentStore = create<EnrollmentStore>((set, get) => ({
     } catch (err) {
       console.error("[EnrollmentStore] complete failed:", err);
       return { success: false, error: "Failed to mark complete." };
+    } finally {
+      completionLocks.delete(enrollmentId);
+    }
+  },
+
+  unenroll: async (enrollmentId, getToken) => {
+    const token = await getToken();
+    if (!token) return { success: false, error: "Not authenticated" };
+
+    try {
+      await api.enrollments.remove(enrollmentId, token);
+
+      set((state) => ({
+        enrollments: state.enrollments.filter((e) => e.id !== enrollmentId),
+      }));
+
+      await AsyncStorage.setItem(ENROLLMENT_STORAGE_KEY, JSON.stringify(get().enrollments));
+
+      return { success: true };
+    } catch (err) {
+      console.error("[EnrollmentStore] unenroll failed:", err);
+      return { success: false, error: "Failed to un-enroll." };
     }
   },
 

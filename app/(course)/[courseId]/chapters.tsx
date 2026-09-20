@@ -12,6 +12,7 @@ import { useCourseStore } from "../../../store/courseStore";
 import { useProgressStore } from "../../../store/courseProgressStore";
 import { useThemeColors } from "../../../hooks/useTheme";
 import { useAuth } from "../../../contexts/AuthContext";
+import { useNavLock } from "../../../lib/guard";
 import ErrorBoundary from "../../../component/ErrorBoundary";
 import ChapterBottomSheet from "../../../component/ChapterBottomSheet";
 import type { Chapter } from "../../../types/chapter";
@@ -61,6 +62,7 @@ export default function CourseChaptersScreen() {
   const theme = useThemeColors();
   const router = useRouter();
   const { profile, getToken } = useAuth();
+  const { navigate } = useNavLock();
   const course = useCourseStore((s) => s.getCourseById(courseId ?? ""));
   const loaded = useCourseStore((s) => s.loaded);
   const loading = useCourseStore((s) => s.loading);
@@ -139,7 +141,9 @@ export default function CourseChaptersScreen() {
   }, [firstIncompleteIndex, chapters.length]);
 
   const handleChapterPress = (originalIndex: number) => {
-    router.push(`/(course)/${courseId}/chapter/${originalIndex}`);
+    navigate(() =>
+      router.push(`/(course)/${courseId}/chapter/${originalIndex}`),
+    );
   };
 
   const handleLongPress = (chapter: Chapter, index: number) => {

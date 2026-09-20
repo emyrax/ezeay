@@ -221,7 +221,7 @@ export default function ProfileScreen() {
       setUploading(true);
       try {
         const { uploadImage } = await import("../../lib/cloudinary");
-        const downloadURL = await uploadImage(result.assets[0].uri);
+        const downloadURL = await uploadImage(result.assets[0].uri, getToken);
         const token = await getToken();
         await api.users.update(user.uid, { photoURL: downloadURL }, token!);
         const currentProfile = useUserStore.getState().profile;
@@ -629,7 +629,7 @@ export default function ProfileScreen() {
           </View>
 
           <Text style={[pfStyles.versionText, { color: theme.textMuted }]}>Version 1.0.0</Text>
-          <View style={{ height: 40 }} />
+          <View style={{ height: 80 }} />
           </>
           )}
         </ScrollView>

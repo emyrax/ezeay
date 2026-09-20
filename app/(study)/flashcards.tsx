@@ -19,7 +19,7 @@ export default function FlashcardsScreen() {
   const theme = useThemeColors();
   const router = useRouter();
   const { getToken } = useAuth();
-  const { cards, loading, fetchCards } = useFlashcardStore();
+  const { cards, loading, error, fetchCards, clearError } = useFlashcardStore();
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -85,7 +85,21 @@ export default function FlashcardsScreen() {
         keyExtractor={([title]) => title}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
-          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>DUE FLASHCARDS</Text>
+          <>
+            {error ? (
+              <View style={[styles.errorBanner, { backgroundColor: theme.danger + "15", borderColor: theme.danger }]}>
+                <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
+                <Pressable
+                  onPress={clearError}
+                  hitSlop={8}
+                  style={styles.errorDismiss}
+                >
+                  <MaterialCommunityIcons name="close" size={16} color={theme.danger} />
+                </Pressable>
+              </View>
+            ) : null}
+            <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>DUE FLASHCARDS</Text>
+          </>
         }
         renderItem={({ item }) => {
           const [title, list] = item;
@@ -214,6 +228,28 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     marginBottom: 4,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  errorDismiss: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   groupCard: {
     borderRadius: 16,

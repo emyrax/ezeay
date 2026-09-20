@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
-  GestureResponderEvent,
   Image,
   Modal,
   NativeScrollEvent,
@@ -29,9 +28,11 @@ import ErrorBoundary from "../../component/ErrorBoundary";
 import { images } from "../../constants/images";
 import { useThemeColors } from "../../hooks/useTheme";
 import { useAuth } from "../../contexts/AuthContext";
+import { useNavLock } from "../../lib/guard";
 import { useCourseStore } from "../../store/courseStore";
 import { useEnrollmentStore } from "../../store/courseEnrollmentStore";
 import { useModelStore } from "../../store/modelStore";
+import { api } from "../../lib/api";
 import {
   AI_MODELS,
   AI_PROVIDER_LABELS,
@@ -50,14 +51,18 @@ const DIFFICULTY_OPTIONS: DropdownOption[] = [
   { label: "Advanced", value: "Advanced", locked: true },
 ];
 
+function normalizeCategory(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 export default function QuestsScreen() {
   const { profile, getToken, updateProfile } = useAuth();
   const theme = useThemeColors();
   const router = useRouter();
+  const { navigate } = useNavLock();
   const [refreshing, setRefreshing] = useState(false);
   const generateCourse = useCourseStore((s) => s.generateCourse);
   const generating = useCourseStore((s) => s.generating);
-  const myCourses = useCourseStore((s) => s.myCourses);
   const fetchCourses = useCourseStore((s) => s.fetchCourses);
   const courseError = useCourseStore((s) => s.error);
   const togglePin = useCourseStore((s) => s.togglePin);
@@ -75,8 +80,11 @@ export default function QuestsScreen() {
     favorite?: boolean;
   }>(null);
   const lastPressRef = useRef(0);
+  const generateLockRef = useRef(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressRef = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const generatedSectionYRef = useRef(0);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [description, setDescription] = useState("");
@@ -100,7 +108,56 @@ export default function QuestsScreen() {
 
   const userId = profile?.uid ?? "";
   const interests = useMemo(() => profile?.interests ?? [], [profile?.interests]);
-  const userCourses = useMemo(() => myCourses(userId), [myCourses, userId]);
+
+  const allStoredCourses = useCourseStore((s) => s.courses);
+  const getCourseById = useCourseStore((s) => s.getCourseById);
+  const upsertCourse = useCourseStore((s) => s.upsertCourse);
+  const userCourses = useMemo(
+    () =>
+      allStoredCourses
+        .filter(
+          (c) => c.creatorId === userId || c.id.startsWith("generating_"),
+        )
+        .sort((a, b) => {
+          const aPinned = a.pinned ? 1 : 0;
+          const bPinned = b.pinned ? 1 : 0;
+          if (aPinned !== bPinned) return bPinned - aPinned;
+          return (
+            new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+          );
+        }),
+    [allStoredCourses, userId],
+  );
+
+  const enrolledCourses = useMemo(() => {
+    if (!userId) return [];
+    return enrollments
+      .map((e) => allStoredCourses.find((c) => c.id === e.courseId))
+      .filter(
+        (c): c is NonNullable<typeof c> =>
+          !!c &&
+          c.creatorId !== userId &&
+          !c.id.startsWith("generating_") &&
+          (c.chapters?.length ?? 0) > 0,
+      );
+  }, [enrollments, allStoredCourses, userId]);
+
+  useEffect(() => {
+    if (!profile) return;
+    const hydrate = async () => {
+      const token = await getToken();
+      if (!token) return;
+      for (const enrollment of enrollments) {
+        const existing = getCourseById(enrollment.courseId);
+        if (existing && (existing.chapters?.length ?? 0) > 0) continue;
+        api.courses
+          .getById(enrollment.courseId, token)
+          .then((course) => upsertCourse(course))
+          .catch(() => {});
+      }
+    };
+    hydrate();
+  }, [enrollments, profile, getToken, getCourseById, upsertCourse, allStoredCourses]);
 
   const interestOptions = useMemo<DropdownOption[]>(
     () => [
@@ -149,9 +206,15 @@ export default function QuestsScreen() {
     return parts.length > 0 ? parts.join(" · ") : undefined;
   }, []);
 
+  const getEnrollmentForCourse = useCallback(
+    (courseId: string) => enrollments.find((e) => e.courseId === courseId),
+    [enrollments],
+  );
+
   const filterOptions = useMemo<DropdownOption[]>(
     () => [
       { label: "All Interests", value: "all" },
+      { label: "Enrolled", value: "enrolled", icon: "book" },
       { label: "Favourites", value: "favourites", icon: "heart" },
       ...interests.map((i) => ({ label: i, value: i })),
     ],
@@ -167,18 +230,22 @@ export default function QuestsScreen() {
         course.description.toLowerCase().includes(term) ||
         course.category.toLowerCase().includes(term);
       const matchesFavourite = activeFilter !== "favourites" || course.favorite === true;
+      const matchesEnrolled =
+        activeFilter !== "enrolled" || !!getEnrollmentForCourse(course.id);
       const matchesInterest =
         activeFilter === "all" ||
+        activeFilter === "enrolled" ||
         activeFilter === "favourites" ||
-        course.title.toLowerCase().includes(activeFilter.toLowerCase()) ||
-        course.description.toLowerCase().includes(activeFilter.toLowerCase()) ||
-        course.category.toLowerCase().includes(activeFilter.toLowerCase());
-      return matchesSearch && matchesFavourite && matchesInterest;
+        normalizeCategory(course.category) === normalizeCategory(activeFilter);
+      return matchesSearch && matchesFavourite && matchesEnrolled && matchesInterest;
     });
-  }, [userCourses, searchText, activeFilter]);
+  }, [userCourses, searchText, activeFilter, getEnrollmentForCourse]);
 
   const paginatedCourses = filteredCourses.slice(0, visibleCount);
   const hasMore = paginatedCourses.length < filteredCourses.length;
+
+  const isEnrolledFilter = activeFilter === "enrolled";
+  const showEnrolledSection = activeFilter === "all" || isEnrolledFilter;
 
   const handleScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -193,10 +260,9 @@ export default function QuestsScreen() {
     [visibleCount, filteredCourses.length],
   );
 
-  const getEnrollmentForCourse = (courseId: string) =>
-    enrollments.find((e) => e.courseId === courseId);
-
   const handleGenerate = async () => {
+    if (generating) return;
+    if (generateLockRef.current) return;
     if (!description.trim()) {
       Alert.alert("Missing Description", "Please describe what you want to learn.");
       return;
@@ -221,6 +287,8 @@ export default function QuestsScreen() {
         return;
       }
     }
+
+    generateLockRef.current = true;
 
     // Persist a typed category as a new interest when it isn't already one.
     if (showCategoryInput && typedCategory) {
@@ -252,12 +320,21 @@ export default function QuestsScreen() {
     setCustomCategory("");
     setCategory("");
     setAddingCategory(false);
+    setSearchText("");
+    setActiveFilter("all");
+    setVisibleCount(5);
     setShowCreateModal(false);
     generateCourse(input, getToken);
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, generatedSectionYRef.current - 8),
+        animated: true,
+      });
+    }, 120);
   };
 
   const handleCoursePress = (courseId: string) => {
-    router.push(`/(course)/${courseId}/chapters`);
+    navigate(() => router.push(`/(course)/${courseId}/chapters`));
   };
 
   const handleCardPress = (courseId: string) => {
@@ -306,6 +383,12 @@ export default function QuestsScreen() {
   };
 
   useEffect(() => {
+    if (!generating) {
+      generateLockRef.current = false;
+    }
+  }, [generating]);
+
+  useEffect(() => {
     return () => {
       if (navTimerRef.current) clearTimeout(navTimerRef.current);
     };
@@ -331,16 +414,6 @@ export default function QuestsScreen() {
     } catch (err: any) {
       console.error("[Quests] toggleFavorite failed:", err);
     }
-  };
-
-  const handleQuickToggleFavorite = (
-    e: GestureResponderEvent,
-    course: { id: string },
-  ) => {
-    e.stopPropagation();
-    toggleFavorite(course.id, getToken).catch((err: any) => {
-      console.error("[Quests] quick toggleFavorite failed:", err);
-    });
   };
 
   const handleDeleteCourse = () => {
@@ -383,7 +456,9 @@ export default function QuestsScreen() {
   return (
     <ErrorBoundary>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           refreshControl={
@@ -411,8 +486,9 @@ export default function QuestsScreen() {
         <Text style={[styles.sectionTitle, { color: theme.text }]}>My AI Quests</Text>
 
         <TouchableOpacity
-          style={[styles.optionCard, { backgroundColor: theme.surface }]}
+          style={[styles.optionCard, { backgroundColor: theme.surface }, generating && styles.optionCardDisabled]}
           onPress={() => setShowCreateModal(true)}
+          disabled={generating}
           activeOpacity={0.7}
         >
           <View style={styles.optionIconWrap}>
@@ -421,10 +497,14 @@ export default function QuestsScreen() {
           <View style={styles.optionTextWrap}>
             <Text style={styles.optionTitle}>Generate AI Course</Text>
             <Text style={[styles.optionSubtitle, { color: theme.textSecondary }]}>
-              Create a personalized learning quest
+              {generating ? "Generating your course…" : "Create a personalized learning quest"}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
+          {generating ? (
+            <ActivityIndicator size="small" color={theme.accent} />
+          ) : (
+            <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -636,28 +716,39 @@ export default function QuestsScreen() {
           </View>
         </Modal>
 
-        <Text style={styles.coursesTitle}>My AI Generated Courses</Text>
+        {!isEnrolledFilter && (
+          <Text
+            style={styles.coursesTitle}
+            onLayout={(e) => {
+              generatedSectionYRef.current = e.nativeEvent.layout.y;
+            }}
+          >
+            My AI Generated Courses
+          </Text>
+        )}
 
-        {userCourses.length > 0 && (
+        {(userCourses.length > 0 || enrolledCourses.length > 0) && (
           <View style={styles.coursesToolbar}>
-            <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Ionicons name="search" size={16} color={theme.textMuted} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search your courses..."
-                placeholderTextColor={theme.textMuted}
-                value={searchText}
-                onChangeText={(t) => {
-                  setSearchText(t);
-                  setVisibleCount(5);
-                }}
-              />
-              {searchText.length > 0 && (
-                <TouchableOpacity onPress={() => { setSearchText(""); setVisibleCount(5); }} hitSlop={8}>
-                  <Ionicons name="close-circle" size={16} color={theme.textMuted} />
-                </TouchableOpacity>
-              )}
-            </View>
+            {!isEnrolledFilter && (
+              <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Ionicons name="search" size={16} color={theme.textMuted} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search your courses..."
+                  placeholderTextColor={theme.textMuted}
+                  value={searchText}
+                  onChangeText={(t) => {
+                    setSearchText(t);
+                    setVisibleCount(5);
+                  }}
+                />
+                {searchText.length > 0 && (
+                  <TouchableOpacity onPress={() => { setSearchText(""); setVisibleCount(5); }} hitSlop={8}>
+                    <Ionicons name="close-circle" size={16} color={theme.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
             <View style={styles.filterWrap}>
               <DropdownSelect
                 options={filterOptions}
@@ -671,7 +762,7 @@ export default function QuestsScreen() {
           </View>
         )}
 
-        {userCourses.length === 0 && (
+        {!isEnrolledFilter && userCourses.length === 0 && enrolledCourses.length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="rocket-outline" size={48} color={theme.textMuted} />
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
@@ -680,7 +771,7 @@ export default function QuestsScreen() {
           </View>
         )}
 
-        {userCourses.length > 0 && filteredCourses.length === 0 && (
+        {!isEnrolledFilter && userCourses.length > 0 && filteredCourses.length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons
               name={activeFilter === "favourites" ? "heart-outline" : "search-outline"}
@@ -689,7 +780,7 @@ export default function QuestsScreen() {
             />
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
               {activeFilter === "favourites"
-                ? "No favourite courses yet — tap the heart on any course to add it."
+                ? "No favourite courses yet — long-press a course and choose 'Add to favourites'."
                 : "No courses match your search or selected interest."}
             </Text>
           </View>
@@ -701,7 +792,8 @@ export default function QuestsScreen() {
           </View>
         ) : null}
 
-        {paginatedCourses.map((course) => {
+        {!isEnrolledFilter && (
+          <>{paginatedCourses.map((course) => {
           const isGenerating = course.id.startsWith("generating_");
           const enrollment = getEnrollmentForCourse(course.id);
           const progress = enrollment?.progress ?? course.progress ?? 0;
@@ -757,17 +849,11 @@ export default function QuestsScreen() {
                           <Ionicons name="push" size={13} color="#F59E0B" />
                         </View>
                       )}
-                      <Pressable
-                        style={styles.menuIndicator}
-                        hitSlop={10}
-                        onPress={(e) => handleQuickToggleFavorite(e, course)}
-                      >
-                        <Ionicons
-                          name={course.favorite ? "heart" : "heart-outline"}
-                          size={16}
-                          color={course.favorite ? "#FB7185" : theme.textMuted}
-                        />
-                      </Pressable>
+                      {course.favorite && (
+                        <View style={styles.favouriteBadge}>
+                          <Ionicons name="heart" size={13} color="#FB7185" />
+                        </View>
+                      )}
                       <View style={styles.activeBadge}>
                         <Text style={[styles.activeBadgeText, { color: theme.success }]}>
                           {enrollment?.isCompleted ? "Done" : "Active"}
@@ -844,7 +930,120 @@ export default function QuestsScreen() {
               </Text>
             </View>
           )}
-          <View style={{ height: 60 }} />
+          </>
+        )}
+
+          {showEnrolledSection && (enrolledCourses.length > 0 || isEnrolledFilter) && (
+            <>
+              <Text style={styles.coursesTitle}>Enrolled</Text>
+              {isEnrolledFilter && enrolledCourses.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Ionicons name="book-outline" size={48} color={theme.textMuted} />
+                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                    No enrolled courses yet — courses you join from other creators will appear here.
+                  </Text>
+                </View>
+              )}
+              {enrolledCourses.map((course) => {
+                const enrollment = getEnrollmentForCourse(course.id);
+                const progress = enrollment?.progress ?? 0;
+                const chapterCount = course.chapters?.length ?? 0;
+                return (
+                  <GradientOutlineContainer
+                    key={course.id}
+                    gradientColors={
+                      course.difficulty === "Beginner"
+                        ? ["rgba(76, 175, 80, 0.2)", "rgba(6, 182, 212, 0.2)"]
+                        : course.difficulty === "Intermediate"
+                          ? ["rgba(255, 152, 0, 0.2)", "rgba(139, 92, 246, 0.2)"]
+                          : ["rgba(244, 67, 54, 0.2)", "rgba(236, 72, 153, 0.2)"]
+                    }
+                    style={styles.courseCard}
+                  >
+                    <Pressable onPress={() => handleCoursePress(course.id)}>
+                      <View style={styles.courseCardContent}>
+                        <View style={styles.courseInfo}>
+                          <View style={styles.courseTitleRow}>
+                            <Text style={styles.courseTitle} numberOfLines={1}>
+                              {course.title}
+                            </Text>
+                            {course.creatorName && (
+                              <Text
+                                style={[
+                                  styles.metaText,
+                                  { color: theme.textMuted, fontWeight: "600" },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                by {course.creatorName}
+                              </Text>
+                            )}
+                          </View>
+                          <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>
+                            Progress: {Math.round(progress * 100)}%
+                          </Text>
+                          <ProgressBar
+                            progress={progress}
+                            trackColor="#222530"
+                            filledColors={[theme.accent, theme.primary]}
+                            style={styles.progressBar}
+                          />
+                          <View style={styles.courseMeta}>
+                            <MaterialCommunityIcons
+                              name={
+                                course.difficulty === "Beginner"
+                                  ? "sprout"
+                                  : course.difficulty === "Intermediate"
+                                    ? "shield-star"
+                                    : "sword-cross"
+                              }
+                              size={14}
+                              color={
+                                course.difficulty === "Beginner"
+                                  ? theme.success
+                                  : course.difficulty === "Intermediate"
+                                    ? "#F59E0B"
+                                    : "#F44336"
+                              }
+                            />
+                            <Text style={[styles.metaText, { color: theme.textSecondary }]}>
+                              {course.difficulty}
+                            </Text>
+                            <Text
+                              style={[styles.metaText, { marginLeft: 16, color: theme.textSecondary }]}
+                            >
+                              {chapterCount} chapters
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.courseAction}>
+                          <View
+                            style={[styles.courseIconCircle, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+                          >
+                            <Ionicons
+                              name={getCourseIcon(course.category)}
+                              size={28}
+                              color={theme.accent}
+                            />
+                          </View>
+                          <Text style={[styles.continueText, { color: theme.info }]}>
+                            {enrollment?.isCompleted
+                              ? "REVIEW"
+                              : progress > 0
+                                ? "RESUME"
+                                : "START"}
+                          </Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  </GradientOutlineContainer>
+                );
+              })}
+            </>
+          )}
+
+          <View style={{ height: 80 }} />
+
         </ScrollView>
       <Modal
           visible={!!menuCourse}
@@ -989,6 +1188,7 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 14,
   },
+  optionCardDisabled: { opacity: 0.6 },
   optionIconWrap: {
     width: 48,
     height: 48,
@@ -1047,9 +1247,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(6, 182, 212, 0.3)",
     padding: 12,
     marginTop: 12,
+    height: 140,
   },
   textInput: { color: "#FFFFFF", fontSize: 14 },
-  textArea: { height: 50, textAlignVertical: "top" },
+  textArea: { flex: 1, padding: 0, textAlignVertical: "top" },
   categoryInput: { height: 36, padding: 8, borderRadius: 8, fontSize: 13 },
   configRow: {
     flexDirection: "row",
@@ -1184,6 +1385,20 @@ const styles = StyleSheet.create({
   courseTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "700", flex: 1 },
   menuIndicator: {
     marginLeft: 6,
+  },
+  favouriteBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginLeft: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(251, 113, 133, 0.14)",
+    shadowColor: "#FB7185",
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
   },
   activeBadge: {
     backgroundColor: "rgba(16, 185, 129, 0.15)",

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api } from "../lib/api";
+import { api, friendlyError } from "../lib/api";
 import type { StudyQuiz } from "../types/study";
 import { useModelStore } from "../store/modelStore";
 import {
@@ -81,10 +81,13 @@ export const useStudyQuizStore = create<StudyQuizStore>((set) => ({
       return;
     }
 
-    const token = await getToken();
-    if (!token) return;
     set({ loading: true, error: null });
     try {
+      const token = await getToken();
+      if (!token) {
+        set({ loading: false, error: "Not authenticated" });
+        return;
+      }
       const res = await api.study.generateQuiz(materialId, token);
       const questions = Array.isArray(res?.questions) ? res.questions : [];
       if (questions.length === 0) {
@@ -95,9 +98,9 @@ export const useStudyQuizStore = create<StudyQuizStore>((set) => ({
         return;
       }
       set({ questions, materialId, loading: false, error: null });
-    } catch (err: any) {
+    } catch (err) {
       console.error("[StudyQuizStore] generate failed:", err);
-      set({ loading: false, error: err.message || "Quiz generation failed" });
+      set({ loading: false, error: friendlyError(err, "Quiz generation failed") });
     }
   },
 

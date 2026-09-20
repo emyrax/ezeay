@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { api } from "../lib/api";
+import { api, friendlyError } from "../lib/api";
 import type { StudyMaterial, StudyBite, StudyQuiz, QuizResult } from "../types/study";
 
 const STUDY_STORAGE_KEY = "@yuinx_study_v1";
@@ -99,17 +99,17 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
       materials: [placeholder, ...state.materials],
     }));
 
-    const token = await getToken();
-    if (!token) {
-      set((state) => ({
-        materials: state.materials.filter((m) => m.id !== placeholder.id),
-        processing: false,
-        error: "Not authenticated",
-      }));
-      return null;
-    }
-
     try {
+      const token = await getToken();
+      if (!token) {
+        set((state) => ({
+          materials: state.materials.filter((m) => m.id !== placeholder.id),
+          processing: false,
+          error: "Not authenticated",
+        }));
+        return null;
+      }
+
       const result = await api.study.process(data, token);
       const normalized = normalizeMaterial(result);
 
@@ -129,7 +129,7 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
       set((state) => ({
         materials: state.materials.filter((m) => m.id !== placeholder.id),
         processing: false,
-        error: err.message || "Failed to process material",
+        error: friendlyError(err, "Failed to process material"),
       }));
       return null;
     }

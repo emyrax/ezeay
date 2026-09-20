@@ -1,5 +1,4 @@
 import { BlurView } from "expo-blur";
-import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -13,6 +12,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -25,7 +25,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { useThemeColors } from "../hooks/useTheme";
 import { api } from "../lib/api";
 import { useCourseStore } from "../store/courseStore";
+import { useEnrollmentStore } from "../store/courseEnrollmentStore";
+import { useProgressStore } from "../store/courseProgressStore";
 import type { Chapter } from "../types/chapter";
+import type { Course } from "../types/course";
 import type { CommunityFeedPost } from "../types/community";
 import CommunityAvatar from "./CommunityAvatar";
 
@@ -34,6 +37,10 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   Intermediate: "#FF9800",
   Advanced: "#F44336",
 };
+
+const FEED_PAGE_SIZE = 5;
+
+const FEED_SKELETON_FALLBACK = 440;
 
 const REEL_GRADIENTS: { colors: [string, string, string] }[] = [
   { colors: ["#312E81", "#1E1B4B", "#0F0A2E"] },
@@ -62,6 +69,12 @@ function formatSharedAt(value: string): string {
   return `${Math.floor(diff / (24 * 60 * 60 * 1000))}d ago`;
 }
 
+function formatCount(value: number): string {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+  return String(value);
+}
+
 function parseChapters(raw: unknown): Chapter[] {
   if (Array.isArray(raw)) return raw as Chapter[];
   if (typeof raw === "string") {
@@ -79,6 +92,7 @@ interface ReelItem {
   post: CommunityFeedPost;
   chapterOrder: number;
   chapterTitle: string;
+  isPrivate: boolean;
   subtopicOrder: number;
   subtopicTitle: string;
 }
@@ -93,10 +107,11 @@ function flattenFeed(posts: CommunityFeedPost[]): ReelItem[] {
         items.push({
           key: `${post.id}_${ci}_${si}`,
           post,
-          chapterOrder: ci,
-          chapterTitle: chapter.title || `Chapter ${ci + 1}`,
-          subtopicOrder: si,
-          subtopicTitle: sub.title || `Subtopic ${si + 1}`,
+          chapterOrder: chapter.order,
+          chapterTitle: chapter.title,
+          isPrivate: !!chapter.isPrivate,
+          subtopicOrder: sub.order,
+          subtopicTitle: sub.title,
         });
       });
     });
@@ -106,24 +121,25 @@ function flattenFeed(posts: CommunityFeedPost[]): ReelItem[] {
 
 function ReelCard({
   item,
-  openingId,
+  disabled,
   onOpenChapter,
   onLike,
-  scrollY,
-  reelHeight,
-  itemIndex,
+  onShare,
+  onToggleEnroll,
+  enrolled,
+  completed,
 }: {
   item: ReelItem;
-  openingId: string | null;
+  disabled?: boolean;
   onOpenChapter: (item: ReelItem) => void;
   onLike: (item: ReelItem) => void;
-  scrollY: Animated.Value;
-  reelHeight: number;
-  itemIndex: number;
+  onShare: (item: ReelItem) => void;
+  onToggleEnroll: (item: ReelItem, enrolled: boolean) => void;
+  enrolled: boolean;
+  completed: boolean;
 }) {
   const theme = useThemeColors();
   const course = useCourseStore((s) => s.getCourseById(item.post.id));
-  const open = openingId === item.key;
   const liked = item.post.likedByMe;
 
   const chapters = useMemo(
@@ -133,7 +149,6 @@ function ReelCard({
   const chapter = chapters[item.chapterOrder];
   const subtopic = chapter?.subtopics?.[item.subtopicOrder];
   const content = subtopic?.content;
-  const chapterSubtopics = chapter?.subtopics?.length ?? 0;
 
   const difficultyColor = DIFFICULTY_COLORS[item.post.difficulty] || "#888";
   const gradientColors = pickReelGradient(item.post);
@@ -142,20 +157,19 @@ function ReelCard({
     0,
   );
 
-  const scaleAnim = useRef(new Animated.Value(1)).current;
   const heartScale = useRef(new Animated.Value(0)).current;
   const heartOpacity = useRef(new Animated.Value(0)).current;
   const railHeartScale = useRef(new Animated.Value(1)).current;
   const countPop = useRef(new Animated.Value(1)).current;
+  const shareScale = useRef(new Animated.Value(1)).current;
+  const bookmarkScale = useRef(new Animated.Value(1)).current;
   const ringPulse = useRef(new Animated.Value(0)).current;
   const [bursts, setBursts] = useState<
     { id: number; x: number; anim: Animated.Value }[]
   >([]);
-  const [actionsOpen, setActionsOpen] = useState(false);
   const burstSeq = useRef(0);
   const lastTap = useRef<number | null>(null);
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const actionsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
@@ -182,7 +196,6 @@ function ReelCard({
     return () => {
       loop.stop();
       ringPulse.setValue(0);
-      if (actionsTimer.current) clearTimeout(actionsTimer.current);
     };
   }, [ringPulse]);
 
@@ -272,48 +285,54 @@ function ReelCard({
     onLike(item);
   }, [animateHeart, bumpRailHeart, bumpCount, spawnBurst, buzz, item, onLike]);
 
-  const closeActions = useCallback(() => {
-    if (actionsTimer.current) clearTimeout(actionsTimer.current);
-    setActionsOpen(false);
-  }, []);
+  const bumpShare = useCallback(() => {
+    shareScale.setValue(1);
+    Animated.sequence([
+      Animated.spring(shareScale, {
+        toValue: 1.3,
+        friction: 4,
+        useNativeDriver: true,
+      }),
+      Animated.spring(shareScale, {
+        toValue: 1,
+        friction: 5,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [shareScale]);
 
-  const openActions = useCallback(() => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-    }
-    setActionsOpen(true);
-    if (actionsTimer.current) clearTimeout(actionsTimer.current);
-    actionsTimer.current = setTimeout(() => setActionsOpen(false), 2600);
-  }, []);
+  const bumpBookmark = useCallback(() => {
+    bookmarkScale.setValue(1);
+    Animated.sequence([
+      Animated.spring(bookmarkScale, {
+        toValue: 1.3,
+        friction: 4,
+        useNativeDriver: true,
+      }),
+      Animated.spring(bookmarkScale, {
+        toValue: 1,
+        friction: 5,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [bookmarkScale]);
 
-  const runAction = useCallback(
-    async (action: "open" | "copy") => {
-      closeActions();
-      if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      }
-      if (action === "open") {
-        onOpenChapter(item);
-        return;
-      }
-      const link = `/(course)/${item.post.id}/chapter/${item.chapterOrder}?subtopic=${item.subtopicOrder}`;
-      try {
-        await Clipboard.setStringAsync(link);
-        Alert.alert("Link copied", link);
-      } catch {
-        Alert.alert("Couldn't copy link", "Please try again.");
-      }
-    },
-    [closeActions, item, onOpenChapter],
-  );
+  const handleShare = useCallback(() => {
+    bumpShare();
+    buzz();
+    onShare(item);
+  }, [bumpShare, buzz, item, onShare]);
+
+  const toggleEnroll = useCallback(() => {
+    bumpBookmark();
+    buzz();
+    onToggleEnroll(item, enrolled);
+  }, [bumpBookmark, buzz, item, onToggleEnroll, enrolled]);
 
   const handlePress = useCallback(() => {
-    if (actionsOpen) {
-      closeActions();
-      return;
-    }
     const now = Date.now();
     const DOUBLE_PRESS_DELAY = 300;
+    if (disabled) return;
     if (lastTap.current && now - lastTap.current < DOUBLE_PRESS_DELAY) {
       // double tap -> like
       if (singleTapTimer.current) {
@@ -331,54 +350,12 @@ function ReelCard({
       singleTapTimer.current = null;
       lastTap.current = null;
     }, DOUBLE_PRESS_DELAY);
-  }, [like, item, onOpenChapter, actionsOpen, closeActions]);
-
-  const pressIn = useCallback(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.98,
-      speed: 40,
-      bounciness: 0,
-      useNativeDriver: true,
-    }).start();
-  }, [scaleAnim]);
-
-  const pressOut = useCallback(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      speed: 30,
-      bounciness: 6,
-      useNativeDriver: true,
-    }).start();
-  }, [scaleAnim]);
-
-  const scrollScale = useMemo(() => {
-    if (!reelHeight) return null;
-    const mid = itemIndex * reelHeight;
-    return scrollY.interpolate({
-      inputRange: [mid - reelHeight, mid, mid + reelHeight],
-      outputRange: [0.965, 1, 0.965],
-      extrapolate: "clamp",
-    });
-  }, [reelHeight, itemIndex, scrollY]);
-
-  const bodyShift = useMemo(() => {
-    if (!reelHeight) return null;
-    const mid = itemIndex * reelHeight;
-    return scrollY.interpolate({
-      inputRange: [mid - reelHeight, mid, mid + reelHeight],
-      outputRange: [-5, 0, 5],
-      extrapolate: "clamp",
-    });
-  }, [reelHeight, itemIndex, scrollY]);
+  }, [disabled, like, item, onOpenChapter]);
 
   return (
     <View style={{ flex: 1 }}>
       <Pressable
         onPress={handlePress}
-        onLongPress={openActions}
-        onPressIn={pressIn}
-        onPressOut={pressOut}
-        delayLongPress={400}
         style={{ flex: 1 }}
         android_ripple={{ color: theme.surfaceAlt }}
       >
@@ -386,14 +363,7 @@ function ReelCard({
           colors={gradientColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[
-            styles.reel,
-            {
-              transform: [
-                { scale: scrollScale ? Animated.multiply(scaleAnim, scrollScale) : scaleAnim },
-              ],
-            },
-          ]}
+          style={styles.reel}
         >
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.4)"]}
@@ -420,28 +390,10 @@ function ReelCard({
               >
                 {item.chapterTitle}
               </Text>
-              <View
-                style={[
-                  styles.progressChip,
-                  { backgroundColor: theme.surfaceAlt },
-                ]}
-              >
-                <Text
-                  style={[styles.progressChipText, { color: theme.textMuted }]}
-                >
-                  L{Math.min(item.subtopicOrder + 1, Math.max(chapterSubtopics, 1))}/
-                  {Math.max(chapterSubtopics, 1)}
-                </Text>
-              </View>
             </View>
           </View>
 
-<View
-            style={[
-              styles.reelBody,
-              bodyShift ? { transform: [{ translateY: bodyShift }] } : null,
-            ]}
-          >
+<View style={styles.reelBody}>
             <View
               style={[styles.iconWrap, { backgroundColor: theme.surfaceAlt }]}
             >
@@ -511,6 +463,20 @@ function ReelCard({
 
           <View style={styles.reelBottomRow}>
             <View style={{ flex: 1, gap: 6 }}>
+              {completed && (
+                <View style={styles.completedRow}>
+                  <MaterialCommunityIcons
+                    name="check-circle"
+                    size={14}
+                    color={theme.primary}
+                  />
+                  <Text
+                    style={[styles.completedText, { color: theme.primary }]}
+                  >
+                    Completed
+                  </Text>
+                </View>
+              )}
               <Text style={[styles.metaText, { color: theme.textMuted }]}>
                 {subtopicCount} topics · {item.post.category.replace("-", " ")}
               </Text>
@@ -521,15 +487,10 @@ function ReelCard({
                     { color: theme.textMuted, opacity: 0.8 },
                   ]}
                 >
-                  {open ? (
-                    "Opening lesson…"
-                  ) : (
-                    "Tap to explore · Double-tap to like"
-                  )}
+                  Tap to explore · Double-tap to like
                 </Text>
               </View>
             </View>
-            {open && <ActivityIndicator size="small" color={theme.primary} />}
           </View>
 
           <Animated.View
@@ -592,43 +553,6 @@ function ReelCard({
       )}
 
       <View style={styles.rail} pointerEvents="box-none">
-        {item.post.isMine ? (
-          <BlurView intensity={72} tint="dark" style={styles.railPill}>
-            <MaterialCommunityIcons
-              name="account-heart-outline"
-              size={26}
-              color="#FFFFFF"
-            />
-            <Text style={[styles.railCount, { color: "#FFFFFF" }]}>You</Text>
-          </BlurView>
-        ) : (
-          <BlurView intensity={72} tint="dark" style={styles.railPill}>
-            <Pressable
-              onPress={like}
-              accessibilityRole="button"
-              accessibilityLabel={liked ? "Unlike this course" : "Like this course"}
-            >
-              <Animated.View
-                style={{ transform: [{ scale: railHeartScale }] }}
-              >
-                <MaterialCommunityIcons
-                  name={liked ? "heart" : "heart-outline"}
-                  size={26}
-                  color={liked ? theme.primary : "#FFFFFF"}
-                />
-              </Animated.View>
-            </Pressable>
-            <Animated.Text
-              style={[
-                styles.railCount,
-                { color: "#FFFFFF", transform: [{ scale: countPop }] },
-              ]}
-            >
-              {item.post.likeCount}
-            </Animated.Text>
-          </BlurView>
-        )}
-
         <BlurView intensity={72} tint="dark" style={styles.railPill}>
           <View style={styles.railAvatarWrap}>
             <Animated.View
@@ -663,44 +587,82 @@ function ReelCard({
             </View>
           </View>
         </BlurView>
-      </View>
 
-      {actionsOpen && (
-        <View pointerEvents="box-none" style={styles.actionLayer}>
-          <BlurView intensity={60} tint="dark" style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => runAction("open")}
-              activeOpacity={0.7}
+        <BlurView intensity={72} tint="dark" style={styles.railPill}>
+          <Pressable
+            onPress={like}
+            accessibilityRole="button"
+            accessibilityLabel={liked ? "Unlike this course" : "Like this course"}
+          >
+            <Animated.View
+              style={{ transform: [{ scale: railHeartScale }] }}
             >
               <MaterialCommunityIcons
-                name="book-open-page-variant-outline"
-                size={18}
-                color="#FFFFFF"
+                name={liked ? "heart" : "heart-outline"}
+                size={26}
+                color={liked ? theme.primary : "#FFFFFF"}
               />
-              <Text style={styles.actionText}>Open lesson</Text>
-            </TouchableOpacity>
-            <View
-              style={[
-                styles.actionDivider,
-                { backgroundColor: "rgba(255,255,255,0.15)" },
-              ]}
-            />
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => runAction("copy")}
-              activeOpacity={0.7}
-            >
+            </Animated.View>
+          </Pressable>
+          <Animated.Text
+            style={[
+              styles.railCount,
+              { color: "#FFFFFF", transform: [{ scale: countPop }] },
+            ]}
+          >
+            {item.post.likeCount}
+          </Animated.Text>
+        </BlurView>
+
+        <BlurView intensity={72} tint="dark" style={styles.railPill}>
+          <Pressable
+            onPress={handleShare}
+            accessibilityRole="button"
+            accessibilityLabel="Share this course"
+          >
+            <Animated.View style={{ transform: [{ scale: shareScale }] }}>
               <MaterialCommunityIcons
-                name="link-variant"
-                size={18}
+                name="share-variant-outline"
+                size={24}
                 color="#FFFFFF"
               />
-              <Text style={styles.actionText}>Copy link</Text>
-            </TouchableOpacity>
-          </BlurView>
-        </View>
-      )}
+            </Animated.View>
+          </Pressable>
+          <Text style={[styles.railCount, { color: "#FFFFFF" }]}>Share</Text>
+        </BlurView>
+
+        <BlurView intensity={72} tint="dark" style={styles.railPill}>
+          <Pressable
+            onPress={toggleEnroll}
+            accessibilityRole="button"
+            accessibilityLabel={enrolled ? "Remove from Enrolled" : "Add to Enrolled"}
+          >
+            <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+              <MaterialCommunityIcons
+                name={enrolled ? "bookmark" : "bookmark-outline"}
+                size={24}
+                color={enrolled ? theme.primary : "#FFFFFF"}
+              />
+            </Animated.View>
+          </Pressable>
+          <Text
+            style={[styles.railCount, { color: enrolled ? theme.primary : "#FFFFFF" }]}
+          >
+            {enrolled ? "Enrolled" : "Save"}
+          </Text>
+        </BlurView>
+
+        <BlurView intensity={72} tint="dark" style={styles.railPill}>
+          <MaterialCommunityIcons
+            name="eye-outline"
+            size={24}
+            color="#FFFFFF"
+          />
+          <Text style={[styles.railCount, { color: "#FFFFFF" }]}>
+            {formatCount(item.post.viewCount)}
+          </Text>
+        </BlurView>
+      </View>
     </View>
   );
 }
@@ -816,14 +778,37 @@ function FeedSkeleton({ height }: { height: number }) {
   );
 }
 
+export function ReelsOpeningOverlay({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+  return (
+    <View style={styles.openingOverlay} pointerEvents="auto">
+      <BlurView intensity={80} tint="dark" style={styles.openingBlur}>
+        <FeedSkeleton height={FEED_SKELETON_FALLBACK} />
+        <View style={styles.openingLabelWrap}>
+          <MaterialCommunityIcons
+            name="book-open-variant"
+            size={16}
+            color="#FFFFFF"
+          />
+          <Text style={styles.openingLabel}>Opening lesson…</Text>
+        </View>
+      </BlurView>
+    </View>
+  );
+}
+
 export default function ExploreReels({
   refreshKey = 0,
   refreshing,
   onRefresh,
+  onOpeningChange,
+  onRefreshDone,
 }: {
   refreshKey?: number;
   refreshing: boolean;
   onRefresh: () => void;
+  onOpeningChange?: (opening: boolean) => void;
+  onRefreshDone?: () => void;
 }) {
   const theme = useThemeColors();
   const router = useRouter();
@@ -831,58 +816,136 @@ export default function ExploreReels({
 
   const [posts, setPosts] = useState<CommunityFeedPost[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [reelHeight, setReelHeight] = useState(0);
 
   const flatListRef = useRef<FlatList<ReelItem>>(null);
   const fetchingIds = useRef<Set<string>>(new Set());
   const likingIds = useRef<Set<string>>(new Set());
+  const viewedIds = useRef<Set<string>>(new Set());
+  const loadingMoreRef = useRef(false);
+  const loadingFeedRef = useRef(false);
+  const postsRef = useRef<CommunityFeedPost[]>([]);
+  postsRef.current = posts;
+  const openingRef = useRef(false);
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const loadFeed = useCallback(async () => {
-    setFeedLoading(true);
+  const loadFeed = useCallback(
+    async (force = false) => {
+      if (loadingFeedRef.current && !force) return;
+      const hasPosts = postsRef.current.length > 0;
+      if (!force && hasPosts) return;
+
+      loadingFeedRef.current = true;
+      if (!hasPosts) setFeedLoading(true);
+      const token = await getToken();
+      if (!token) {
+        setFeedLoading(false);
+        loadingFeedRef.current = false;
+        onRefreshDone?.();
+        return;
+      }
+      try {
+        const feed = await api.community.feed(token, FEED_PAGE_SIZE, false, 0);
+        setPosts(feed.posts);
+        setHasMore(!!feed.hasMore);
+        setError(null);
+      } catch (err) {
+        console.error("[ExploreReels] feed fetch failed:", err);
+        setError("Couldn't load the camp. Pull to refresh.");
+      } finally {
+        setFeedLoading(false);
+        loadingFeedRef.current = false;
+        onRefreshDone?.();
+      }
+    },
+    [getToken, onRefreshDone],
+  );
+
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMore) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
     const token = await getToken();
-    if (!token) {
-      setFeedLoading(false);
-      return;
-    }
     try {
-      const feed = await api.community.feed(token, 20, true);
-      setPosts(feed.posts);
-      setError(null);
+      if (!token) return;
+      const feed = await api.community.feed(
+        token,
+        FEED_PAGE_SIZE,
+        false,
+        postsRef.current.length,
+      );
+      const fresh = feed.posts.filter(
+        (p) => !postsRef.current.some((existing) => existing.id === p.id),
+      );
+      if (fresh.length === 0) {
+        setHasMore(false);
+      } else {
+        setPosts((prev) => [...prev, ...fresh]);
+        setHasMore(!!feed.hasMore);
+      }
     } catch (err) {
-      console.error("[ExploreReels] feed fetch failed:", err);
-      setError("Couldn't load the camp. Pull to refresh.");
+      console.error("[ExploreReels] feed pagination failed:", err);
     } finally {
-      setFeedLoading(false);
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
-  }, [getToken]);
+  }, [getToken, hasMore]);
 
   useEffect(() => {
-    loadFeed();
+    if (refreshKey > 0) loadFeed(true);
+    else loadFeed();
   }, [loadFeed, refreshKey]);
 
+  useEffect(() => {
+    onOpeningChange?.(openingId !== null);
+  }, [openingId, onOpeningChange]);
+
   const ensureCourse = useCallback(
-    async (post: CommunityFeedPost) => {
-      if (fetchingIds.current.has(post.id)) return;
-      const existing = useCourseStore.getState().getCourseById(post.id);
-      const hasFullChapters =
-        existing && parseChapters(existing.chapters).length > 0;
-      if (hasFullChapters) return;
+    async (post: CommunityFeedPost): Promise<Course | null> => {
+      const cached = useCourseStore.getState().getCourseById(post.id);
+      if (cached && parseChapters(cached.chapters).length > 0) return cached;
+
+      if (fetchingIds.current.has(post.id)) {
+        return useCourseStore.getState().getCourseById(post.id) ?? null;
+      }
 
       fetchingIds.current.add(post.id);
       try {
         const token = await getToken();
-        if (!token) return;
+        if (!token) return null;
         const course = await api.courses.getById(post.id, token);
         await useCourseStore.getState().upsertCourse(course);
+        return course;
       } catch (err) {
         console.error("[ExploreReels] course fetch failed:", err);
+        return null;
       } finally {
         fetchingIds.current.delete(post.id);
+      }
+    },
+    [getToken],
+  );
+
+  const trackView = useCallback(
+    async (courseId: string) => {
+      if (viewedIds.current.has(courseId)) return;
+      viewedIds.current.add(courseId);
+      const token = await getToken();
+      if (!token) return;
+      try {
+        const res = await api.community.trackView(courseId, token);
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === courseId ? { ...p, viewCount: res.viewCount } : p,
+          ),
+        );
+      } catch (err) {
+        console.error("[ExploreReels] view tracking failed:", err);
       }
     },
     [getToken],
@@ -891,7 +954,7 @@ export default function ExploreReels({
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken<ReelItem>[] }) => {
       const first = viewableItems[0];
-      if (first?.item) setCurrentIndex(first.index ?? 0);
+      if (first?.item) trackView(first.item.post.id);
       for (const v of viewableItems.slice(0, 3)) {
         ensureCourse(v.item.post);
       }
@@ -900,12 +963,15 @@ export default function ExploreReels({
 
   const openChapter = useCallback(
     async (item: ReelItem) => {
+      if (openingRef.current) return;
+      openingRef.current = true;
       setOpeningId(item.key);
       try {
-        const token = await getToken();
-        if (!token) return;
-        const course = await api.courses.getById(item.post.id, token);
-        await useCourseStore.getState().upsertCourse(course);
+        const course = await ensureCourse(item.post);
+        if (!course) {
+          throw new Error("Course details aren't available.");
+        }
+        trackView(item.post.id);
         router.push(
           `/(course)/${item.post.id}/chapter/${item.chapterOrder}?subtopic=${item.subtopicOrder}` as Href,
         );
@@ -916,9 +982,10 @@ export default function ExploreReels({
         );
       } finally {
         setOpeningId(null);
+        openingRef.current = false;
       }
     },
-    [getToken, router],
+    [ensureCourse, router, trackView],
   );
 
   const toggleLike = useCallback(
@@ -966,6 +1033,68 @@ export default function ExploreReels({
     [getToken],
   );
 
+  const enrollments = useEnrollmentStore((s) => s.enrollments);
+  const passedQuizzes = useProgressStore((s) => s.passedQuizzes);
+
+  const completedKeys = useMemo(
+    () => new Set(Object.keys(passedQuizzes ?? {})),
+    [passedQuizzes],
+  );
+
+  const enrolledIds = useMemo(
+    () => new Set(enrollments.map((e) => e.courseId)),
+    [enrollments],
+  );
+
+  const toggleEnroll = useCallback(
+    async (item: ReelItem, currentlyEnrolled: boolean) => {
+      if (!profile) return;
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Not signed in", "Please sign in to save courses.");
+        return;
+      }
+      if (currentlyEnrolled) {
+        const enrollment = enrollments.find(
+          (e) => e.courseId === item.post.id,
+        );
+        if (!enrollment) return;
+        const res = await useEnrollmentStore
+          .getState()
+          .unenroll(enrollment.id, getToken);
+        if (!res.success) {
+          Alert.alert("Couldn't remove course", res.error ?? "Please try again.");
+        }
+        return;
+      }
+      const res = await useEnrollmentStore
+        .getState()
+        .enroll(profile.uid, item.post.id, getToken);
+      if (!res.success) {
+        Alert.alert("Couldn't save course", res.error ?? "Please try again.");
+      }
+    },
+    [profile, enrollments, getToken],
+  );
+
+  const shareReel = useCallback(async (item: ReelItem) => {
+    if (Platform.OS === "web") {
+      Alert.alert(
+        "Share",
+        `/(course)/${item.post.id}/chapter/${item.chapterOrder}?subtopic=${item.subtopicOrder}`,
+      );
+      return;
+    }
+    try {
+      const message = `${item.post.title} — ${item.subtopicTitle}`;
+      await Share.share({
+        message: `${message}\n\nhttps://yuinx.app/(course)/${item.post.id}/chapter/${item.chapterOrder}?subtopic=${item.subtopicOrder}`,
+      });
+    } catch (err) {
+      console.error("[ExploreReels] share failed:", err);
+    }
+  }, []);
+
   const handleShareCourse = useCallback(() => {
     const own = profile ? useCourseStore.getState().myCourses(profile.uid) : [];
     const first = own.find(
@@ -978,7 +1107,10 @@ export default function ExploreReels({
     }
   }, [profile, router]);
 
-  const items = useMemo(() => flattenFeed(posts), [posts]);
+  const items = useMemo(
+    () => flattenFeed(posts),
+    [posts],
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1007,7 +1139,6 @@ export default function ExploreReels({
 
   const scrollToTop = useCallback(() => {
     flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-    setCurrentIndex(0);
   }, []);
 
   useEffect(() => {
@@ -1069,22 +1200,6 @@ export default function ExploreReels({
         )}
       </View>
 
-      {filtered.length > 0 && (
-        <View
-          style={[styles.progressTrack, { backgroundColor: theme.surfaceAlt }]}
-        >
-          <View
-            style={[
-              styles.progressFill,
-              {
-                backgroundColor: theme.primary,
-                width: `${((currentIndex + 1) / filtered.length) * 100}%`,
-              },
-            ]}
-          />
-        </View>
-      )}
-
       {error && (
         <TouchableOpacity
           style={[styles.errorBanner, { backgroundColor: theme.danger + "12" }]}
@@ -1104,11 +1219,11 @@ export default function ExploreReels({
       )}
 
       <View style={styles.pagerWrap} onLayout={onLayout}>
-        {feedLoading && reelHeight > 0 ? (
-          <View style={[styles.stack, { height: reelHeight }]}>
-            <FeedSkeleton height={reelHeight} />
+        {feedLoading && items.length === 0 ? (
+          <View style={[styles.stack, { height: reelHeight > 0 ? reelHeight : FEED_SKELETON_FALLBACK }]}>
+            <FeedSkeleton height={reelHeight > 0 ? reelHeight : FEED_SKELETON_FALLBACK} />
           </View>
-        ) : !feedLoading && reelHeight > 0 ? (
+        ) : reelHeight > 0 ? (
           <AnimatedFlatList
             ref={flatListRef}
             data={filtered}
@@ -1130,6 +1245,8 @@ export default function ExploreReels({
             })}
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.6}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -1137,15 +1254,18 @@ export default function ExploreReels({
                 tintColor={theme.primary}
               />
             }
-            renderItem={({ item, index }) => (
+            renderItem={({ item }) => (
               <ReelCard
                 item={item}
-                openingId={openingId}
+                disabled={openingId !== null}
                 onOpenChapter={openChapter}
                 onLike={toggleLike}
-                scrollY={scrollY}
-                reelHeight={reelHeight}
-                itemIndex={index}
+                onShare={shareReel}
+                onToggleEnroll={toggleEnroll}
+                enrolled={enrolledIds.has(item.post.id)}
+                completed={completedKeys.has(
+                  `${item.post.id}_${item.chapterOrder}_${item.subtopicOrder}`,
+                )}
               />
             )}
             ListEmptyComponent={
@@ -1163,8 +1283,7 @@ export default function ExploreReels({
                     <Text
                       style={[styles.emptyText, { color: theme.textMuted }]}
                     >
-                      Create your first course and share it — campmates’ lessons
-                      will scroll in here alongside your own.
+                      Campmates&apos; courses will scroll in here.
                     </Text>
                     <TouchableOpacity
                       style={[
@@ -1201,12 +1320,13 @@ export default function ExploreReels({
           />
         ) : null}
 
-        {!feedLoading && filtered.length > 0 && reelHeight > 0 && (
-          <View style={styles.progressBadge}>
+        {!feedLoading && reelHeight > 0 && loadingMore && (
+          <View style={styles.loadingMoreBadge}>
+            <ActivityIndicator size="small" color={theme.primary} />
             <Text
-              style={[styles.progressBadgeText, { color: theme.textSecondary }]}
+              style={[styles.loadingMoreText, { color: theme.textSecondary }]}
             >
-              {Math.min(currentIndex + 1, filtered.length)} / {filtered.length}
+              Loading more…
             </Text>
           </View>
         )}
@@ -1272,8 +1392,54 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 12,
   },
+  openingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+  },
+  openingBlur: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    gap: 12,
+  },
+  openingLabelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(18,26,38,0.72)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  openingLabel: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   stack: {
     gap: 12,
+  },
+  loadingMoreBadge: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 6,
+  },
+  loadingMoreText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   reel: {
     flex: 1,
@@ -1328,16 +1494,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "flex-end",
     gap: 4,
-  },
-  progressChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  progressChipText: {
-    fontSize: 10,
-    fontWeight: "800",
   },
   reelBody: {
     flex: 1,
@@ -1412,17 +1568,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
-  progressBadge: {
-    position: "absolute",
-    right: 4,
-    top: 10,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  completedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  progressBadgeText: {
+  completedText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   emptyState: {
     alignItems: "center",
@@ -1521,49 +1674,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 0,
     bottom: 0,
-  },
-  actionLayer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 132,
-    alignItems: "center",
-  },
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 18,
-    overflow: "hidden",
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-  },
-  actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  actionDivider: {
-    width: 1,
-    height: 22,
-  },
-  actionText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  progressTrack: {
-    height: 3,
-    borderRadius: 2,
-    overflow: "hidden",
-    marginHorizontal: 16,
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 2,
   },
   heartOverlay: {
     position: "absolute",

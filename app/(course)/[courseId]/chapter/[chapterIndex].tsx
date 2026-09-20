@@ -129,15 +129,20 @@ export default function ChapterScreen() {
   }, [profile, courseId, enrollInCourse, getToken]);
 
   const takeQuizRef = useRef<(() => Promise<void>) | null>(null);
+  const takeQuizLockRef = useRef(false);
+  const submitQuizLockRef = useRef(false);
 
   const handleTakeQuiz = useCallback(async () => {
     if (activeSubtopic === null) return;
+    if (takeQuizLockRef.current) return;
+    takeQuizLockRef.current = true;
     setQuizState("loading");
 
     const token = await getToken();
     if (!token) {
       Alert.alert("Error", "Not authenticated");
       setQuizState("idle");
+      takeQuizLockRef.current = false;
       return;
     }
 
@@ -162,6 +167,8 @@ export default function ChapterScreen() {
         { text: "Retry", onPress: () => takeQuizRef.current?.() },
       ]);
       setQuizState("idle");
+    } finally {
+      takeQuizLockRef.current = false;
     }
   }, [activeSubtopic, courseId, chapterIdx, subtopics, course, getToken]);
 
@@ -173,69 +180,75 @@ export default function ChapterScreen() {
 
   const handleSubmitQuiz = useCallback(async () => {
     if (!quiz || activeSubtopic === null || !courseId) return;
+    if (submitQuizLockRef.current) return;
+    submitQuizLockRef.current = true;
 
-    const newResults: Record<number, boolean> = {};
-    let allCorrect = true;
+    try {
+      const newResults: Record<number, boolean> = {};
+      let allCorrect = true;
 
-    quiz.questions.forEach((q, idx) => {
-      const isCorrect = selectedAnswers[idx] === q.correctAnswer;
-      newResults[idx] = isCorrect;
-      if (!isCorrect) allCorrect = false;
-    });
-
-    const correctCount = quiz.questions.filter((_, idx) => newResults[idx]).length;
-    const score = Math.round((correctCount / quiz.questions.length) * 100);
-
-    setResults(newResults);
-    setQuizState("submitted");
-
-    useStatsStore.getState().recordActivity(profile?.uid ?? "", getToken, 1);
-
-    await recordQuizAttempt(courseId, chapterIdx, activeSubtopic);
-    await recordQuizScore(courseId, chapterIdx, activeSubtopic, score);
-
-    if (allCorrect) {
-      setQuizState("passed");
-
-      await batchMarkCompleted(courseId, chapterIdx, activeSubtopic);
-
-      const token = await getToken();
-      if (token) {
-        const pct = getCompletionPercent(courseId, totalSubtopics);
-        const enrollmentProgress = pct / 100;
-        const enrollment = getEnrollmentForCourse(courseId);
-
-        await Promise.all([
-          enrollment
-            ? updateEnrollmentProgress(
-                enrollment.id,
-                chapterIdx,
-                enrollmentProgress,
-                getProgressDetails(courseId),
-                () => Promise.resolve(token),
-              )
-            : Promise.resolve(),
-        ]);
-      }
-
-      setToast({
-        visible: true,
-        xp: 0,
-        coins: 0,
-        title: `Subtopic ${(activeSubtopic ?? 0) + 1} complete!`,
+      quiz.questions.forEach((q, idx) => {
+        const isCorrect = selectedAnswers[idx] === q.correctAnswer;
+        newResults[idx] = isCorrect;
+        if (!isCorrect) allCorrect = false;
       });
 
-      const newCompletedCount = getCompletedSubtopicCount(courseId, chapterIdx);
-      if (newCompletedCount >= subtopics.length && subtopics.length > 0) {
-        const performance = getChapterPerformance(courseId, chapterIdx, subtopics.length);
-        setChapterPerformance(performance);
-        setTimeout(() => {
-          setShowCompletion(true);
-          setToast({ visible: false, xp: 0, coins: 0, title: "" });
-        }, 1000);
+      const correctCount = quiz.questions.filter((_, idx) => newResults[idx]).length;
+      const score = Math.round((correctCount / quiz.questions.length) * 100);
+
+      setResults(newResults);
+      setQuizState("submitted");
+
+      useStatsStore.getState().recordActivity(profile?.uid ?? "", getToken, 1);
+
+      await recordQuizAttempt(courseId, chapterIdx, activeSubtopic);
+      await recordQuizScore(courseId, chapterIdx, activeSubtopic, score);
+
+      if (allCorrect) {
+        setQuizState("passed");
+
+        await batchMarkCompleted(courseId, chapterIdx, activeSubtopic);
+
+        const token = await getToken();
+        if (token) {
+          const pct = getCompletionPercent(courseId, totalSubtopics);
+          const enrollmentProgress = pct / 100;
+          const enrollment = getEnrollmentForCourse(courseId);
+
+          await Promise.all([
+            enrollment
+              ? updateEnrollmentProgress(
+                  enrollment.id,
+                  chapterIdx,
+                  enrollmentProgress,
+                  getProgressDetails(courseId),
+                  () => Promise.resolve(token),
+                )
+              : Promise.resolve(),
+          ]);
+        }
+
+        setToast({
+          visible: true,
+          xp: 0,
+          coins: 0,
+          title: `Subtopic ${(activeSubtopic ?? 0) + 1} complete!`,
+        });
+
+        const newCompletedCount = getCompletedSubtopicCount(courseId, chapterIdx);
+        if (newCompletedCount >= subtopics.length && subtopics.length > 0) {
+          const performance = getChapterPerformance(courseId, chapterIdx, subtopics.length);
+          setChapterPerformance(performance);
+          setTimeout(() => {
+            setShowCompletion(true);
+            setToast({ visible: false, xp: 0, coins: 0, title: "" });
+          }, 1000);
+        }
+      } else {
+        setQuizState("failed");
       }
-    } else {
-      setQuizState("failed");
+    } finally {
+      submitQuizLockRef.current = false;
     }
   }, [quiz, activeSubtopic, courseId, chapterIdx, selectedAnswers, getToken, batchMarkCompleted, getCompletedSubtopicCount, subtopics.length, totalSubtopics, getCompletionPercent, getEnrollmentForCourse, updateEnrollmentProgress, getProgressDetails, recordQuizAttempt, recordQuizScore, getChapterPerformance, profile?.uid]);
 

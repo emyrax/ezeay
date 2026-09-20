@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { api } from "../lib/api";
+import { api, friendlyError } from "../lib/api";
+import { eventBus } from "../lib/eventBus";
 import { scheduleCourseNotification } from "../lib/notifications";
 import { useBountyStore } from "./bountyStore";
 import { useUserStore } from "./userStore";
@@ -49,6 +50,12 @@ interface CourseStore {
   ) => Promise<void>;
   togglePin: (id: string, getToken: () => Promise<string | null>) => Promise<void>;
   toggleFavorite: (id: string, getToken: () => Promise<string | null>) => Promise<void>;
+  setChapterVisibility: (
+    id: string,
+    chapterOrder: number,
+    isPrivate: boolean,
+    getToken: () => Promise<string | null>,
+  ) => Promise<void>;
   setCourseVisibility: (
     id: string,
     isPublic: boolean,
@@ -91,8 +98,12 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
       if (token && userId) {
         try {
           const result = await api.courses.getAll(userId, token);
-          await AsyncStorage.setItem(COURSE_STORAGE_KEY, JSON.stringify(result));
-          set({ courses: result, loaded: true, loading: false, error: null });
+          const livePlaceholders = get().courses.filter((c) =>
+            c.id.startsWith("generating_"),
+          );
+          const merged = [...livePlaceholders, ...result];
+          await AsyncStorage.setItem(COURSE_STORAGE_KEY, JSON.stringify(merged));
+          set({ courses: merged, loaded: true, loading: false, error: null });
           return;
         } catch (err) {
           console.error("[CourseStore] API fetch failed:", err);
@@ -113,6 +124,10 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
   },
 
   generateCourse: (input, getToken) => {
+    const state = get();
+    if (state.generating) return;
+    if (state.courses.some((c) => c.id.startsWith("generating_"))) return;
+
     const placeholder = placeholderCourse(input);
 
     set((state) => ({
@@ -122,17 +137,17 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
     }));
 
     (async () => {
-      const token = await getToken();
-      if (!token) {
-        set((state) => ({
-          courses: state.courses.filter((c) => c.id !== placeholder.id),
-          generating: false,
-          error: "Not authenticated",
-        }));
-        return;
-      }
-
       try {
+        const token = await getToken();
+        if (!token) {
+          set((state) => ({
+            courses: state.courses.filter((c) => c.id !== placeholder.id),
+            generating: false,
+            error: "Not authenticated",
+          }));
+          return;
+        }
+
         const result = await api.courses.generate(input, token);
         const course = result.course as Course;
 
@@ -152,6 +167,7 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
         const updated = get().courses;
         await AsyncStorage.setItem(COURSE_STORAGE_KEY, JSON.stringify(updated));
 
+        eventBus.emit("toast:success", { title: `"${course.title}" is ready to learn!` });
         scheduleCourseNotification(course.title);
 
         if (course.thumbnailPrompt) {
@@ -164,12 +180,13 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
           bountyStore.checkAutoComplete(updated);
           bountyStore.autoClaimCompleted(getToken);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("[CourseStore] generateCourse failed:", err);
+        eventBus.emit("toast:error", { title: friendlyError(err, "Course generation failed") });
         set((state) => ({
           courses: state.courses.filter((c) => c.id !== placeholder.id),
           generating: false,
-          error: err.message ?? "Failed to generate course",
+          error: friendlyError(err, "Failed to generate course"),
         }));
       }
     })();
@@ -229,6 +246,36 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
       await api.courses.updateFlags(id, { favorite: next }, token);
     } catch (err) {
       console.error("[CourseStore] toggleFavorite failed:", err);
+      get().retry();
+    }
+  },
+
+  setChapterVisibility: async (id, chapterOrder, isPrivate, getToken) => {
+    set((state) => ({
+      courses: state.courses.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              chapters: (c.chapters ?? []).map((ch, i) =>
+                i === chapterOrder ? { ...ch, isPrivate } : ch,
+              ),
+            }
+          : c,
+      ),
+    }));
+    await persistCourses(get().courses);
+
+    if (id.startsWith("generating_")) return;
+    const token = await getToken();
+    if (!token) return;
+    try {
+      await api.courses.updateFlags(
+        id,
+        { chapterPrivate: { order: chapterOrder, isPrivate } },
+        token,
+      );
+    } catch (err) {
+      console.error("[CourseStore] setChapterVisibility failed:", err);
       get().retry();
     }
   },

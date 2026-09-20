@@ -61,6 +61,7 @@ export interface FeedSubtopic {
 export interface FeedChapter {
   title: string;
   order: number;
+  isPrivate?: boolean;
   subtopics: FeedSubtopic[];
 }
 
@@ -81,12 +82,14 @@ export interface CommunityFeedPost {
   isMine: boolean;
   likeCount: number;
   likedByMe: boolean;
+  viewCount: number;
   chapterIndex: FeedChapter[];
 }
 
 export interface CommunityFeed {
   posts: CommunityFeedPost[];
   refreshedAt: string;
+  hasMore?: boolean;
 }
 
 export interface UserComment {

@@ -6,6 +6,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -248,34 +249,90 @@ function TagManagerSheet({
   notes: { tags: string[] }[];
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
-  onCreate: () => void;
+  onCreate: (name: string) => void;
   onClose: () => void;
   theme: ReturnType<typeof useThemeColors>;
 }) {
   const [tagSearch, setTagSearch] = useState("");
+  const [createMode, setCreateMode] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const inputRef = useRef<TextInput>(null);
+  const listRef = useRef<ScrollView>(null);
+
+  const [prevVisible, setPrevVisible] = useState(visible);
+  if (visible !== prevVisible) {
+    setPrevVisible(visible);
+    if (visible) {
+      setCreateMode(false);
+      setNewTagName("");
+    }
+  }
 
   const noteCounts: Record<string, number> = {};
   for (const n of notes) for (const t of n.tags) noteCounts[t] = (noteCounts[t] || 0) + 1;
   const filtered = tags.filter((t) => t.name.toLowerCase().includes(tagSearch.toLowerCase()));
 
+  const startCreate = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTagSearch("");
+    setNewTagName("");
+    setCreateMode(true);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  const commitCreate = () => {
+    const name = newTagName.trim();
+    if (!name) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onCreate(name);
+    setNewTagName("");
+    setCreateMode(false);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 250);
+  };
+
   return (
     <GlassSheet visible={visible} onClose={onClose} title="Manage Tags" subtitle={`${tags.length} total`}>
-      <View style={[styles.searchBar, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}>
+      <View
+        style={[
+          styles.searchBar,
+          {
+            backgroundColor: theme.surfaceAlt,
+            borderColor: createMode ? theme.primary + "66" : theme.borderLight,
+          },
+        ]}
+      >
         <ThemeIcon sf="magnifyingglass" material="magnify" size={16} color={theme.textMuted} />
         <TextInput
+          ref={inputRef}
           style={[styles.searchInput, { color: theme.text }]}
-          placeholder="Search tags…"
+          placeholder={createMode ? "Name new tag…" : "Search tags…"}
           placeholderTextColor={theme.textMuted}
-          value={tagSearch}
-          onChangeText={setTagSearch}
+          value={createMode ? newTagName : tagSearch}
+          onChangeText={createMode ? setNewTagName : setTagSearch}
+          onSubmitEditing={commitCreate}
+          returnKeyType="done"
         />
-        {tagSearch ? (
+        {!createMode && tagSearch ? (
           <Pressable onPress={() => setTagSearch("")} hitSlop={8}>
             <ThemeIcon sf="xmark.circle.fill" material="close-circle" size={16} color={theme.textMuted} />
           </Pressable>
         ) : null}
+        <Pressable onPress={createMode ? commitCreate : startCreate} hitSlop={10} style={styles.createTagIcon}>
+          <ThemeIcon
+            sf={createMode ? "checkmark.circle.fill" : "plus.circle.fill"}
+            material={createMode ? "check-circle-outline" : "plus-circle-outline"}
+            size={18}
+            color={theme.primary}
+          />
+        </Pressable>
       </View>
-      <View style={styles.tagManagerList}>
+      <ScrollView
+        ref={listRef}
+        style={styles.tagManagerList}
+        contentContainerStyle={styles.tagManagerListContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {filtered.map((tag) => (
           <View key={tag.id} style={[styles.tagManagerRow, { borderBottomColor: theme.borderLight }]}>
             <View style={[styles.mentionDot, { backgroundColor: tag.color }]} />
@@ -303,17 +360,7 @@ function TagManagerSheet({
             </Pressable>
           </View>
         ))}
-      </View>
-      <Pressable
-        style={({ pressed }) => [styles.createTagBtn, { opacity: pressed ? 0.7 : 1 }]}
-        onPress={() => {
-          onClose();
-          onCreate();
-        }}
-      >
-        <ThemeIcon sf="plus.circle.fill" material="plus-circle-outline" size={20} color={theme.primary} />
-        <Text style={[styles.createTagText, { color: theme.primary }]}>Create new tag</Text>
-      </Pressable>
+      </ScrollView>
     </GlassSheet>
   );
 }
@@ -647,10 +694,8 @@ export default function NotesListScreen() {
             { text: "Delete", style: "destructive", onPress: () => deleteTag(id) },
           ]);
         }}
-        onCreate={() => {
-          const name = `Tag ${tags.length + 1}`;
-          const color = TAG_COLORS[tags.length % TAG_COLORS.length];
-          addTag(name, color);
+        onCreate={(name) => {
+          addTag(name, TAG_COLORS[tags.length % TAG_COLORS.length]);
         }}
         onClose={() => setShowTagManager(false)}
         theme={theme}
@@ -812,6 +857,7 @@ const styles = StyleSheet.create({
   },
   emptyCtaText: { color: "#FFF", fontSize: 14, fontWeight: "700", fontFamily: bodyFont },
   tagManagerList: { maxHeight: 320 },
+  tagManagerListContent: { paddingBottom: 6, paddingHorizontal: 4 },
   tagManagerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -829,14 +875,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   mentionDot: { width: 8, height: 8, borderRadius: 4 },
-  createTagBtn: {
-    flexDirection: "row",
+  createTagIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
-    gap: 6,
-    marginTop: 14,
-    paddingVertical: 12,
+    justifyContent: "center",
   },
-  createTagText: { fontSize: 14, fontWeight: "600", fontFamily: bodyFont },
   fabOuter: { position: "absolute", bottom: 34, right: 24, zIndex: 10 },
   fab: {
     width: 58,

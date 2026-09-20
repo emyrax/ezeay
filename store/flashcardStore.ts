@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api } from "../lib/api";
+import { api, friendlyError } from "../lib/api";
 import type { Flashcard } from "../types/flashcard";
 import { useModelStore } from "../store/modelStore";
 import {
@@ -98,15 +98,19 @@ export const useFlashcardStore = create<FlashcardStore>((set, get) => ({
   error: null,
 
   fetchCards: async (dueOnly, getToken) => {
-    const token = await getToken();
-    if (!token || get().loading) return;
+    if (get().loading) return;
     set({ loading: true, error: null });
     try {
+      const token = await getToken();
+      if (!token) {
+        set({ loading: false });
+        return;
+      }
       const cards = await api.flashcards.getAll(token, dueOnly);
       set({ cards, loaded: true, loading: false });
-    } catch (err: any) {
+    } catch (err) {
       console.error("[FlashcardStore] fetchCards failed:", err);
-      set({ loading: false, error: err.message || "Failed to load flashcards" });
+      set({ loading: false, error: friendlyError(err, "Failed to load flashcards") });
     }
   },
 
@@ -132,10 +136,13 @@ export const useFlashcardStore = create<FlashcardStore>((set, get) => ({
       }
     }
 
-    const token = await getToken();
-    if (!token) return null;
     set({ loading: true, error: null });
     try {
+      const token = await getToken();
+      if (!token) {
+        set({ loading: false, error: "Not authenticated" });
+        return null;
+      }
       const res = await api.study.generateFlashcards(materialId, token);
       const created = Array.isArray(res?.flashcards) ? res.flashcards : [];
       const cards = [...created, ...get().cards];
@@ -143,7 +150,7 @@ export const useFlashcardStore = create<FlashcardStore>((set, get) => ({
       return { cardCount: created.length };
     } catch (err: any) {
       console.error("[FlashcardStore] generateForMaterial failed:", err);
-      set({ loading: false, error: err.message || "Failed to generate flashcards" });
+      set({ loading: false, error: friendlyError(err, "Failed to generate flashcards") });
       return null;
     }
   },

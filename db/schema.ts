@@ -63,6 +63,7 @@ export const users = pgTable("users", {
   learningGoals: text("learning_goals").notNull().default("[]"),
   onBoarded: boolean("on_boarded").notNull().default(false),
   modelRatings: text("model_ratings").notNull().default("{}"),
+  isPro: boolean("is_pro").notNull().default(false),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
@@ -111,6 +112,7 @@ export const courses = pgTable("courses", {
   favorite: boolean("favorite").notNull().default(false),
   isPublic: boolean("is_public").notNull().default(false),
   sharedAt: timestamp("shared_at", { withTimezone: true }),
+  views: integer("views").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
