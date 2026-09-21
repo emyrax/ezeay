@@ -1,4 +1,10 @@
-import "dotenv/config";
+if (typeof process.loadEnvFile === "function") {
+  try {
+    process.loadEnvFile();
+  } catch {
+    // no .env in cwd; rely on real environment variables
+  }
+}
 import { neon } from "@neondatabase/serverless";
 
 const trophyData = [

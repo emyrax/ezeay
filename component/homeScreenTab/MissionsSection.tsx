@@ -195,7 +195,7 @@ export default function MissionsSection() {
       <View style={styles.headerRow}>
         <View>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            TODAY'S MISSIONS
+            TODAY’S MISSIONS
           </Text>
           <Text
             style={[styles.sectionSubtitle, { color: theme.textSecondary }]}

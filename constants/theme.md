@@ -1,255 +1,93 @@
 # Theme Reference
 
-## Colors
+The theme system lives in `constants/themes.ts`. Every screen and reusable component reads colors through `hooks/useTheme.ts` (`useThemeColors()`), which returns the active `ThemeColors` from `store/themeStore.ts` — either a preset or a user-created custom theme.
 
-Defined in `constants/colors.ts`. Import by name.
-
-### Brand & Surface
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `primaryColor` | `#27d436` | Accent green — buttons, highlights, active states |
-| `secondaryColor` | `#1A1F3A` | Dark navy — text, backgrounds on welcome/login |
-| `backgroundColor` | `#F5F5F5` | Light grey — welcome/login screen backgrounds |
-| `white` | `#ffffff` | Card surfaces on light screens |
-
-### Dark Theme (tab screens)
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `darkBg` | `#12121A` | Main background on Camp, Quests, Stats, Profile |
-| `darkSurface` | `#1E1E2E` | Card backgrounds (info cards, action cards) |
-| `darkCard` | `#1E1E2E` | Same as darkSurface |
-| `darkTabBar` | `#0F0F1A` | Floating tab bar background |
-| `darkBorder` | `#2A2A3A` | Dividers, card borders, tab bar border (`#1F293D` inline) |
-| `darkTabBorder` | `#1E1E30` | Tab bar border (inline use is `#1F293D`) |
-
-### Text
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `darkText` | `#FFFFFF` | Primary text on dark surfaces |
-| `darkTextSecondary` | `#A0A0B0` | Secondary text on dark (empty states, descriptions) |
-| `darkTextMuted` | `#707080` | Muted text on dark (labels, metadata, version) |
-| `textSecondary` | `#616161` | Secondary text on light (subtitles, toggles) |
-| `textMuted` | `#b3b3c7` | Muted text on light (placeholders, divider text) |
-
-### Accents
-
-| Token | Value |
-|-------|-------|
-| `accentPurple` | `#A855F7` |
-| `accentBlue` | `#00A3FF` |
-| `accentOrange` | `#FF9F00` |
-| `accentGreen` | `#2ECC71` |
-| `accentRed` | `#FF5722` |
-
-### Tab Bar
-
-| Property | Value |
-|----------|-------|
-| Active tint | `#38BDF8` |
-| Inactive tint | `#64748B` |
-| Container | `#121826` |
-| Border | `#1F293D` |
-
----
-
-## Typography
-
-### Font Family
+- **Presets**: 6 Apple-style themes — 3 dark + 3 light.
+- **Mode philosophy**: dark presets use light text on dark surfaces; light presets use dark text on light surfaces (reverse contrast). This is the opposite of the old `colors.ts` era and is intentional.
+- **Selection UI**: Settings → Appearance shows the presets grouped into **Dark** and **Light**, plus a **Custom** tile that opens the in-app theme editor.
+- **Fallback**: any persisted id that no longer exists resolves to `themes.hero` (`hooks/useTheme.ts:13`).
 
 ```ts
-const safeFont = Platform.OS === "ios" ? "Arial" : "sans-serif";
+import { useThemeColors } from "../../hooks/useTheme";
+const theme = useThemeColors();
 ```
 
-Import from `constants/colors.ts`. Used via `fontFamily: safeFont`.
+## ThemeColors tokens (`constants/themes.ts`)
 
-### Font Sizes
+All tokens are present on every preset and on themes derived from custom colors.
 
-| Size | Usage | Frequency |
-|------|-------|-----------|
-| 11 | Overline labels, trophy details, streak labels, XP units | High (11 components) |
-| 12 | Captions, disclaimers, XP labels, button text, section subtitles | Highest (17 components) |
-| 14 | Body text, subtitles, email display, toggle text | Common (7 components) |
-| 15 | Search text, social buttons, card titles | Low |
-| 16 | Primary body text, input text, card values, action text | High (9 components) |
-| 18 | Section titles, empty state titles, username, primary buttons | High (10 components) |
-| 20 | Primary button text, drag handle text | Low |
-| 22 | Brand text (login header), error title | Low |
-| 24 | Screen titles (quests, stats), hero values | Moderate |
-| 28 | Login screen title, XP/streak hero values | Moderate |
-| 32 | Welcome screen title | Low |
+| Token | Meaning |
+|-------|---------|
+| `bg` | App background |
+| `surface` | Card / list background |
+| `surfaceAlt` | Slightly elevated surface (insets, pressed states) |
+| `glass` | Semi-transparent surface (sheets, headers) |
+| `text` | Primary text |
+| `textSecondary` | Secondary text |
+| `textMuted` | Captions, metadata, placeholders |
+| `primary` | Primary accent (buttons, links, active states) |
+| `primaryLight` | Tinted `primary` wash (selected rows, chip backgrounds) |
+| `accent` | Secondary accent (badges, secondary highlights) |
+| `success` / `warning` / `danger` / `info` | Semantic status colors |
+| `border` | Dividers, card borders |
+| `borderLight` | Subtler hairline borders |
+| `cardBg` / `cardBgLight` | Card backgrounds (legacy aliases of surface / surfaceAlt) |
+| `tabBg` / `tabBorder` | Floating tab bar background / border |
+| `tabActive` / `tabInactive` | Tab bar tint colors |
+| `gradientStart` / `gradientMid` / `gradientEnd` | Linear gradients (headers, buttons) |
+| `shadow` | Colored shadow / glow color |
 
-### Font Weights
+## Presets
 
-| Weight | Usage |
-|--------|-------|
-| `"400"` | Inactive tab label |
-| `"500"` | Email, time text, action labels |
-| `"600"` | Active tab label, info labels, loading text |
-| `"700"` | **Default for buttons, section titles, card values** |
-| `"800"` | **Headings, hero text, brand text** |
-| `"900"` | Screen titles on stats/quests, streak values |
+| id | Name | Mode | `bg` | `surface` | `text` | `primary` | `accent` |
+|----|------|------|------|-----------|--------|-----------|----------|
+| `hero` | Graphite | dark | `#000000` | `#1C1C1E` | `#FFFFFF` | `#0A84FF` | `#5E5CE6` |
+| `aurora` | Aurora | dark | `#0A0D14` | `#131A26` | `#F2F6FB` | `#6B8CFF` | `#64D2FF` |
+| `onyx` | Onyx | dark | `#0C0A14` | `#171327` | `#F5F3FA` | `#A78BFA` | `#C084FC` |
+| `pearl` | Pearl | light | `#F2F2F7` | `#FFFFFF` | `#1C1C1E` | `#007AFF` | `#5856D6` |
+| `mist` | Mist | light | `#EDF2F7` | `#FFFFFF` | `#17202B` | `#0D9488` | `#0E7490` |
+| `sand` | Sand | light | `#FAF6F0` | `#FFFFFF` | `#211D19` | `#B45309` | `#C2410C` |
 
-Canonical: `"700"` (body/buttons) and `"800"` (headings).
+`themeNames` maps id → display name; `themeModes` maps id → `"dark" | "light"` (used by the Settings picker to group presets); `THEME_IDS = Object.keys(themes)`.
 
-### Letter Spacing
+## Custom themes
 
-| Value | Usage |
-|-------|-------|
-| `0.5` | **Standard** — buttons, section headers, labels (9 components) |
-| `1` | Overline (stats screen) |
+Users can create a theme in Settings → Appearance → Custom. Persisted as `CustomThemeColors` (8 fields: `bg`, `surface`, `text`, `textSecondary`, `primary`, `accent`, `border`, `tabActive`) and expanded into a full `ThemeColors` by `deriveTheme()`. Derived values: `surfaceAlt` / `cardBgLight` darken `surface`; `glass` = surface @ 85%; `textMuted` = 60% of `textSecondary`; `borderLight` = 50% of `border`; `tabBg` = 90% of `bg`; `success/warning/danger/info` are fixed.
 
----
+## Contrast rules (enforced)
 
-## Border Radius
+| Token | Dark (`text` on dark surfaces) | Light (`text` on light surfaces) |
+|-------|-------------------------------|----------------------------------|
+| `text` | ≥ 4.5:1 | ≥ 4.5:1 |
+| `textSecondary` | ≥ 4.5:1 | ≥ 3:1 |
+| `textMuted` | ≥ 3:1 | ≥ 3:1 |
+| `primary` / `accent` | ≥ 3:1 (+ ≥ 4.5:1 for small text) | ≥ 3:1 (+ ≥ 4.5:1 for small text) |
 
-No single token file; values are inline. Most standardized values:
+Semantic colors (`success`/`warning`/`danger`/`info`) use platform-idiomatic values (e.g. `#34C759`, `#FF9500`) and may fall below 3:1 as solid fills on white — verify pairings per use. If a custom theme fails these targets, prefer tweaks in the editor over code changes.
 
-| Value | Typical Usage | Frequency |
-|-------|---------------|-----------|
-| 6 | Badges, difficulty/type chips | 4 |
-| 8 | Small buttons, start/claim/in-progress labels | 4 |
-| 12 | Icon wrappers, search bar | 3 |
-| 16 | Cards, primary buttons | 6 |
-| 20 | Tab bar container, large icon buttons | 3 |
-| 28 | Info cards, large avatars | 2 |
-| 32 | Login card, trophy circles | 3 |
-| 999 | Pill shapes (drag handle) | 2 |
+## Tab bar
 
-**Quirk**: 22 unique border radius values across the codebase — not fully standardized.
+Use theme tokens, not hardcoded `#38BDF8` / `#64748B`:
 
----
+| Token | Dark example (hero) | Light example (pearl) |
+|-------|---------------------|-----------------------|
+| `tabBg` | `rgba(18, 18, 20, 0.92)` | `rgba(248, 248, 250, 0.94)` |
+| `tabActive` | `#0A84FF` | `#007AFF` |
+| `tabInactive` | `#8E8E93` | `#8E8E93` |
+| `tabBorder` | `rgba(255, 255, 255, 0.14)` | `rgba(0, 0, 0, 0.12)` |
 
-## Spacing
+Layout (unchanged): `position: absolute`, `bottom: 24`, `left/right: 16`, `height: 64`, `borderRadius: 20`, `elevation: 8`.
 
-No spacing scale exists. Most recurring values:
+## Hardcoded accents (kept intentionally)
 
-### paddingHorizontal
+Decorative accents below are hardcoded rather than theme-driven (documented decision). They are `accent`-adjacent cyan/secondary tones used for illustration, charts, and confetti:
 
-| Value | Usage |
-|-------|-------|
-| 16 | **Most common** — section containers, input wrappers, scroll views |
-| 24 | Welcome screen, login header, content cards |
-| 12 | Tab bar container, small labels |
-| 8 | Badges, chips, drag container |
+- `#38BDF8` / `#64748B` — StudyUploadSheet, Stats, DropdownSelect, Pill, Timetable, RichTextEditor headings, confetti, spinOutcomes, `ColorPalette` defaults.
 
-### paddingVertical
+If a new feature needs an accent, prefer `theme.primary` / `theme.accent` / `theme.info`.
 
-| Value | Usage |
-|-------|-------|
-| 6 | Small buttons (start, claim, in-progress) |
-| 12 | Search bar |
-| 16 | Primary buttons |
-| 8 | Tab items |
+## Migration notes
 
-### marginBottom
-
-| Value | Usage |
-|-------|-------|
-| 20 | Section titles, headers, rows |
-| 16 | Section titles, cards, bar sections |
-| 12 | Cards, input groups, content |
-
-### gap
-
-| Value | Usage |
-|-------|-------|
-| 4 | Button content, timer rows |
-| 8 | Top rows, dot containers |
-| 10 | Brand wrappers, social buttons |
-| 12/14 | Footers, carousels, social rows |
-
----
-
-## Shadows
-
-Three recurring patterns:
-
-### 1. Primary Button Glow
-```js
-{
-  shadowColor: primaryColor, // "#27d436"
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 8,
-  elevation: 6,
-}
-```
-
-### 2. Surface Card
-```js
-{
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 10 },
-  shadowOpacity: 0.15,
-  shadowRadius: 20,
-  elevation: 3,
-}
-```
-
-### 3. Tab Bar Float
-```js
-{
-  shadowColor: "#000000",
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 4.65,
-  elevation: 8,
-}
-```
-
----
-
-## Component Tokens
-
-### Floating Tab Bar
-
-```json
-{
-  "position": "absolute",
-  "bottom": 24,
-  "left": 16,
-  "right": 16,
-  "height": 64,
-  "backgroundColor": "#121826",
-  "borderRadius": 20,
-  "borderWidth": 1,
-  "borderColor": "#1F293D",
-  "paddingHorizontal": 12
-}
-```
-
-### Cards (info, action)
-
-```json
-{
-  "backgroundColor": "#1E1E2E",
-  "borderRadius": 28,
-  "padding": 20
-}
-```
-
-### Primary Buttons
-
-```json
-{
-  "backgroundColor": "#27d436",
-  "paddingVertical": 16,
-  "borderRadius": 16
-}
-```
-
-### Text Inputs
-
-```json
-{
-  "backgroundColor": "rgba(26, 31, 58, 0.04)",
-  "borderRadius": 14,
-  "paddingHorizontal": 16,
-  "height": 56,
-  "borderWidth": 1,
-  "borderColor": "rgba(26, 31, 58, 0.08)"
-}
-```
+- Removed ids: `midnight`, `forest`, `sunset`, `ocean`, `dawn`, `coral`, `sky`, `linen`, `bloom`, `matcha`. Any persisted selection resolves to `hero`.
+- The old `constants/colors.ts` tokens (`primaryColor #27d436`, `secondaryColor #1A1F3A`, `bgColor #F5F5F5`, dark surface set) are legacy; `darkTabSurface` / `darkCard` equivalents are now `theme.tabBg` / `theme.surface`.
+- Static screens (welcome, auth/onboarding, login) keep a fixed dark hero-branded look via direct imports of `hero` in `constants/themes.ts`; tab/feature screens are fully theme-aware.

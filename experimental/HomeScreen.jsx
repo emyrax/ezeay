@@ -8,10 +8,10 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/Ionicons';
-import HeaderSection from '../../component/homeScreenTab/HeaderSection';
-import RealmsSection from '../../component/RealmsSection';
-import TrophyCabinetSection from '../../component/homeScreenTab/TrophyCabinetSection';
+import Icon from '@expo/vector-icons/Ionicons';
+import HeaderSection from '../component/homeScreenTab/HeaderSection';
+import RealmsSection from '../component/RealmsSection';
+import TrophyCabinetSection from '../component/homeScreenTab/TrophyCabinetSection';
 
 export default function HomeScreen() {
   return (

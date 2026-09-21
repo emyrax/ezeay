@@ -50,7 +50,7 @@ export default function SpinWheel() {
   const theme = useThemeColors();
   const router = useRouter();
   const { getToken } = useAuth();
-  const { canSpin, useSpin, wheelVisible, openWheel, closeWheel } = useSpinStore();
+  const { canSpin, useSpin: decrementSpin, wheelVisible, openWheel, closeWheel } = useSpinStore();
 
   const [mode, setMode] = useState<WheelMode>("wheel");
   const [spinning, setSpinning] = useState(false);
@@ -89,7 +89,7 @@ export default function SpinWheel() {
     const outcome = getRandomOutcome();
     setResult(outcome);
     setSpinning(true);
-    useSpin();
+    decrementSpin();
 
     if (mode === "wheel") {
       const targetAngle = Math.random() * 360 + 1800;

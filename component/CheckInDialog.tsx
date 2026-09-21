@@ -141,7 +141,7 @@ export default function CheckInDialog({ visible, onClose, getToken }: CheckInDia
                 </Pressable>
 
                 <View style={[styles.previewCard, { backgroundColor: theme.surfaceAlt }]}>
-                  <Text style={[styles.previewLabel, { color: theme.textMuted }]}>Tomorrow's reward</Text>
+                  <Text style={[styles.previewLabel, { color: theme.textMuted }]}>Tomorrow’s reward</Text>
                   <View style={styles.previewRow}>
                     <View style={styles.previewItem}>
                       <MaterialCommunityIcons name="star" size={16} color={theme.warning} />

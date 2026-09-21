@@ -14,7 +14,7 @@ export default function NotesLocalOnlyBanner() {
     >
       <MaterialCommunityIcons name="cellphone-lock" size={17} color={theme.primary} />
       <Text style={[styles.bannerText, { color: theme.textSecondary }]}>
-        Notes are stored on this device only — they don't sync to the cloud.
+        Notes are stored on this device only — they don’t sync to the cloud.
       </Text>
     </View>
   );

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Icon from 'react-native-vector-icons/Ionicons'; // Or @expo/vector-icons
+import Icon from '@expo/vector-icons/Ionicons';
 import HomeScreen from './HomeScreen'; // We will build this next
 
 const Tab = createBottomTabNavigator();

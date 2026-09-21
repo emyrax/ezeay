@@ -54,7 +54,7 @@ export default function RivalRadar() {
           <View style={styles.leaderWrap}>
             <MaterialCommunityIcons name="crown" size={32} color="#FFD700" />
             <Text style={[styles.leaderText, { color: theme.text }]}>
-              You're the camp leader!
+              You’re the camp leader!
             </Text>
             <Text style={[styles.leaderSub, { color: theme.textMuted }]}>
               Watch for challengers below you.

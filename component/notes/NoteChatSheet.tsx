@@ -1738,7 +1738,7 @@ export default function NoteChatSheet({
             <View style={styles.pickerHeadText}>
               <Text style={[styles.pickerTitle, { color: theme.text }]}>Choose AI model</Text>
               <Text style={[styles.pickerSubtitle, { color: theme.textMuted }]}>
-                Applies to this note's copilot
+                Applies to this note’s copilot
               </Text>
             </View>
             <Pressable
