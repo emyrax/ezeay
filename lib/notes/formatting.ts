@@ -24,6 +24,7 @@ export interface MarkdownRun {
   headingGroup?: string;
   bullet?: boolean;
   checkbox?: boolean;
+  marker?: boolean;
 }
 
 type RunStyle = Omit<MarkdownRun, "text">;
@@ -40,9 +41,37 @@ export function headingGroupForTitle(title: string): string | undefined {
   return undefined;
 }
 
+const MARKER_CHARS = new Set(["*", "_", "=", "`"]);
+const WORD_RE = /[\p{L}\p{N}_]/u;
+
 export function parseMarkdownRuns(content: string): MarkdownRun[] {
   const runs: MarkdownRun[] = [];
   const lines = content.split("\n");
+
+  const splitLoose = (t: string, extra: RunStyle) => {
+    let i = 0;
+    while (i < t.length) {
+      const ch = t[i];
+      if (MARKER_CHARS.has(ch)) {
+        let j = i;
+        while (j < t.length && MARKER_CHARS.has(t[j])) j++;
+        const before = t[i - 1];
+        const after = t[j];
+        const insideWord =
+          before !== undefined &&
+          WORD_RE.test(before) &&
+          after !== undefined &&
+          WORD_RE.test(after);
+        runs.push({ text: t.slice(i, j), ...extra, marker: !insideWord });
+        i = j;
+      } else {
+        let j = i;
+        while (j < t.length && !MARKER_CHARS.has(t[j])) j++;
+        runs.push({ text: t.slice(i, j), ...extra });
+        i = j;
+      }
+    }
+  };
 
   for (let i = 0; i < lines.length; i++) {
     if (i > 0) runs.push({ text: "\n" });
@@ -53,10 +82,12 @@ export function parseMarkdownRuns(content: string): MarkdownRun[] {
 
     if (/^## /.test(text)) {
       lineStyle.heading = 2;
+      runs.push({ text: "## ", ...lineStyle, marker: true });
       text = text.slice(3);
       lineStyle.headingGroup = headingGroupForTitle(text);
     } else if (/^# /.test(text)) {
       lineStyle.heading = 1;
+      runs.push({ text: "# ", ...lineStyle, marker: true });
       text = text.slice(2);
       lineStyle.headingGroup = headingGroupForTitle(text);
     } else if (/^- \[[ xX]\] /.test(text)) {
@@ -79,7 +110,8 @@ export function parseMarkdownRuns(content: string): MarkdownRun[] {
     }
 
     const segment = (t: string, extra: RunStyle = {}) => {
-      if (t) runs.push({ text: t, ...lineStyle, ...extra });
+      if (!t) return;
+      splitLoose(t, { ...lineStyle, ...extra });
     };
 
     let last = 0;
@@ -87,16 +119,47 @@ export function parseMarkdownRuns(content: string): MarkdownRun[] {
     INLINE_REGEX.lastIndex = 0;
     while ((m = INLINE_REGEX.exec(text)) !== null) {
       if (m.index > last) segment(text.slice(last, m.index));
+
+      let inner: string;
+      let style: RunStyle;
+      let openLen: number;
       if (m[1] !== undefined) {
-        segment(m[1], { bold: true });
+        inner = m[1];
+        style = { bold: true };
+        openLen = 2;
       } else if (m[2] !== undefined) {
-        segment(m[2], { underline: true });
+        inner = m[2];
+        style = { underline: true };
+        openLen = 2;
       } else if (m[3] !== undefined) {
-        segment(m[3], { code: true });
+        inner = m[3];
+        style = { code: true };
+        openLen = 1;
       } else if (m[4] !== undefined) {
-        segment(m[4], { italic: true });
-      } else if (m[5] !== undefined) {
-        segment(m[5], { highlight: true });
+        inner = m[4];
+        style = { italic: true };
+        openLen = 1;
+      } else {
+        inner = m[5] as string;
+        style = { highlight: true };
+        openLen = 2;
+      }
+
+      const closeLen = m[0].length - openLen - inner.length;
+      runs.push({
+        text: m[0].slice(0, openLen),
+        ...lineStyle,
+        ...style,
+        marker: true,
+      });
+      runs.push({ text: inner, ...lineStyle, ...style });
+      if (closeLen > 0) {
+        runs.push({
+          text: m[0].slice(openLen + inner.length),
+          ...lineStyle,
+          ...style,
+          marker: true,
+        });
       }
       last = m.index + m[0].length;
       if (m[0].length === 0) INLINE_REGEX.lastIndex += 1;

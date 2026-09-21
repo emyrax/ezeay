@@ -15,6 +15,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ModelDetailSheet from "../../component/ModelDetailSheet";
 import OfflineAICard from "../../component/OfflineAICard";
@@ -22,6 +23,7 @@ import type { CustomThemeColors } from "../../constants/themes";
 import {
   THEME_IDS,
   fontFamily,
+  themeModes,
   themeNames,
   themes,
 } from "../../constants/themes";
@@ -101,6 +103,58 @@ function SectionCard({
       </View>
       {children}
     </View>
+  );
+}
+
+function ThemeTile({
+  label,
+  isActive,
+  onPress,
+  checkColor,
+  checkColorOn,
+  children,
+}: {
+  label: string;
+  isActive: boolean;
+  onPress: () => void;
+  checkColor: string;
+  checkColorOn: string;
+  children: React.ReactNode;
+}) {
+  const theme = useThemeColors();
+  return (
+    <Pressable
+      style={st.themeSwatch}
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: isActive }}
+    >
+      <View
+        style={[
+          st.themePreview,
+          { borderColor: isActive ? theme.text : "transparent" },
+        ]}
+      >
+        {children}
+        {isActive && (
+          <View style={[st.themeCheck, { backgroundColor: checkColor }]}>
+            <MaterialIcons name="check" size={12} color={checkColorOn} />
+          </View>
+        )}
+      </View>
+      <Text
+        style={[
+          st.themeLabel,
+          {
+            color: isActive ? theme.text : theme.textSecondary,
+            fontWeight: isActive ? "700" : "400",
+          },
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -306,47 +360,88 @@ export default function SettingsScreen() {
       >
         {/* Appearance */}
         <SectionCard title="Appearance" theme={theme}>
+          <Text style={[st.themeGroupLabel, { color: theme.textMuted }]}>
+            Dark
+          </Text>
           <View style={st.themeRow}>
-            {THEME_IDS.map((id) => {
+            {THEME_IDS.filter((id) => themeModes[id] === "dark").map((id) => {
               const t = themes[id];
               const isActive = themeId === id;
               return (
-                <Pressable
+                <ThemeTile
                   key={id}
-                  style={st.themeSwatch}
+                  label={themeNames[id]}
+                  isActive={isActive}
                   onPress={() => setTheme(id)}
+                  checkColor={t.primary}
+                  checkColorOn="#FFF"
                 >
-                  <View
-                    style={[
-                      st.themeCircle,
-                      {
-                        backgroundColor: t.primary,
-                        borderColor: isActive ? theme.text : t.border,
-                        borderWidth: isActive ? 2 : 1,
-                      },
-                    ]}
-                  >
-                    {isActive && (
-                      <MaterialIcons name="check" size={14} color="#FFF" />
-                    )}
+                  <View style={[st.themePresetBody, { backgroundColor: t.bg }]}>
+                    <LinearGradient
+                      colors={[t.gradientStart, t.gradientMid, t.gradientEnd]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={st.themePreviewBar}
+                    />
+                    <View style={st.themePreviewDots}>
+                      <View
+                        style={[st.themeDot, { backgroundColor: t.primary }]}
+                      />
+                      <View
+                        style={[st.themeDot, { backgroundColor: t.accent }]}
+                      />
+                    </View>
                   </View>
-                  <Text
-                    style={[
-                      st.themeLabel,
-                      {
-                        color: isActive ? theme.text : theme.textSecondary,
-                        fontWeight: isActive ? "700" : "400",
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {themeNames[id]}
-                  </Text>
-                </Pressable>
+                </ThemeTile>
               );
             })}
-            <Pressable
-              style={st.themeSwatch}
+          </View>
+          <View
+            style={[
+              st.themeGroupSpacer,
+              { backgroundColor: theme.borderLight },
+            ]}
+          />
+          <Text style={[st.themeGroupLabel, { color: theme.textMuted }]}>
+            Light
+          </Text>
+          <View style={st.themeRow}>
+            {THEME_IDS.filter((id) => themeModes[id] === "light").map((id) => {
+              const t = themes[id];
+              const isActive = themeId === id;
+              return (
+                <ThemeTile
+                  key={id}
+                  label={themeNames[id]}
+                  isActive={isActive}
+                  onPress={() => setTheme(id)}
+                  checkColor={t.primary}
+                  checkColorOn="#FFF"
+                >
+                  <View style={[st.themePresetBody, { backgroundColor: t.bg }]}>
+                    <LinearGradient
+                      colors={[t.gradientStart, t.gradientMid, t.gradientEnd]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={st.themePreviewBar}
+                    />
+                    <View style={st.themePreviewDots}>
+                      <View
+                        style={[st.themeDot, { backgroundColor: t.primary }]}
+                      />
+                      <View
+                        style={[st.themeDot, { backgroundColor: t.accent }]}
+                      />
+                    </View>
+                  </View>
+                </ThemeTile>
+              );
+            })}
+          </View>
+          <View style={st.themeRow}>
+            <ThemeTile
+              label={customTheme?.name || "Custom"}
+              isActive={themeId === "custom"}
               onPress={() => {
                 setShowEditor(true);
                 if (!customTheme) {
@@ -363,40 +458,36 @@ export default function SettingsScreen() {
                   setEditorName("My Theme");
                 }
               }}
+              checkColor={theme.text}
+              checkColorOn={theme.bg}
             >
               <View
                 style={[
-                  st.themeCircle,
-                  {
-                    backgroundColor: theme.surfaceAlt,
-                    borderColor:
-                      themeId === "custom" ? theme.text : theme.border,
-                    borderWidth: themeId === "custom" ? 2 : 1,
-                  },
+                  st.themePresetBody,
+                  { backgroundColor: customTheme?.colors.bg ?? theme.bg },
                 ]}
               >
-                <MaterialIcons
-                  name="palette"
-                  size={16}
-                  color={
-                    themeId === "custom" ? theme.text : theme.textSecondary
+                <LinearGradient
+                  colors={
+                    customTheme
+                      ? [customTheme.colors.primary, customTheme.colors.accent]
+                      : [theme.primary, theme.accent]
                   }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={st.themePreviewBar}
                 />
+                <View style={st.themePreviewDots}>
+                  <MaterialIcons
+                    name="palette"
+                    size={15}
+                    color={
+                      themeId === "custom" ? theme.text : theme.textSecondary
+                    }
+                  />
+                </View>
               </View>
-              <Text
-                style={[
-                  st.themeLabel,
-                  {
-                    color:
-                      themeId === "custom" ? theme.text : theme.textSecondary,
-                    fontWeight: themeId === "custom" ? "700" : "400",
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {customTheme?.name || "Custom"}
-              </Text>
-            </Pressable>
+            </ThemeTile>
           </View>
           {customTheme && (
             <Pressable
@@ -404,7 +495,7 @@ export default function SettingsScreen() {
               onPress={() => {
                 Alert.alert(
                   "Delete Custom Theme",
-                  `Delete "${customTheme.name}" and reset to Hero?`,
+                  `Delete "${customTheme.name}" and reset to Graphite?`,
                   [
                     { text: "Cancel", style: "cancel" },
                     {
@@ -955,17 +1046,61 @@ const st = StyleSheet.create({
   },
   cardTitle: { fontSize: 16, fontWeight: "700", fontFamily },
 
+  themeGroupLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+    marginBottom: 10,
+    fontFamily,
+  },
   themeRow: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  themeSwatch: { alignItems: "center", width: (SCREEN_WIDTH - 120) / 4 },
-  themeCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  themeGroupSpacer: { height: 1, marginVertical: 16 },
+  themeSwatch: { alignItems: "center", width: (SCREEN_WIDTH - 96) / 3 },
+  themePreview: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 4,
   },
-  themeLabel: { fontSize: 10, textAlign: "center", fontFamily },
+  themePresetBody: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  themePreviewBar: {
+    position: "absolute",
+    top: 12,
+    left: 6,
+    right: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  themePreviewDots: {
+    position: "absolute",
+    bottom: 7,
+    flexDirection: "row",
+    gap: 5,
+  },
+  themeDot: { width: 7, height: 7, borderRadius: 3.5 },
+  themeCheck: {
+    position: "absolute",
+    top: 3,
+    right: 3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2,
+  },
+  themeLabel: { fontSize: 11, textAlign: "center", fontFamily },
   deleteThemeBtn: {
     marginTop: 12,
     borderTopWidth: 1,

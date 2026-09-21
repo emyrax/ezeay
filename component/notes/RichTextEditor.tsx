@@ -317,7 +317,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
       if (run.heading) {
         if (run.headingGroup) {
           const key = HEADING_GROUP_COLORS[run.headingGroup];
-          if (key) {
+          if (key && !run.marker) {
             s.push({ color: theme[key], backgroundColor: theme[key] + "1A" });
           }
         }
@@ -329,12 +329,15 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
       else if (run.checkbox === false) s.push({ color: theme.textSecondary });
       else if (run.bullet) s.push({ color: theme.primary });
       if (run.code) s.push(styles.runCode);
-      if (run.highlight) s.push({ backgroundColor: HIGHLIGHT_BG });
+      if (run.highlight && !run.marker) {
+        s.push({ backgroundColor: HIGHLIGHT_BG });
+      }
       if (!run.heading) {
         if (run.bold) s.push(styles.runBold);
         if (run.italic) s.push(styles.runItalic);
         if (run.underline) s.push(styles.runUnderline);
       }
+      if (run.marker) s.push(styles.runMarker);
       return s;
     };
 
@@ -395,7 +398,11 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
 
         <Text pointerEvents="none" style={[styles.overlay, { color: theme.text }]}>
           {overlayRuns.map((run, i) => (
-            <Text key={i} style={runStyle(run)}>
+            <Text
+              key={i}
+              style={runStyle(run)}
+              aria-hidden={run.marker || undefined}
+            >
               {run.text}
             </Text>
           ))}
@@ -553,6 +560,7 @@ const styles = StyleSheet.create({
   runBold: { fontWeight: "700" },
   runItalic: { fontStyle: "italic" },
   runUnderline: { textDecorationLine: "underline" },
+  runMarker: { opacity: 0 },
   runCode: {
     fontFamily: MONO_FONT,
     fontSize: FONT_SIZE - 2,

@@ -133,7 +133,7 @@ export default function MissionsSection() {
         : "Complete challenges to earn XP",
       icon: "calendar-edit",
       done: hasClaimableBounty,
-      onPress: () => router.push("/(tabs)/quests" as Href),
+      onPress: () => router.push("/(schedule)" as Href),
     },
     {
       key: "spin",

@@ -811,6 +811,26 @@ export const api = {
         }),
     },
   },
+
+  schedule: {
+    suggest: (
+      data: {
+        date: string;
+        tasks: { id: string; title: string; time?: string; done: boolean }[];
+      },
+      token: string,
+      opts?: { modelRef?: string },
+    ) =>
+      apiFetch<{ suggestions: { id: string; reason: string }[] }>(
+        `/api/schedule/suggest`,
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+          token,
+          headers: aiModelHeaders(opts?.modelRef),
+        },
+      ),
+  },
 };
 
 export interface NoteChatMessage {

@@ -71,6 +71,49 @@ export async function openNotificationSettings() {
   }
 }
 
+export function notificationsAvailable(): boolean {
+  return !isExpoGo;
+}
+
+export async function scheduleDateNotification(input: {
+  title: string;
+  body?: string;
+  date: Date;
+  data?: Record<string, unknown>;
+}): Promise<string | null> {
+  if (isExpoGo) return null;
+
+  const Notifications = await loadNotifications();
+  if (!Notifications) return null;
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: input.title,
+      body: input.body,
+      data: input.data ?? undefined,
+      sound: true,
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: input.date,
+    },
+  });
+  return id;
+}
+
+export async function cancelScheduledNotification(
+  notificationId: string | null | undefined,
+): Promise<void> {
+  if (!notificationId || isExpoGo) return;
+
+  const Notifications = await loadNotifications();
+  if (!Notifications) return;
+
+  await Notifications.cancelScheduledNotificationAsync(notificationId).catch(
+    () => undefined,
+  );
+}
+
 export async function scheduleCourseNotification(courseTitle: string) {
   if (isExpoGo) return;
 

@@ -3,16 +3,18 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
   Animated, Image, RefreshControl,
 } from "react-native";
-import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import { useCourseStore } from "../../../store/courseStore";
 import { useProgressStore } from "../../../store/courseProgressStore";
+import { useEnrollmentStore } from "../../../store/courseEnrollmentStore";
 import { useThemeColors } from "../../../hooks/useTheme";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useNavLock } from "../../../lib/guard";
+import { api } from "../../../lib/api";
 import ErrorBoundary from "../../../component/ErrorBoundary";
 import ChapterBottomSheet from "../../../component/ChapterBottomSheet";
 import type { Chapter } from "../../../types/chapter";
@@ -31,6 +33,47 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 };
 
 const MAX_SHOWN_SUBTOPICS = 5;
+
+interface CourseFeedStats {
+  likedByMe: boolean;
+  likeCount: number;
+  viewCount: number;
+}
+
+const sessionStatsCache = new Map<string, CourseFeedStats>();
+
+function BackButton({ onPress }: { onPress: () => void }) {
+  const theme = useThemeColors();
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.backButton, { borderColor: theme.border }]}
+      activeOpacity={0.7}
+      hitSlop={8}
+    >
+      <Ionicons name="chevron-back" size={24} color={theme.text} />
+    </TouchableOpacity>
+  );
+}
+
+function ScreenHeader({ title, onBack }: { title?: string; onBack: () => void }) {
+  const theme = useThemeColors();
+  return (
+    <View
+      style={[
+        styles.header,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}
+    >
+      <BackButton onPress={onBack} />
+      {title ? (
+        <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
+          {title}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
 
 function ShimmerRow({ pattern }: { pattern: number }) {
   const opacity = useRef(new Animated.Value(0.3)).current;
@@ -67,7 +110,10 @@ export default function CourseChaptersScreen() {
   const loaded = useCourseStore((s) => s.loaded);
   const loading = useCourseStore((s) => s.loading);
   const fetchCourses = useCourseStore((s) => s.fetchCourses);
+  const upsertCourse = useCourseStore((s) => s.upsertCourse);
   const setCourseVisibility = useCourseStore((s) => s.setCourseVisibility);
+  const enroll = useEnrollmentStore((s) => s.enroll);
+  const completeEnrollment = useEnrollmentStore((s) => s.complete);
   const passedQuizzes = useProgressStore((s) => s.passedQuizzes);
   const isQuizPassed = useCallback(
     (courseId: string, ch: number, sub: number) => !!passedQuizzes[`${courseId}_${ch}_${sub}`],
@@ -80,6 +126,12 @@ export default function CourseChaptersScreen() {
 
   const [selectedChapter, setSelectedChapter] = useState<{ chapter: Chapter; index: number } | null>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [courseStats, setCourseStats] = useState<CourseFeedStats | null>(null);
+  const viewTrackedRef = useRef(false);
+  const enrollSyncedRef = useRef(false);
+  const statsFetchedRef = useRef(false);
+  const completionSyncedRef = useRef(false);
+  const likingIdsRef = useRef(new Set<string>());
 
   const getScaleAnim = useCallback((index: number) => {
     if (!scaleAnims.current[index]) {
@@ -129,6 +181,20 @@ export default function CourseChaptersScreen() {
     return idx === -1 ? chapters.length - 1 : idx;
   }, [chapters, courseId, isQuizPassed]);
 
+  const canTrack = useMemo(
+    () =>
+      !!(
+        courseId &&
+        course &&
+        profile &&
+        !course.id.startsWith("generating_") &&
+        course.isPublic &&
+        course.sharedAt &&
+        course.creatorId !== profile.uid
+      ),
+    [courseId, course, profile],
+  );
+
   useEffect(() => {
     if (scrollRef.current && firstIncompleteIndex >= 0) {
       const reversedIndex = chapters.length - 1 - firstIncompleteIndex;
@@ -170,9 +236,168 @@ export default function CourseChaptersScreen() {
     }
   }, [profile, fetchCourses, getToken]);
 
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)");
+    }
+  }, [router]);
+
+  const handleToggleLike = useCallback(async () => {
+    if (!course || !courseStats) return;
+    if (likingIdsRef.current.has(course.id)) return;
+
+    likingIdsRef.current.add(course.id);
+    const prev = courseStats;
+    const optimistic: CourseFeedStats = {
+      likedByMe: !prev.likedByMe,
+      likeCount: Math.max(0, prev.likeCount + (prev.likedByMe ? -1 : 1)),
+      viewCount: prev.viewCount,
+    };
+    setCourseStats(optimistic);
+    sessionStatsCache.set(course.id, optimistic);
+
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
+      const res = await api.community.feedLike(course.id, token);
+      const next: CourseFeedStats = {
+        likedByMe: res.liked,
+        likeCount: res.likeCount,
+        viewCount: optimistic.viewCount,
+      };
+      setCourseStats(next);
+      sessionStatsCache.set(course.id, next);
+    } catch (err) {
+      console.error("[Chapters] like failed:", err);
+      setCourseStats(prev);
+      sessionStatsCache.set(course.id, prev);
+    } finally {
+      likingIdsRef.current.delete(course.id);
+    }
+  }, [course, courseStats, getToken]);
+
+  // Fetch a single course when it isn't in the store yet (e.g. deep-linked).
+  useEffect(() => {
+    if (!courseId || course || !loaded) return;
+    if (courseId.startsWith("generating_")) return;
+    let cancelled = false;
+    getToken().then(async (token) => {
+      if (!token) return;
+      try {
+        const fetched = await api.courses.getById(courseId, token);
+        if (!cancelled && fetched) await upsertCourse(fetched);
+      } catch (err) {
+        if (!cancelled) console.error("[Chapters] course fetch failed:", err);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, course, loaded, getToken, upsertCourse]);
+
+  // Sync views, enrolled + like/view stats to the database (once per open).
+  useEffect(() => {
+    if (!canTrack || !course || !profile) return;
+    let cancelled = false;
+
+    getToken().then(async (token) => {
+      if (!token) return;
+
+      if (!enrollSyncedRef.current) {
+        enrollSyncedRef.current = true;
+        try {
+          const existing = useEnrollmentStore
+            .getState()
+            .enrollments.find((e) => e.courseId === course.id && e.userId === profile.uid);
+          if (!existing) {
+            await enroll(profile.uid, course.id, () => Promise.resolve(token));
+          }
+        } catch (err) {
+          console.error("[Chapters] auto-enroll failed:", err);
+          enrollSyncedRef.current = false;
+        }
+      }
+
+      if (!viewTrackedRef.current) {
+        viewTrackedRef.current = true;
+        try {
+          const res = await api.community.trackView(course.id, token);
+          if (!cancelled) {
+            setCourseStats((prev) =>
+              prev
+                ? { ...prev, viewCount: res.viewCount }
+                : { likedByMe: false, likeCount: 0, viewCount: res.viewCount },
+            );
+          }
+        } catch (err) {
+          console.error("[Chapters] view tracking failed:", err);
+        }
+      }
+
+      const cached = sessionStatsCache.get(course.id);
+      if (cached) {
+        if (!cancelled) setCourseStats(cached);
+        return;
+      }
+      if (statsFetchedRef.current) return;
+      statsFetchedRef.current = true;
+      try {
+        const feed = await api.community.feed(token, 40, true, 0);
+        const post = feed.posts.find((p) => p.id === course.id);
+        const stats: CourseFeedStats = post
+          ? { likedByMe: post.likedByMe, likeCount: post.likeCount, viewCount: post.viewCount }
+          : { likedByMe: false, likeCount: 0, viewCount: 0 };
+        sessionStatsCache.set(course.id, stats);
+        if (!cancelled) setCourseStats(stats);
+      } catch (err) {
+        console.error("[Chapters] stats fetch failed:", err);
+        if (!cancelled) setCourseStats({ likedByMe: false, likeCount: 0, viewCount: 0 });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canTrack, course, profile, getToken, enroll]);
+
+  // Mark the course as completed in the database once every chapter is done.
+  useEffect(() => {
+    if (!courseId || !profile || chapters.length === 0) return;
+    if (completedCount !== chapters.length) return;
+    if (completionSyncedRef.current) return;
+
+    const enrollment = useEnrollmentStore.getState().getEnrollmentForCourse(courseId);
+    if (!enrollment) return;
+    if (enrollment.isCompleted) {
+      completionSyncedRef.current = true;
+      return;
+    }
+
+    completionSyncedRef.current = true;
+    let cancelled = false;
+    getToken().then(async (token) => {
+      if (!token) {
+        if (!cancelled) completionSyncedRef.current = false;
+        return;
+      }
+      try {
+        await completeEnrollment(enrollment.id, () => Promise.resolve(token));
+      } catch (err) {
+        console.error("[Chapters] completion sync failed:", err);
+        if (!cancelled) completionSyncedRef.current = false;
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [completedCount, chapters.length, courseId, profile, getToken, completeEnrollment]);
+
   if (!courseId) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+        <ScreenHeader title="Chapters" onBack={handleBack} />
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: theme.textSecondary }]}>Course not found</Text>
         </View>
@@ -183,16 +408,11 @@ export default function CourseChaptersScreen() {
   if (loading && !loaded) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        <Stack.Screen
-          options={{
-            headerShown: true,
-            headerTitle: "Chapters",
-            headerStyle: { backgroundColor: theme.bg },
-            headerTintColor: theme.text,
-            headerBackTitle: "Back",
-          }}
-        />
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScreenHeader title="Chapters" onBack={handleBack} />
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={[styles.summarySkeleton, { backgroundColor: theme.border }]} />
           {Array.from({ length: 5 }).map((_, i) => (
             <ShimmerRow key={i} pattern={i % 4} />
@@ -205,6 +425,7 @@ export default function CourseChaptersScreen() {
   if (!course) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+        <ScreenHeader title="Chapters" onBack={handleBack} />
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: theme.textSecondary }]}>Course not found</Text>
         </View>
@@ -215,15 +436,7 @@ export default function CourseChaptersScreen() {
   if (chapters.length === 0) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        <Stack.Screen
-          options={{
-            headerShown: true,
-            headerTitle: course.title || "Chapters",
-            headerStyle: { backgroundColor: theme.bg },
-            headerTintColor: theme.text,
-            headerBackTitle: "Back",
-          }}
-        />
+        <ScreenHeader title="Chapters" onBack={handleBack} />
         <View style={styles.center}>
           <Ionicons name="book-outline" size={48} color={theme.textMuted} />
           <Text style={[styles.errorText, { color: theme.textSecondary }]}>No chapters available yet</Text>
@@ -245,18 +458,7 @@ export default function CourseChaptersScreen() {
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        <Stack.Screen
-          options={{
-            headerShown: false,
-          }}
-        />
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chevron-back" size={28} color={theme.text} />
-        </TouchableOpacity>
+        <ScreenHeader title={course.title} onBack={handleBack} />
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={styles.scroll}
@@ -306,6 +508,30 @@ export default function CourseChaptersScreen() {
                   {totalCh} chapters · {course.rewardXp} XP
                 </Text>
               </View>
+              {canTrack && (
+                <View style={styles.summaryActions}>
+                  <TouchableOpacity
+                    style={[styles.summaryAction, { backgroundColor: theme.surfaceAlt }]}
+                    onPress={handleToggleLike}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={courseStats?.likedByMe ? "heart" : "heart-outline"}
+                      size={16}
+                      color={courseStats?.likedByMe ? "#FB7185" : theme.textSecondary}
+                    />
+                    <Text style={[styles.summaryActionText, { color: theme.textSecondary }]}>
+                      {courseStats ? courseStats.likeCount : "…"}
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={[styles.summaryAction, { backgroundColor: theme.surfaceAlt }]}>
+                    <Ionicons name="eye-outline" size={16} color={theme.textSecondary} />
+                    <Text style={[styles.summaryActionText, { color: theme.textSecondary }]}>
+                      {courseStats?.viewCount ?? "…"}
+                    </Text>
+                  </View>
+                </View>
+              )}
 
               {profile?.uid === course.creatorId && (
                 <TouchableOpacity
@@ -513,7 +739,7 @@ export default function CourseChaptersScreen() {
           onClose={() => setSelectedChapter(null)}
           onStart={(chIdx) => {
             setSelectedChapter(null);
-            router.push(`/(course)/${courseId}/chapter/${chIdx}`);
+            navigate(() => router.push(`/(course)/${courseId}/chapter/${chIdx}`));
           }}
         />
       </SafeAreaView>
@@ -616,6 +842,24 @@ const styles = StyleSheet.create({
   },
   summaryMetaText: {
     fontSize: 12,
+  },
+  summaryActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+  },
+  summaryAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  summaryActionText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   shareRow: {
     flexDirection: "row",
@@ -729,16 +973,30 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
 
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+
+  headerTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: "700",
+    marginLeft: 8,
+    marginRight: 16,
+  },
+
   backButton: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(127,127,127,0.16)",
+    borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 10,
   },
 
   readMoreText: {

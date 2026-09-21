@@ -17,7 +17,7 @@ export const ALL_APPS: QuickApp[] = [
   { id: "courses", icon: "school-outline", label: "Courses", route: "/(tabs)/quests" },
   { id: "stats", icon: "chart-bar", label: "Stats", route: "/(tabs)/stats" },
   { id: "profile", icon: "account-circle", label: "Profile", route: "/(tabs)/profile" },
-  { id: "schedule", icon: "calendar-month-outline", label: "Schedule" },
+  { id: "schedule", icon: "calendar-month-outline", label: "Schedule", route: "/(schedule)" },
   { id: "trophies", icon: "trophy-outline", label: "Trophies" },
   { id: "ai-tutor", icon: "robot-outline", label: "AI Tutor" },
   { id: "settings", icon: "cog-outline", label: "Settings" },

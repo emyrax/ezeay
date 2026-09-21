@@ -3,13 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Tabs, useRouter, useSegments } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
 import { useEffect, useRef } from "react";
-import {
-  Animated,
-  Pressable,
-  StyleSheet,
-  Text,
-  View
-} from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SpinWheel from "../../component/SpinWheel";
 import { useThemeColors } from "../../hooks/useTheme";
@@ -290,9 +284,10 @@ const styles = StyleSheet.create({
   container: {
     position: "absolute",
     left: 16,
+    bottom: 4,
     right: 16,
-    height: 64,
-    borderRadius: 24,
+    height: 74,
+    borderRadius: 34,
     borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",

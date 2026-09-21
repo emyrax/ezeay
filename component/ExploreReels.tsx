@@ -593,6 +593,8 @@ function ReelCard({
             onPress={like}
             accessibilityRole="button"
             accessibilityLabel={liked ? "Unlike this course" : "Like this course"}
+            hitSlop={8}
+            style={({ pressed }) => pressed && styles.railActionPressed}
           >
             <Animated.View
               style={{ transform: [{ scale: railHeartScale }] }}
@@ -619,6 +621,8 @@ function ReelCard({
             onPress={handleShare}
             accessibilityRole="button"
             accessibilityLabel="Share this course"
+            hitSlop={8}
+            style={({ pressed }) => pressed && styles.railActionPressed}
           >
             <Animated.View style={{ transform: [{ scale: shareScale }] }}>
               <MaterialCommunityIcons
@@ -636,6 +640,8 @@ function ReelCard({
             onPress={toggleEnroll}
             accessibilityRole="button"
             accessibilityLabel={enrolled ? "Remove from Enrolled" : "Add to Enrolled"}
+            hitSlop={8}
+            style={({ pressed }) => pressed && styles.railActionPressed}
           >
             <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
               <MaterialCommunityIcons
@@ -822,10 +828,12 @@ export default function ExploreReels({
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [reelHeight, setReelHeight] = useState(0);
+  const [enrollOverrides, setEnrollOverrides] = useState<Record<string, boolean>>({});
 
   const flatListRef = useRef<FlatList<ReelItem>>(null);
   const fetchingIds = useRef<Set<string>>(new Set());
   const likingIds = useRef<Set<string>>(new Set());
+  const pendingEnroll = useRef<Set<string>>(new Set());
   const viewedIds = useRef<Set<string>>(new Set());
   const loadingMoreRef = useRef(false);
   const loadingFeedRef = useRef(false);
@@ -992,14 +1000,13 @@ export default function ExploreReels({
     async (item: ReelItem) => {
       const id = item.post.id;
       if (likingIds.current.has(id)) return;
-      const token = await getToken();
-      if (!token) return;
 
       const prevLiked = item.post.likedByMe;
       const prevCount = item.post.likeCount;
       likingIds.current.add(id);
 
-      // optimistic flip, then reconcile with the server response
+      // optimistic flip immediately so the tap feels instant,
+      // then reconcile with the server response
       setPosts((prev) =>
         prev.map((p) =>
           p.id === id
@@ -1013,6 +1020,8 @@ export default function ExploreReels({
       );
 
       try {
+        const token = await getToken();
+        if (!token) throw new Error("Not authenticated");
         const res = await api.community.feedLike(id, token);
         setPosts((prev) =>
           prev.map((p) =>
@@ -1049,29 +1058,57 @@ export default function ExploreReels({
   const toggleEnroll = useCallback(
     async (item: ReelItem, currentlyEnrolled: boolean) => {
       if (!profile) return;
-      const token = await getToken();
-      if (!token) {
-        Alert.alert("Not signed in", "Please sign in to save courses.");
-        return;
-      }
-      if (currentlyEnrolled) {
-        const enrollment = enrollments.find(
-          (e) => e.courseId === item.post.id,
-        );
-        if (!enrollment) return;
-        const res = await useEnrollmentStore
-          .getState()
-          .unenroll(enrollment.id, getToken);
-        if (!res.success) {
-          Alert.alert("Couldn't remove course", res.error ?? "Please try again.");
+      const id = item.post.id;
+      if (pendingEnroll.current.has(id)) return;
+
+      const target = !currentlyEnrolled;
+      pendingEnroll.current.add(id);
+      // optimistic flip so the bookmark responds instantly,
+      // then let the store value take over once the write resolves
+      setEnrollOverrides((prev) => ({ ...prev, [id]: target }));
+
+      const clearOverride = () => {
+        setEnrollOverrides((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      };
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          clearOverride();
+          Alert.alert("Not signed in", "Please sign in to save courses.");
+          return;
         }
-        return;
-      }
-      const res = await useEnrollmentStore
-        .getState()
-        .enroll(profile.uid, item.post.id, getToken);
-      if (!res.success) {
-        Alert.alert("Couldn't save course", res.error ?? "Please try again.");
+        if (target) {
+          const res = await useEnrollmentStore
+            .getState()
+            .enroll(profile.uid, id, getToken);
+          if (!res.success) {
+            clearOverride();
+            Alert.alert("Couldn't save course", res.error ?? "Please try again.");
+          }
+        } else {
+          const enrollment = enrollments.find((e) => e.courseId === id);
+          if (!enrollment) {
+            clearOverride();
+            return;
+          }
+          const res = await useEnrollmentStore
+            .getState()
+            .unenroll(enrollment.id, getToken);
+          if (!res.success) {
+            clearOverride();
+            Alert.alert("Couldn't remove course", res.error ?? "Please try again.");
+          }
+        }
+      } catch (err) {
+        console.error("[ExploreReels] enroll failed:", err);
+        clearOverride();
+      } finally {
+        pendingEnroll.current.delete(id);
       }
     },
     [profile, enrollments, getToken],
@@ -1162,11 +1199,6 @@ export default function ExploreReels({
         <View style={styles.headerTitleBlock}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
             EXPLORE THE CAMP
-          </Text>
-          <Text
-            style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
-          >
-            Doom-scroll lessons from your camp and fellow learners
           </Text>
         </View>
       </View>
@@ -1262,7 +1294,7 @@ export default function ExploreReels({
                 onLike={toggleLike}
                 onShare={shareReel}
                 onToggleEnroll={toggleEnroll}
-                enrolled={enrolledIds.has(item.post.id)}
+                enrolled={enrollOverrides[item.post.id] ?? enrolledIds.has(item.post.id)}
                 completed={completedKeys.has(
                   `${item.post.id}_${item.chapterOrder}_${item.subtopicOrder}`,
                 )}
@@ -1283,7 +1315,7 @@ export default function ExploreReels({
                     <Text
                       style={[styles.emptyText, { color: theme.textMuted }]}
                     >
-                      Campmates&apos; courses will scroll in here.
+                      Microlearning courses will scroll in here.
                     </Text>
                     <TouchableOpacity
                       style={[
@@ -1342,7 +1374,7 @@ const styles = StyleSheet.create({
   headerRow: {
     paddingHorizontal: 16,
     marginTop: 16,
-    marginBottom: 10,
+    marginBottom: 5,
   },
   headerTitleBlock: {
     gap: 2,
@@ -1362,7 +1394,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginHorizontal: 16,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   searchInput: {
     flex: 1,
@@ -1414,7 +1446,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "rgba(18,26,38,0.72)",
+    backgroundColor: "rgba(18, 26, 38, 0.33)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
   },
@@ -1642,6 +1674,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     opacity: 0.9,
+  },
+  railActionPressed: {
+    opacity: 0.6,
+    transform: [{ scale: 0.9 }],
   },
   railAvatarRing: {
     width: 42,

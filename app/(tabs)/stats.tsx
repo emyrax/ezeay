@@ -40,6 +40,7 @@ export default function ExploreScreen() {
     <View style={styles.root}>
       <ErrorBoundary>
         <ScreenContainer>
+          
           <ExploreReels
             refreshKey={exploreRefresh}
             refreshing={refreshing}
@@ -47,7 +48,7 @@ export default function ExploreScreen() {
             onRefreshDone={handleRefreshDone}
             onOpeningChange={setOpening}
           />
-          <View style={{ height: 100 }} />
+          
         </ScreenContainer>
          
       </ErrorBoundary>

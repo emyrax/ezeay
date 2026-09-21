@@ -111,7 +111,13 @@ export default function HeaderSection() {
             />
             <View style={styles.badgeDot} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() =>
+              navigate(() => router.push("/(schedule)" as any))
+            }
+            activeOpacity={0.7}
+          >
             <MaterialCommunityIcons
               name="calendar-clock"
               size={22}

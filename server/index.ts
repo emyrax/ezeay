@@ -42,6 +42,7 @@ import { buildStudyExtractionPrompt } from "./prompts/studyProcessing";
 import { buildStudyCheatsheetPrompt, buildFlashcardsPrompt } from "./prompts/studyGeneration";
 import { buildNotesAiPrompt, buildNotesChatPrompt } from "./prompts/notesPrompts";
 import type { NotesAiAction, NotesChatMode } from "./prompts/notesPrompts";
+import { buildScheduleSuggestPrompt } from "./prompts/scheduleSuggest";
 import type { Course } from "../types/course";
 
 const app = express();
@@ -4006,6 +4007,118 @@ app.delete("/api/notes/:noteId/chats", async (req, res) => {
     }
     console.error("[Server] DELETE /api/notes/:noteId/chats failed:", err);
     res.status(500).json({ error: "Failed to clear chat history" });
+  }
+});
+
+// --- Schedule planner suggestions ---
+
+function sanitizeScheduleTasks(value: unknown): {
+  id: string;
+  title: string;
+  time?: string;
+  done: boolean;
+}[] {
+  if (!Array.isArray(value)) return [];
+  const out: { id: string; title: string; time?: string; done: boolean }[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    if (typeof o.id !== "string" || !o.id) continue;
+    if (typeof o.title !== "string" || !o.title.trim()) continue;
+    const time =
+      typeof o.time === "string" && /^\d{2}:\d{2}$/.test(o.time)
+        ? o.time
+        : undefined;
+    out.push({
+      id: o.id.slice(0, 64),
+      title: o.title.trim().slice(0, 120),
+      time,
+      done: o.done === true,
+    });
+    if (out.length >= 25) break;
+  }
+  return out;
+}
+
+function normalizeScheduleSuggestions(
+  result: unknown,
+  pool: { id: string }[],
+): { id: string; reason: string }[] {
+  if (!result || typeof result !== "object") return [];
+  const raw = (result as Record<string, unknown>).suggestions;
+  if (!Array.isArray(raw)) return [];
+  const poolIds = new Set(pool.map((t) => t.id));
+  const out: { id: string; reason: string }[] = [];
+  const seen = new Set<string>();
+  for (const s of raw) {
+    if (!s || typeof s !== "object") continue;
+    const o = s as Record<string, unknown>;
+    if (typeof o.id !== "string" || !poolIds.has(o.id)) continue;
+    if (seen.has(o.id)) continue;
+    seen.add(o.id);
+    out.push({
+      id: o.id,
+      reason:
+        typeof o.reason === "string" && o.reason
+          ? o.reason.slice(0, 160)
+          : "Suggested",
+    });
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+app.post("/api/schedule/suggest", async (req, res) => {
+  try {
+    await verifyClerkToken(req.headers.authorization);
+    const { date, tasks } = req.body;
+
+    const cleanTasks = sanitizeScheduleTasks(tasks);
+    if (cleanTasks.length === 0) {
+      res.status(400).json({ error: "No tasks provided" });
+      return;
+    }
+
+    const { system } = buildScheduleSuggestPrompt({
+      date:
+        typeof date === "string" && date
+          ? date.slice(0, 10)
+          : new Date().toISOString().slice(0, 10),
+      tasks: cleanTasks,
+    });
+
+    const ai = aiRequestOptions(req);
+    let suggestions: { id: string; reason: string }[];
+    try {
+      const result = await generateJsonContent<{ suggestions?: unknown }>(
+        ai.modelRef,
+        `${system}\n\nReturn ONLY valid JSON matching the requested structure. Do NOT include any markdown code fences. Return raw JSON only.`,
+        ai.apiKey,
+      );
+      suggestions = normalizeScheduleSuggestions(result, cleanTasks);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("no parseable JSON")) {
+        const label = getModelOption(ai.modelRef)?.label ?? ai.modelRef;
+        res.status(422).json({
+          error: `"${label}" returned no usable suggestions. Please try again or switch to a more reliable model.`,
+        });
+        return;
+      }
+      throw err;
+    }
+
+    if (suggestions.length === 0) {
+      const label = getModelOption(ai.modelRef)?.label ?? ai.modelRef;
+      res.status(422).json({
+        error: `"${label}" returned no usable suggestions. Please try again or switch to a more reliable model.`,
+      });
+      return;
+    }
+
+    res.json({ suggestions });
+  } catch (err) {
+    sendRouteError(res, err, "[Server] POST /api/schedule/suggest failed");
   }
 });
 
