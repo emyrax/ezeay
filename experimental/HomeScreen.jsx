@@ -10,8 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '@expo/vector-icons/Ionicons';
 import HeaderSection from '../component/homeScreenTab/HeaderSection';
-import RealmsSection from '../component/RealmsSection';
-import TrophyCabinetSection from '../component/homeScreenTab/TrophyCabinetSection';
+import TrophyCabinetSection from '../component/TrophyCabinetSection';
 
 export default function HomeScreen() {
   return (
@@ -22,7 +21,6 @@ export default function HomeScreen() {
       >
         {/* We will insert Sections 3, 4, and 5 here */}
         <HeaderSection />
-        <RealmsSection />
         <TrophyCabinetSection />
         
         {/* Bottom padding to ensure content isn't hidden behind the floating tab bar */}

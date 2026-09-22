@@ -1,3 +1,5 @@
+import { neon } from "@neondatabase/serverless";
+
 if (typeof process.loadEnvFile === "function") {
   try {
     process.loadEnvFile();
@@ -5,7 +7,6 @@ if (typeof process.loadEnvFile === "function") {
     // no .env in cwd; rely on real environment variables
   }
 }
-import { neon } from "@neondatabase/serverless";
 
 const trophyData = [
   { id: "trophy_first_voyage", name: "First Voyage", description: "Complete your first course to unlock", icon: "rocket", conditionType: "courses_completed", conditionValue: 1, coinReward: 50 },
