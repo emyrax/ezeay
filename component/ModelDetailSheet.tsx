@@ -334,9 +334,10 @@ export default function ModelDetailSheet({
                   color={theme.accent}
                 />
                 <Text style={[st.warningText, { color: theme.textSecondary }]}>
-                  On-device AI isn&apos;t available in this build. Rebuild the
-                  development build with the expo-ai-kit plugin once, then
-                  download this model from Settings.
+                  On-device AI isn&apos;t available in this build. Rebuild once
+                  with{" "}
+                  <Text style={{ fontWeight: "700" }}>npx expo run:android</Text>{" "}
+                  (or iOS), then download &amp; activate this model here.
                 </Text>
               </View>
             ) : (

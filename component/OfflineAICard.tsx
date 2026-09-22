@@ -152,11 +152,50 @@ export default function OfflineAICard() {
           Not available in this build
         </Text>
         <Text style={[styles.unavailableText, { color: theme.textSecondary }]}>
-          On-device AI needs a development build with the expo-ai-kit plugin.
-          Rebuild with{" "}
-          <Text style={{ fontWeight: "700" }}>npx expo run:android</Text> (or
-          iOS) once, then download a model here.
+          On-device AI needs a development build with the expo-ai-kit
+          plugin. Three steps:
         </Text>
+        <View style={styles.stepRow}>
+          <Text
+            style={[
+              styles.stepNum,
+              { backgroundColor: theme.primary + "22", color: theme.primary },
+            ]}
+          >
+            1
+          </Text>
+          <Text style={[styles.stepText, { color: theme.textSecondary }]}>
+            Rebuild once with{" "}
+            <Text style={{ fontWeight: "700" }}>npx expo run:android</Text>{" "}
+            (or iOS).
+          </Text>
+        </View>
+        <View style={styles.stepRow}>
+          <Text
+            style={[
+              styles.stepNum,
+              { backgroundColor: theme.primary + "22", color: theme.primary },
+            ]}
+          >
+            2
+          </Text>
+          <Text style={[styles.stepText, { color: theme.textSecondary }]}>
+            Return here and tap Download.
+          </Text>
+        </View>
+        <View style={styles.stepRow}>
+          <Text
+            style={[
+              styles.stepNum,
+              { backgroundColor: theme.primary + "22", color: theme.primary },
+            ]}
+          >
+            3
+          </Text>
+          <Text style={[styles.stepText, { color: theme.textSecondary }]}>
+            Tap Use on-device to make it your model.
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -366,6 +405,19 @@ const styles = StyleSheet.create({
   unavailableTextWrap: { flex: 1 },
   unavailableTitle: { fontSize: 14, fontWeight: "700", fontFamily, marginBottom: 2 },
   unavailableText: { fontSize: 12, lineHeight: 17, fontFamily },
+  stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  stepNum: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 18,
+    fontFamily,
+    overflow: "hidden",
+  },
+  stepText: { flex: 1, fontSize: 12, lineHeight: 17, fontFamily },
   modelBlock: {
     borderRadius: 16,
     borderWidth: 1,

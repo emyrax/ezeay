@@ -2,7 +2,9 @@ import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import type { ComponentProps } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   Linking,
@@ -81,6 +83,17 @@ const CUSTOM_FIELDS: { key: keyof CustomThemeColors; label: string }[] = [
   { key: "border", label: "Border" },
   { key: "tabActive", label: "Tab Active" },
 ];
+
+const PROVIDER_ICONS: Record<
+  AiProvider,
+  ComponentProps<typeof MaterialCommunityIcons>["name"]
+> = {
+  gemini: "google",
+  openai: "snake",
+  anthropic: "star-four-points-outline",
+  openrouter: "network",
+  offline: "chip",
+};
 
 function SectionCard({
   title,
@@ -173,7 +186,7 @@ export default function SettingsScreen() {
 
   const { selectedModel, setSelectedModel } = useModelStore();
   const { getToken } = useAuth();
-  const { loadKeys, clearKey } = useAiKeysStore();
+  const { loadKeys, setKey, clearKey } = useAiKeysStore();
   const keys = useAiKeysStore((s) => s.keys);
 
   const [serverKeys, setServerKeys] = useState<
@@ -182,6 +195,49 @@ export default function SettingsScreen() {
   const [serverKeysError, setServerKeysError] = useState(false);
   const [candidateModel, setCandidateModel] = useState<AiModelOption | null>(
     null,
+  );
+  const [editingKeyProvider, setEditingKeyProvider] = useState<AiProvider | null>(
+    null,
+  );
+  const [keyDraft, setKeyDraft] = useState("");
+  const [keySaving, setKeySaving] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
+
+  const handleToggleKeyEditor = useCallback(
+    (provider: AiProvider) => {
+      setKeyError(null);
+      setKeyDraft(keys[provider] ?? "");
+      setEditingKeyProvider((p) => (p === provider ? null : provider));
+    },
+    [keys],
+  );
+
+  const handleSaveProviderKey = useCallback(async () => {
+    if (!editingKeyProvider) return;
+    if (!keyDraft.trim()) {
+      setKeyError("Enter your API key first.");
+      return;
+    }
+    setKeySaving(true);
+    setKeyError(null);
+    try {
+      await setKey(editingKeyProvider, keyDraft);
+      setEditingKeyProvider(null);
+    } catch (err) {
+      setKeyError(
+        err instanceof Error ? err.message : "Failed to save this key.",
+      );
+    } finally {
+      setKeySaving(false);
+    }
+  }, [editingKeyProvider, keyDraft, setKey]);
+
+  const handleRemoveProviderKey = useCallback(
+    async (provider: AiProvider) => {
+      await clearKey(provider);
+      if (editingKeyProvider === provider) setKeyDraft("");
+    },
+    [clearKey, editingKeyProvider],
   );
 
   useEffect(() => {
@@ -633,6 +689,154 @@ export default function SettingsScreen() {
           </View>
         </SectionCard>
 
+        {/* AI API Keys */}
+        <SectionCard title="AI API Keys" theme={theme}>
+          <View style={st.aiSubRow}>
+            <Text style={[st.aiSubText, { color: theme.textSecondary }]}>
+              Add a key for any provider to unlock its free & paid models. You
+              only need a key where the server doesn&apos;t have one.
+            </Text>
+          </View>
+          {AI_PROVIDERS.map((provider) => {
+            const hasServerKey =
+              !serverKeysError && (serverKeys[provider] ?? false);
+            const hasOwnKey = Boolean(keys[provider]);
+            const expanded = editingKeyProvider === provider;
+            const ready = hasServerKey || hasOwnKey;
+            return (
+              <View key={provider}>
+                <Pressable
+                  style={[st.aiKeyRow, { borderBottomColor: theme.border }]}
+                  onPress={() => handleToggleKeyEditor(provider)}
+                >
+                  <View
+                    style={[
+                      st.aiKeyIconWrap,
+                      {
+                        backgroundColor: ready
+                          ? theme.primary + "15"
+                          : theme.border + "40",
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={PROVIDER_ICONS[provider]}
+                      size={18}
+                      color={ready ? theme.primary : theme.textSecondary}
+                    />
+                  </View>
+                  <View style={st.aiKeyInfo}>
+                    <Text style={[st.settingLabel, { color: theme.text }]}>
+                      {AI_PROVIDER_LABELS[provider]}
+                    </Text>
+                    <Text style={[st.aiKeyStatus, { color: theme.textSecondary }]}>
+                      {serverKeysError
+                        ? "Checking…"
+                        : hasServerKey
+                          ? "Server key configured"
+                          : hasOwnKey
+                            ? "Key saved on this device"
+                            : "No key — add one to unlock models"}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      st.aiStatusDot,
+                      {
+                        backgroundColor: serverKeysError
+                          ? theme.textMuted
+                          : ready
+                            ? theme.primary
+                            : theme.accent,
+                      },
+                    ]}
+                  />
+                  <MaterialCommunityIcons
+                    name={expanded ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color={theme.textMuted}
+                  />
+                </Pressable>
+                {expanded ? (
+                  <View
+                    style={[
+                      st.aiKeyEditor,
+                      {
+                        backgroundColor: theme.surfaceAlt,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[st.aiKeyEditorLabel, { color: theme.textSecondary }]}>
+                      Saving here keeps the key only on this device.
+                    </Text>
+                    {hasOwnKey ? (
+                      <View style={st.aiKeySavedRow}>
+                        <MaterialCommunityIcons
+                          name="shield-check"
+                          size={16}
+                          color={theme.primary}
+                        />
+                        <Text style={[st.aiKeySavedText, { color: theme.text }]}>
+                          A key is already saved.
+                        </Text>
+                        <Pressable
+                          onPress={() => handleRemoveProviderKey(provider)}
+                          hitSlop={8}
+                          disabled={keySaving}
+                        >
+                          <Text style={[st.aiKeyRemove, { color: theme.danger }]}>
+                            Remove
+                          </Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                    <View style={st.aiKeyInputRow}>
+                      <TextInput
+                        style={[
+                          st.aiKeyInput,
+                          {
+                            color: theme.text,
+                            borderColor: theme.border,
+                            backgroundColor: theme.surface,
+                          },
+                        ]}
+                        value={keyDraft}
+                        onChangeText={setKeyDraft}
+                        placeholder={`Paste ${AI_PROVIDER_LABELS[provider]} API key`}
+                        placeholderTextColor={theme.textMuted}
+                        secureTextEntry
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        editable={!keySaving}
+                      />
+                      <Pressable
+                        style={[
+                          st.aiKeySaveBtn,
+                          {
+                            backgroundColor: keySaving ? theme.border : theme.primary,
+                          },
+                        ]}
+                        onPress={handleSaveProviderKey}
+                        disabled={keySaving}
+                      >
+                        {keySaving ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <Text style={st.aiKeySaveText}>Save</Text>
+                        )}
+                      </Pressable>
+                    </View>
+                    {keyError ? (
+                      <Text style={[st.aiKeyError, { color: theme.danger }]}>{keyError}</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </SectionCard>
+
         {/* Offline AI */}
         <SectionCard title="Offline AI" theme={theme}>
           <OfflineAICard />
@@ -867,9 +1071,14 @@ export default function SettingsScreen() {
         <View style={[st.modalOverlay, { backgroundColor: theme.glass }]}>
           <View style={[st.modalContent, { backgroundColor: theme.surface }]}>
             <View style={st.modalHeader}>
-              <Text style={[st.modalTitle, { color: theme.text }]}>
-                Choose AI Model
-              </Text>
+              <View>
+                <Text style={[st.modalTitle, { color: theme.text }]}>
+                  Choose AI Model
+                </Text>
+                <Text style={[st.modalSubTitle, { color: theme.textSecondary }]}>
+                  Primary — {currentModel?.label ?? "Default model"}
+                </Text>
+              </View>
               <Pressable onPress={() => setShowModelPicker(false)}>
                 <MaterialIcons
                   name="close"
@@ -961,11 +1170,26 @@ export default function SettingsScreen() {
                           ) : null}
                         </View>
                         {active && (
-                          <MaterialIcons
-                            name="check"
-                            size={20}
-                            color={theme.primary}
-                          />
+                          <View
+                            style={[
+                              st.primaryChip,
+                              { backgroundColor: theme.primary + "1A" },
+                            ]}
+                          >
+                            <MaterialCommunityIcons
+                              name="check"
+                              size={11}
+                              color={theme.primary}
+                            />
+                            <Text
+                              style={[
+                                st.primaryChipText,
+                                { color: theme.primary },
+                              ]}
+                            >
+                              Primary
+                            </Text>
+                          </View>
                         )}
                       </Pressable>
                     );
@@ -1339,4 +1563,73 @@ const st = StyleSheet.create({
     marginTop: 4,
   },
   aiPickerHintText: { fontSize: 12, fontFamily, flex: 1 },
+
+  aiKeyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  aiKeyIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  aiKeyInfo: { flex: 1 },
+  aiKeyStatus: { fontSize: 12, fontFamily, marginTop: 1 },
+  aiKeyEditor: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 8,
+    marginBottom: 12,
+    gap: 10,
+  },
+  aiKeyEditorLabel: { fontSize: 12, fontFamily },
+  aiKeySavedRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  aiKeySavedText: { fontSize: 13, fontFamily, flex: 1 },
+  aiKeyRemove: { fontSize: 13, fontWeight: "700", fontFamily },
+  aiKeyInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  aiKeyInput: {
+    flex: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    borderWidth: 1,
+    fontFamily,
+  },
+  aiKeySaveBtn: {
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 68,
+  },
+  aiKeySaveText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "800",
+    fontFamily,
+  },
+  aiKeyError: { fontSize: 12, fontFamily },
+  modalSubTitle: { fontSize: 13, fontWeight: "500", marginTop: 2 },
+  primaryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  primaryChipText: {
+    fontSize: 10,
+    fontWeight: "700",
+    fontFamily,
+    textTransform: "uppercase" as const,
+  },
 });
