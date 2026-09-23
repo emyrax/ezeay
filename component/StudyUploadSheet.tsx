@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
 import React from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useThemeColors } from "../hooks/useTheme";
+import { requestStudyAccess } from "../lib/studyPermissions";
 
 interface Props {
   visible: boolean;
@@ -22,12 +22,14 @@ export default function StudyUploadSheet({ visible, onClose, onCamera, onGallery
         type: [
           "application/pdf",
           "text/plain",
+          "text/markdown",
           "application/msword",
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           "image/*",
           "audio/*",
         ],
         copyToCacheDirectory: true,
+        multiple: true,
       });
 
       if (!result.canceled && result.assets?.length > 0) {
@@ -40,21 +42,15 @@ export default function StudyUploadSheet({ visible, onClose, onCamera, onGallery
   };
 
   const handleCamera = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Needed", "Camera permission is required to take a photo.");
-      return;
-    }
+    const granted = await requestStudyAccess("camera");
+    if (!granted) return;
     onCamera();
     onClose();
   };
 
   const handleGallery = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Needed", "Gallery permission is required.");
-      return;
-    }
+    const granted = await requestStudyAccess("gallery");
+    if (!granted) return;
     onGallery();
     onClose();
   };
@@ -97,10 +93,17 @@ export default function StudyUploadSheet({ visible, onClose, onCamera, onGallery
             <View style={styles.optionTextWrap}>
               <Text style={[styles.optionTitle, { color: theme.text }]}>Upload File</Text>
               <Text style={[styles.optionSubtitle, { color: theme.textSecondary }]}>
-                PDF, DOC, TXT or an audio lecture / recording
+                PDF, DOC, TXT, MD or an audio lecture / recording
               </Text>
             </View>
           </Pressable>
+
+          <View style={[styles.privacyNote, { backgroundColor: theme.surfaceAlt }]}>
+            <Ionicons name="shield-checkmark-outline" size={14} color={theme.textMuted} />
+            <Text style={[styles.privacyText, { color: theme.textMuted }]}>
+              Your files stay private — used only to create your study bites.
+            </Text>
+          </View>
 
           <Pressable onPress={onClose} style={[styles.cancelBtn, { borderColor: theme.border }]}>
             <Text style={[styles.cancelText, { color: theme.textSecondary }]}>Cancel</Text>
@@ -172,5 +175,19 @@ const styles = StyleSheet.create({
   cancelText: {
     fontSize: 15,
     fontWeight: "600",
+  },
+  privacyNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  privacyText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

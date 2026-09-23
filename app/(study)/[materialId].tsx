@@ -19,6 +19,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import StudyBiteView from "../../component/StudyBiteView";
 import TimetableView from "../../component/TimetableView";
 import StudyChatModal from "../../component/StudyChatModal";
+import StudySuggestModal from "../../component/StudySuggestModal";
 import { useThemeColors } from "../../hooks/useTheme";
 import { useAuth } from "../../contexts/AuthContext";
 import { useStudyStore } from "../../store/studyStore";
@@ -26,6 +27,8 @@ import { useStudyQuizStore } from "../../store/studyQuizStore";
 import { useFlashcardStore } from "../../store/flashcardStore";
 import { api, friendlyError } from "../../lib/api";
 import { useModelStore } from "../../store/modelStore";
+import { getModelOption } from "../../lib/providers/modelRegistry";
+import { useBiteSuggestions } from "../../hooks/useBiteSuggestions";
 import {
   ensureOfflineActivated,
   isOfflineRef,
@@ -53,18 +56,32 @@ export default function StudyMaterialScreen() {
   const [editTitle, setEditTitle] = useState("");
   const [currentBiteIndex, setCurrentBiteIndex] = useState(0);
   const [showChat, setShowChat] = useState(false);
+  const [showSuggest, setShowSuggest] = useState(false);
   const [showCheatsheet, setShowCheatsheet] = useState(false);
   const [cheatsheet, setCheatsheet] = useState("");
   const [cheatsheetLoading, setCheatsheetLoading] = useState(false);
   const [quizGenerating, setQuizGenerating] = useState(false);
   const [flashcardsGenerating, setFlashcardsGenerating] = useState(false);
 
+  const [viewedCount, setViewedCount] = useState(0);
+  const viewedRef = useRef(new Set<number>());
+  const suggest = useBiteSuggestions();
+
+  const selectedModel = useModelStore((s) => s.selectedModel);
+  const modelLabel = getModelOption(selectedModel)?.label ?? selectedModel;
+  const offlineActive = isOfflineRef(selectedModel);
+
   const flatListRef = useRef<FlatList>(null);
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems?.length > 0) {
-      setCurrentBiteIndex(viewableItems[0].index ?? 0);
-    }
-  }).current;
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: { index?: number | null }[] }) => {
+      const index = viewableItems[0]?.index ?? 0;
+      setCurrentBiteIndex(index);
+      if (Number.isInteger(index) && index >= 0) {
+        viewedRef.current.add(index);
+        setViewedCount(viewedRef.current.size);
+      }
+    },
+  ).current;
 
   if (!material) {
     return (
@@ -208,6 +225,15 @@ export default function StudyMaterialScreen() {
     }
   };
 
+  const handleSuggest = () => {
+    const bite = material.bites[currentBiteIndex];
+    setShowSuggest(true);
+    void suggest.generate(material.id, {
+      title: bite?.title,
+      content: bite?.content,
+    });
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
@@ -266,19 +292,27 @@ export default function StudyMaterialScreen() {
           />
 
           <View style={styles.biteFooter}>
-            <View style={styles.biteDots}>
-              {material.bites.map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.biteDot,
-                    {
-                      backgroundColor:
-                        i === currentBiteIndex ? theme.primary : theme.border,
-                    },
-                  ]}
-                />
-              ))}
+            <View style={styles.biteProgressWrap}>
+              <View style={styles.biteDots}>
+                {material.bites.map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.biteDot,
+                      {
+                        backgroundColor:
+                          i === currentBiteIndex ? theme.primary : theme.border,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+              <View style={[styles.biteProgressPill, { backgroundColor: theme.surfaceAlt }]}>
+                <Ionicons name="book-outline" size={12} color={theme.textMuted} />
+                <Text style={[styles.biteProgressText, { color: theme.textMuted }]}>
+                  {viewedCount} / {material.bites.length} pages studied
+                </Text>
+              </View>
             </View>
 
             <View style={styles.biteActions}>
@@ -299,6 +333,15 @@ export default function StudyMaterialScreen() {
             </View>
 
             <View style={styles.aiToolsRow}>
+              <Pressable
+                onPress={handleSuggest}
+                style={[styles.aiToolChip, { backgroundColor: theme.surfaceAlt }]}
+              >
+                <Ionicons name="bulb-outline" size={14} color={theme.accent} />
+                <Text style={[styles.aiToolText, { color: theme.textSecondary }]}>
+                  Suggest
+                </Text>
+              </Pressable>
               <Pressable
                 onPress={handleGenerateQuiz}
                 disabled={quizGenerating}
@@ -359,6 +402,19 @@ export default function StudyMaterialScreen() {
         materialTitle={material.title}
         getToken={getToken}
         onClose={() => setShowChat(false)}
+      />
+
+      <StudySuggestModal
+        visible={showSuggest}
+        suggestions={suggest.suggestions}
+        loading={suggest.loading}
+        error={suggest.error}
+        pageLabel={`Page ${currentBiteIndex + 1} of ${material.bites.length}`}
+        sourceLabel={offlineActive ? "On-device AI · offline" : modelLabel}
+        roomLabel="Suggested from your study material — never shared."
+        onClose={() => setShowSuggest(false)}
+        onShuffle={handleSuggest}
+        onRetry={handleSuggest}
       />
 
       <Modal visible={showCheatsheet} transparent animationType="slide">
@@ -515,9 +571,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  biteProgressWrap: {
+    alignItems: "flex-start",
+    gap: 6,
+  },
   biteDots: {
     flexDirection: "row",
     gap: 6,
+  },
+  biteProgressPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  biteProgressText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
   biteDot: {
     width: 8,

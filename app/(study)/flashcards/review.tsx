@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
+import QuizRewardOverlay from "../../../component/QuizRewardOverlay";
 import { useThemeColors } from "../../../hooks/useTheme";
 import { useAuth } from "../../../contexts/AuthContext";
 import { isLocalFlashcard, useFlashcardStore } from "../../../store/flashcardStore";
@@ -73,6 +74,8 @@ export default function ReviewScreen() {
   const [done, setDone] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
   const [reviewedCount, setReviewedCount] = useState(0);
+  const [showReward, setShowReward] = useState(false);
+  const rewardShownRef = useRef(false);
 
   const card = cards[index];
 
@@ -100,6 +103,10 @@ const token = await getToken();
 
         if (index + 1 >= cards.length) {
           setDone(true);
+          if (!rewardShownRef.current) {
+            rewardShownRef.current = true;
+            setShowReward(true);
+          }
           return;
         }
 
@@ -132,7 +139,9 @@ const token = await getToken();
   if (cards.length === 0 || done) {
     const earned = xpEarned;
     const reviewed = reviewedCount;
+    const totalCards = Math.max(cards.length, 1);
     return (
+      <View style={styles.container}>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <View style={styles.centered}>
           <View
@@ -160,6 +169,28 @@ const token = await getToken();
           </Pressable>
         </View>
       </SafeAreaView>
+      <QuizRewardOverlay
+        visible={showReward && reviewed > 0}
+        title="Review complete!"
+        subtitle={earned > 0 ? `+${earned} XP earned` : "Strong recall — well done"}
+        accentColor={earned > 0 ? theme.primary : theme.success}
+        progressCount={Math.min(reviewed, totalCards)}
+        progressTotal={totalCards}
+        progressLabel="Cards reviewed"
+        progressHint={reviewed >= totalCards ? "All reviewed!" : `${totalCards - reviewed} to go`}
+        primaryLabel="See Details"
+        onPrimary={() => setShowReward(false)}
+        secondaryLabel="Back to Flashcards"
+        onSecondary={() => router.back()}
+        onRequestClose={() => setShowReward(false)}
+      >
+        <Text style={[styles.motivationText, { color: theme.textMuted }]}>
+          {earned > 0
+            ? "Great momentum — keep the streak alive!"
+            : "You're building a lasting memory. Keep it up!"}
+        </Text>
+      </QuizRewardOverlay>
+      </View>
     );
   }
 
@@ -294,6 +325,13 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  motivationText: {
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 8,
+    paddingHorizontal: 8,
   },
   cardArea: {
     flex: 1,

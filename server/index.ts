@@ -43,7 +43,7 @@ import { generateFallbackBounties } from "./bountyTemplates";
 import { buildCourseGenerationPrompt, buildThumbnailGenerationPrompt } from "./prompts/courseGeneration";
 import { buildQuizGenerationPrompt } from "./prompts/quizGeneration";
 import { buildStudyExtractionPrompt } from "./prompts/studyProcessing";
-import { buildStudyCheatsheetPrompt, buildFlashcardsPrompt } from "./prompts/studyGeneration";
+import { buildStudyCheatsheetPrompt, buildFlashcardsPrompt, buildStudySuggestPrompt } from "./prompts/studyGeneration";
 import { buildNotesAiPrompt, buildNotesChatPrompt } from "./prompts/notesPrompts";
 import type { NotesAiAction, NotesChatMode } from "./prompts/notesPrompts";
 import { buildScheduleSuggestPrompt } from "./prompts/scheduleSuggest";
@@ -3235,6 +3235,52 @@ app.post("/api/study/:id/cheatsheet", async (req, res) => {
     res.json({ cheatsheet: result.cheatsheet });
   } catch (err) {
     sendRouteError(res, err, "[Server] POST /api/study/:id/cheatsheet failed");
+  }
+});
+
+app.post("/api/study/:id/suggest", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const material = await requireMaterial(req.params.id, claims.sub);
+
+    const biteTitle =
+      typeof req.body?.biteTitle === "string" ? req.body.biteTitle.slice(0, 200) : "";
+    const biteContent =
+      typeof req.body?.biteContent === "string" ? req.body.biteContent.slice(0, 6000) : "";
+
+    const content = biteContent.trim() ? biteContent : materialText(material);
+    if (!content.trim()) {
+      res.status(400).json({ error: "This material has no extractable content yet" });
+      return;
+    }
+
+    const prompt = buildStudySuggestPrompt(content, biteTitle.trim() || material.title);
+
+    const ai = aiRequestOptions(req);
+    const result = await generateJsonContent<{
+      suggestions?: { type?: unknown; title?: unknown; body?: unknown }[];
+    }>(ai.modelRef, prompt, ai.apiKey);
+
+    const suggestions = (Array.isArray(result?.suggestions) ? result.suggestions : [])
+      .map((s) => ({
+        type: typeof s?.type === "string" ? s.type : "examTip",
+        title: typeof s?.title === "string" ? s.title.trim().slice(0, 120) : "Quick idea",
+        body: typeof s?.body === "string" ? s.body.trim() : "",
+      }))
+      .filter((s) => s.body.length > 0)
+      .slice(0, 6);
+
+    if (suggestions.length === 0) {
+      const model = getModelOption(ai.modelRef)?.label ?? ai.modelRef;
+      res.status(422).json({
+        error: `"${model}" returned no suggestions. Try again or switch to a more reliable model.`,
+      });
+      return;
+    }
+
+    res.json({ suggestions });
+  } catch (err) {
+    sendRouteError(res, err, "[Server] POST /api/study/:id/suggest failed");
   }
 });
 

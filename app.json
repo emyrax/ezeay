@@ -46,6 +46,15 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Yuinx to scan pages of your notes into study bites.",
+          "cameraPermission": "Allow Yuinx to photograph pages of notes to turn into study bites.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-document-picker",
       "@clerk/expo",
       "expo-secure-store",
       [

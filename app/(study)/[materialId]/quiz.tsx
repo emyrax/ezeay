@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,12 +13,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import StudyQuizView from "../../../component/StudyQuizView";
+import QuizRewardOverlay from "../../../component/QuizRewardOverlay";
 import { useThemeColors } from "../../../hooks/useTheme";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useStudyStore } from "../../../store/studyStore";
 import { useStudyQuizStore } from "../../../store/studyQuizStore";
 import { api } from "../../../lib/api";
 import type { QuizResult, StudyQuiz } from "../../../types/study";
+
+const DAILY_GOAL = 3;
+
+function quizMotivation(score: number): string {
+  if (score >= 80) return "Outstanding — you've mastered this!";
+  if (score >= 50) return "Solid work — keep the streak alive!";
+  return "Every attempt sharpens your recall. Retry and climb!";
+}
 
 export default function StudyQuizScreen() {
   const { materialId } = useLocalSearchParams<{ materialId: string }>();
@@ -34,7 +43,15 @@ export default function StudyQuizScreen() {
   const [results, setResults] = useState<QuizResult[] | null>(null);
   const [started, setStarted] = useState(false);
   const [awardedXp, setAwardedXp] = useState<number | null>(null);
+  const [showReward, setShowReward] = useState(false);
+  const [dailyCount, setDailyCount] = useState(0);
   const completionRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      useStudyQuizStore.getState().clear();
+    };
+  }, []);
 
   const allQuizzes = useMemo<StudyQuiz[]>(() => {
     if (storeQuestions && storeMaterialId === materialId && storeQuestions.length > 0) {
@@ -83,6 +100,17 @@ export default function StudyQuizScreen() {
         );
         setAwardedXp(res.awardedXp);
         refreshProfile();
+        try {
+          const attempts = await api.study.getAttempts(token);
+          const today = new Date().toDateString();
+          const count = (Array.isArray(attempts) ? attempts : []).filter(
+            (a) => new Date(a.createdAt).toDateString() === today,
+          ).length;
+          setDailyCount(count);
+        } catch {
+          // Daily goal progress is best-effort; skip on failure.
+        }
+        setShowReward(true);
       }
     } catch (err: any) {
       console.error("[QuizScreen] completeQuiz failed:", err);
@@ -150,7 +178,11 @@ export default function StudyQuizScreen() {
   const score = results ? Math.round((correctCount / totalQuestions) * 100) : 0;
 
   if (results) {
+    const motivation = quizMotivation(score);
+    const accentColor =
+      score >= 80 ? theme.success : score >= 50 ? theme.warning : theme.primary;
     return (
+      <View style={styles.container}>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <ScrollView contentContainerStyle={styles.resultsContent}>
           <View style={styles.scoreCircle}>
@@ -236,6 +268,36 @@ export default function StudyQuizScreen() {
           </Pressable>
         </ScrollView>
       </SafeAreaView>
+      <QuizRewardOverlay
+        visible={showReward}
+        score={correctCount}
+        total={totalQuestions}
+        title="Quiz Complete!"
+        subtitle={
+          awardedXp != null && awardedXp > 0
+            ? `+${awardedXp} XP earned`
+            : "Every attempt makes you sharper."
+        }
+        accentColor={accentColor}
+        progressCount={dailyCount}
+        progressTotal={DAILY_GOAL}
+        progressLabel="Daily goal"
+        progressHint={
+          dailyCount >= DAILY_GOAL
+            ? "Daily goal reached!"
+            : `${DAILY_GOAL - dailyCount} more to reach your daily goal`
+        }
+        primaryLabel="See Results"
+        onPrimary={() => setShowReward(false)}
+        secondaryLabel="Back to Study"
+        onSecondary={() => router.back()}
+        onRequestClose={() => setShowReward(false)}
+      >
+        <Text style={[styles.motivationText, { color: theme.textMuted }]}>
+          {motivation}
+        </Text>
+      </QuizRewardOverlay>
+      </View>
     );
   }
 
@@ -406,6 +468,13 @@ const styles = StyleSheet.create({
   },
   resultsContent: {
     paddingBottom: 40,
+  },
+  motivationText: {
+    fontSize: 15,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 20,
+    paddingHorizontal: 8,
   },
   scoreCircle: {
     alignItems: "center",

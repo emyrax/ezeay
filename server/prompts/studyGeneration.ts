@@ -33,3 +33,29 @@ Rules:
 
 Do NOT include any markdown code fences. Return raw JSON only.`;
 }
+
+export function buildStudySuggestPrompt(content: string, title: string): string {
+  return `You are a study coach for Yuinx, a gamified learning app. Help the student retain, stay motivated, and enjoy learning from the study page below. Create exactly 4 suggestions, one per type, in this order: a "mnemonic" (a memory trick), an "analogy" (a vivid metaphor), a "hook" (a short fun story or real-world example), and an "examTip" (an exam-answering tip).
+
+Study page title: ${title}
+
+Study page:
+${content.slice(0, 6000)}
+
+Rules:
+- Each "title" is a short catchy label (max 6 words)
+- Each "body" is 2-3 sentences
+- Base everything ONLY on the content above; never invent facts
+- Answer in the student's language
+- Return ONLY valid JSON with this exact structure:
+{
+  "suggestions": [
+    { "type": "mnemonic", "title": "...", "body": "..." },
+    { "type": "analogy", "title": "...", "body": "..." },
+    { "type": "hook", "title": "...", "body": "..." },
+    { "type": "examTip", "title": "...", "body": "..." }
+  ]
+}
+
+Do NOT include any markdown code fences. Return raw JSON only.`;
+}

@@ -1,0 +1,14 @@
+node_modules/
+server/node_modules/
+.git/
+.expo/
+dist/
+web-build/
+server/uploads/
+server/dist/
+server.log
+.env
+.env.*
+*.local
+Dockerfile
+.dockerignore

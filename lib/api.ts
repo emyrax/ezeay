@@ -10,7 +10,7 @@ import type {
   GenerateQuizResponse,
 } from "../types/courseGeneration";
 import type { CollarType, Availability, Education, WorkExperience, Certification } from "../types/user";
-import type { StudyMaterial, StudyQuiz, QuizAttempt } from "../types/study";
+import type { StudyMaterial, StudyQuiz, QuizAttempt, StudySuggestion } from "../types/study";
 import type { Flashcard, FlashcardQuality, FlashcardReviewResult } from "../types/flashcard";
 import type { CommunityOverview, CommunityFeed, CommunityPost, CommunityPostComment, CommunityPostsResponse } from "../types/community";
 import { useModelStore } from "../store/modelStore";
@@ -626,6 +626,18 @@ export const api = {
     generateFlashcards: (materialId: string, token: string) =>
       apiFetch<{ flashcards: Flashcard[] }>(`/api/study/${materialId}/flashcards/generate`, {
         method: "POST",
+        token,
+        headers: aiModelHeaders(),
+      }),
+
+    suggest: (
+      materialId: string,
+      data: { biteTitle?: string; biteContent?: string },
+      token: string,
+    ) =>
+      apiFetch<{ suggestions: StudySuggestion[] }>(`/api/study/${materialId}/suggest`, {
+        method: "POST",
+        body: JSON.stringify(data),
         token,
         headers: aiModelHeaders(),
       }),

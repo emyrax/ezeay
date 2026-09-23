@@ -12,6 +12,11 @@
     "skipLibCheck": true,
     "declaration": false
   },
-  "include": ["index.ts", "../db/**/*.ts", "../lib/**/*.ts"],
-  "exclude": ["../lib/uploadFile.ts"]
+  "include": [
+    "index.ts",
+    "../db/**/*.ts",
+    "../types/**/*.ts",
+    "../lib/gemini.ts",
+    "../lib/providers/**/*.ts"
+  ]
 }

@@ -63,6 +63,19 @@ export function buildStudyCheatsheetPrompt(input: {
   };
 }
 
+export function buildStudySuggestPrompt(input: {
+  title: string;
+  content: string;
+}): { system: string; jsonShape: unknown } {
+  const content = input.content.slice(0, 6000);
+  return {
+    system: `You are Yuinx's study coach. Help the student retain, stay motivated, and enjoy learning from the study page "${input.title}" below. Create exactly 4 suggestions, one per type: a "mnemonic" (memory trick), an "analogy" (vivid metaphor), a "hook" (short fun story or real-world example), and an "examTip" (exam-answering tip). Each title is a short catchy label; each body is 2-3 sentences. Base everything ONLY on the content below and never invent facts. Answer in the student's language.\n\nStudy page:\n${content}\n\nRespond with ONLY a JSON object in the shape {"suggestions": [{"type": "mnemonic" | "analogy" | "story" | "examTip" | "hook" | "connection", "title": "string", "body": "string"}]} — no markdown, no code fences, no explanation.`,
+    jsonShape: {
+      suggestions: [{ type: "string", title: "string", body: "string" }],
+    },
+  };
+}
+
 export function materialContentFromBites(
   title: string,
   bites: { title?: string; content?: string }[],

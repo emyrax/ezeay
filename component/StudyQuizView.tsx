@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useThemeColors } from "../hooks/useTheme";
 import type { StudyQuiz, QuizResult } from "../types/study";
@@ -15,10 +15,18 @@ export default function StudyQuizView({ quizzes, onComplete }: Props) {
   const [results, setResults] = useState<QuizResult[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const completedRef = useRef(false);
 
   const quiz = quizzes[currentIndex];
+
+  useEffect(() => {
+    if (!quiz && results.length > 0 && !completedRef.current) {
+      completedRef.current = true;
+      onComplete(results);
+    }
+  }, [quiz, results, onComplete]);
+
   if (!quiz) {
-    onComplete(results);
     return null;
   }
 

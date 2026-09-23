@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import StudyMaterialCard from "../../component/StudyMaterialCard";
 import StudyUploadSheet from "../../component/StudyUploadSheet";
@@ -24,7 +24,8 @@ import { useStudyStore } from "../../store/studyStore";
 import { api } from "../../lib/api";
 import { uploadImage } from "../../lib/cloudinary";
 import { uploadFile } from "../../lib/uploadFile";
-import type { QuizAttempt } from "../../types/study";
+import { requestStudyAccess } from "../../lib/studyPermissions";
+import type { QuizAttempt, StudyMaterial } from "../../types/study";
 
 export default function StudyScreen() {
   const { profile, getToken } = useAuth();
@@ -53,15 +54,14 @@ export default function StudyScreen() {
     }
   }, [getToken]);
 
-  useEffect(() => {
-    if (profile) {
-      fetchMaterials(profile.uid, getToken);
-    }
-  }, [profile, getToken, fetchMaterials]);
-
-  useEffect(() => {
-    loadAttempts();
-  }, [loadAttempts]);
+  useFocusEffect(
+    useCallback(() => {
+      if (profile) {
+        fetchMaterials(profile.uid, getToken);
+      }
+      loadAttempts();
+    }, [profile, getToken, fetchMaterials, loadAttempts]),
+  );
 
   const onRefresh = useCallback(async () => {
     if (!profile) return;
@@ -91,26 +91,34 @@ export default function StudyScreen() {
   };
 
   const handleCamera = async () => {
+    const granted = await requestStudyAccess("camera");
+    if (!granted) return;
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
       allowsEditing: false,
       quality: 0.7,
+      allowsMultipleSelection: true,
     });
     if (!result.canceled && result.assets?.length > 0) {
-      const asset = result.assets[0];
-      handleProcess(asset.uri, "image", "camera");
+      for (const asset of result.assets) {
+        await handleProcess(asset.uri, "image", "camera");
+      }
     }
   };
 
   const handleGallery = async () => {
+    const granted = await requestStudyAccess("gallery");
+    if (!granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: false,
       quality: 0.7,
+      allowsMultipleSelection: true,
     });
     if (!result.canceled && result.assets?.length > 0) {
-      const asset = result.assets[0];
-      handleProcess(asset.uri, "image", "gallery");
+      for (const asset of result.assets) {
+        await handleProcess(asset.uri, "image", "gallery");
+      }
     }
   };
 
@@ -133,7 +141,7 @@ export default function StudyScreen() {
     });
   };
 
-  const renderItem = ({ item }: any) => {
+  const renderItem = ({ item }: { item: StudyMaterial }) => {
     const isProcessing = item.id.startsWith("processing_");
     return (
       <StudyMaterialCard
@@ -154,7 +162,7 @@ export default function StudyScreen() {
       <ScreenContainer>
         <FlatList
           data={materials}
-          keyExtractor={(item: any) => item.id}
+          keyExtractor={(item: StudyMaterial) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           refreshControl={
@@ -255,8 +263,7 @@ export default function StudyScreen() {
           onCamera={handleCamera}
           onGallery={handleGallery}
           onFile={(result) => {
-            const asset = result.assets?.[0];
-            if (asset) {
+            for (const asset of result.assets ?? []) {
               handleFile(asset.uri, asset.mimeType || "text/plain");
             }
           }}

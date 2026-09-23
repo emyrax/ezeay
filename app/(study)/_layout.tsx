@@ -14,7 +14,6 @@ export default function StudyLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="upload" />
       <Stack.Screen name="[materialId]" />
       <Stack.Screen name="[materialId]/quiz" />
       <Stack.Screen name="flashcards" />

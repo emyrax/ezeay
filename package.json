@@ -10,6 +10,8 @@
     "web": "expo start --web",
     "start:server": "node scripts/free-port.mjs && tsx server/index.ts",
     "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "export:web": "expo export --platform web",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

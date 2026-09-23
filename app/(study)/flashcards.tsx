@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import { useThemeColors } from "../../hooks/useTheme";
 import { useAuth } from "../../contexts/AuthContext";
@@ -23,9 +23,11 @@ export default function FlashcardsScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchCards(true, getToken);
-  }, [fetchCards, getToken]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchCards(true, getToken);
+    }, [fetchCards, getToken]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

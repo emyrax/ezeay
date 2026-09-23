@@ -70,3 +70,17 @@ export interface StudySession {
   quizResults: QuizResult[];
   completed: boolean;
 }
+
+export type StudySuggestionType =
+  | "mnemonic"
+  | "analogy"
+  | "story"
+  | "examTip"
+  | "hook"
+  | "connection";
+
+export interface StudySuggestion {
+  type: StudySuggestionType;
+  title: string;
+  body: string;
+}
