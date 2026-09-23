@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -237,10 +238,18 @@ export default function ModelDetailSheet({
   if (!visible) return null;
 
   return (
-    <View style={[st.overlay, { backgroundColor: theme.glass }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+    <Modal
+      visible
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <View style={[st.overlay, { backgroundColor: theme.glass }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
         <View style={[st.sheet, { backgroundColor: theme.surface }]}>
           <View style={st.header}>
             <View style={{ flex: 1 }}>
@@ -617,17 +626,13 @@ export default function ModelDetailSheet({
         </View>
       </KeyboardAvoidingView>
     </View>
+  </Modal>
   );
 }
 
 const st = StyleSheet.create({
   overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 300,
+    flex: 1,
     justifyContent: "flex-end",
   },
   sheet: {

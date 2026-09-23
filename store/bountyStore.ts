@@ -364,8 +364,19 @@ export const useBountyStore = create<BountyStore>((set, get) => ({
       if (uid) {
         useStatsStore.getState().recordActivity(uid, getToken, 1);
         api.bounties
-          .claim({ userId: uid, bountyId: bounty.id }, token)
-          .catch((err: any) =>
+          .claim(
+            {
+              userId: uid,
+              bounty: {
+                id: bounty.id,
+                title: bounty.title,
+                rewardXP: bounty.rewardXP,
+                rewardCoins: bounty.rewardCoins,
+              },
+            },
+            token,
+          )
+          .catch((err) =>
             console.warn("[BountyStore] claim sync failed:", err),
           );
       }
@@ -428,8 +439,19 @@ export const useBountyStore = create<BountyStore>((set, get) => ({
       if (uid && token) {
         for (const c of completedBounties) {
           api.bounties
-            .claim({ userId: uid, bountyId: c.id }, token)
-            .catch((err: any) =>
+            .claim(
+              {
+                userId: uid,
+                bounty: {
+                  id: c.id,
+                  title: c.title,
+                  rewardXP: c.rewardXP,
+                  rewardCoins: c.rewardCoins,
+                },
+              },
+              token,
+            )
+            .catch((err) =>
               console.warn("[BountyStore] auto-claim sync failed:", err),
             );
         }

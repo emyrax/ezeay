@@ -20,6 +20,7 @@ import { api } from "../../../../lib/api";
 import ProgressBar from "../../../../component/ProgressBar";
 import GlassmorphismToast from "../../../../component/GlassmorphismToast";
 import ChapterCompletionDialog from "../../../../component/ChapterCompletionDialog";
+import QuizRewardOverlay from "../../../../component/QuizRewardOverlay";
 import { useSpinStore } from "../../../../store/spinStore";
 import { useStatsStore } from "../../../../store/statsStore";
 import { useThemeColors } from "../../../../hooks/useTheme";
@@ -95,6 +96,8 @@ export default function ChapterScreen() {
   const [enrolling, setEnrolling] = useState(false);
   const [enrolledNow, setEnrolledNow] = useState(false);
   const [chapterPerformance, setChapterPerformance] = useState<ChapterPerformance | null>(null);
+  const [passScore, setPassScore] = useState(0);
+  const [rewardVisible, setRewardVisible] = useState(false);
 
   const completedCount = getCompletedSubtopicCount(courseId ?? "", chapterIdx);
   const isChapterComplete = completedCount >= subtopics.length && subtopics.length > 0;
@@ -206,6 +209,8 @@ export default function ChapterScreen() {
 
       if (allCorrect) {
         setQuizState("passed");
+        setPassScore(correctCount);
+        setRewardVisible(true);
 
         await batchMarkCompleted(courseId, chapterIdx, activeSubtopic);
 
@@ -239,10 +244,6 @@ export default function ChapterScreen() {
         if (newCompletedCount >= subtopics.length && subtopics.length > 0) {
           const performance = getChapterPerformance(courseId, chapterIdx, subtopics.length);
           setChapterPerformance(performance);
-          setTimeout(() => {
-            setShowCompletion(true);
-            setToast({ visible: false, xp: 0, coins: 0, title: "" });
-          }, 1000);
         }
       } else {
         setQuizState("failed");
@@ -263,6 +264,7 @@ export default function ChapterScreen() {
     setShowContent(false);
     setQuizState("idle");
     setQuiz(null);
+    setRewardVisible(false);
   }, []);
 
   const handleNextSubtopic = useCallback(() => {
@@ -273,6 +275,7 @@ export default function ChapterScreen() {
     setQuiz(null);
     setSelectedAnswers({});
     setResults({});
+    setRewardVisible(false);
   }, [activeSubtopic, subtopics.length]);
 
   const handlePrevSubtopic = useCallback(() => {
@@ -283,10 +286,12 @@ export default function ChapterScreen() {
     setQuiz(null);
     setSelectedAnswers({});
     setResults({});
+    setRewardVisible(false);
   }, [activeSubtopic]);
 
   const handleCompletionContinue = useCallback(async () => {
     setShowCompletion(false);
+    setRewardVisible(false);
     setActiveSubtopic(null);
     setShowContent(false);
     setQuizState("idle");
@@ -566,48 +571,6 @@ export default function ChapterScreen() {
                 </View>
               )}
 
-              {quizState === "passed" && (
-                <View style={[styles.passedBanner, { backgroundColor: theme.success + "15" }]}>
-                  <Ionicons name="trophy" size={32} color={theme.success} />
-                  <Text style={[styles.passedText, { color: theme.success }]}>Quiz Passed!</Text>
-                  <View style={styles.passedActions}>
-                    <TouchableOpacity
-                      style={[styles.continueButton, { backgroundColor: theme.success }]}
-                      onPress={handleContinue}
-                    >
-                      <Text style={styles.continueButtonText}>Back to List</Text>
-                    </TouchableOpacity>
-                    {activeSubtopic !== null && activeSubtopic < subtopics.length - 1 && (
-                      <TouchableOpacity
-                        style={[styles.nextSubtopicButton, { backgroundColor: theme.primary }]}
-                        onPress={handleNextSubtopic}
-                      >
-                        <Text style={styles.continueButtonText}>Next Subtopic</Text>
-                        <Ionicons name="arrow-forward" size={16} color="#FFF" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  {course?.creatorId !== profile?.uid &&
-                    !enrolledNow &&
-                    !getEnrollmentForCourse(courseId ?? "") && (
-                      <TouchableOpacity
-                        style={[styles.enrollButton, { backgroundColor: theme.primary }]}
-                        onPress={handleEnroll}
-                        disabled={enrolling}
-                      >
-                        {enrolling ? (
-                          <ActivityIndicator size="small" color="#FFF" />
-                        ) : (
-                          <>
-                            <Ionicons name="add-circle-outline" size={18} color="#FFF" />
-                            <Text style={styles.continueButtonText}>Enroll in Full Course</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    )}
-                </View>
-              )}
-
               {quizState === "failed" && (
                 <View style={[styles.failedBanner, { backgroundColor: theme.surfaceAlt }]}>
                   <Ionicons name="refresh" size={28} color={theme.textSecondary} />
@@ -644,6 +607,59 @@ export default function ChapterScreen() {
           coins={toast.coins}
           onDismiss={dismissToast}
         />
+
+        <QuizRewardOverlay
+          visible={rewardVisible}
+          score={passScore}
+          total={quiz?.questions.length ?? 0}
+          title="Subtopic Complete!"
+          subtitle={
+            passScore === (quiz?.questions.length ?? 0)
+              ? "Perfect score — flawless work."
+              : "Great work — you've mastered this subtopic."
+          }
+          progressCount={completedCount}
+          progressTotal={subtopics.length}
+          progressLabel={`${completedCount} of ${subtopics.length} subtopics cleared`}
+          progressHint={
+            completedCount >= subtopics.length
+              ? "Chapter complete — rewards unlocked!"
+              : `${subtopics.length - completedCount} step${
+                  subtopics.length - completedCount === 1 ? "" : "s"
+                } to finish the chapter`
+          }
+          primaryLabel={completedCount >= subtopics.length ? "Claim Chapter Reward" : "Next Subtopic"}
+          onPrimary={() => {
+            if (completedCount >= subtopics.length) {
+              setRewardVisible(false);
+              setShowCompletion(true);
+            } else {
+              handleNextSubtopic();
+            }
+          }}
+          secondaryLabel={completedCount >= subtopics.length ? undefined : "Back to List"}
+          onSecondary={handleContinue}
+          onRequestClose={handleContinue}
+        >
+          {course?.creatorId !== profile?.uid &&
+            !enrolledNow &&
+            !getEnrollmentForCourse(courseId ?? "") && (
+              <TouchableOpacity
+                style={[styles.enrollButton, { backgroundColor: theme.primary }]}
+                onPress={handleEnroll}
+                disabled={enrolling}
+              >
+                {enrolling ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="add-circle-outline" size={18} color="#FFF" />
+                    <Text style={styles.continueButtonText}>Enroll in Full Course</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+        </QuizRewardOverlay>
 
         <ChapterCompletionDialog
           visible={showCompletion}

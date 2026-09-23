@@ -412,7 +412,10 @@ export const api = {
       ),
 
     claim: (
-      data: { userId: string; bountyId: string; claimedAt?: string },
+      data: {
+        userId: string;
+        bounty: { id: string; title?: string; rewardXP?: number; rewardCoins?: number };
+      },
       token: string,
     ) =>
       apiFetch<{ claimed: boolean; alreadyClaimed: boolean; date: string }>(

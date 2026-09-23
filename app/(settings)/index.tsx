@@ -8,6 +8,7 @@ import {
   Alert,
   Dimensions,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -20,6 +21,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ModelDetailSheet from "../../component/ModelDetailSheet";
+import ModelPickerSheet from "../../component/ModelPickerSheet";
 import OfflineAICard from "../../component/OfflineAICard";
 import type { CustomThemeColors } from "../../constants/themes";
 import {
@@ -44,11 +46,16 @@ import {
 import { AI_PROVIDERS, useAiKeysStore } from "../../store/aiKeysStore";
 import { useModelRatingStore } from "../../store/modelRatingStore";
 import { useModelStore } from "../../store/modelStore";
-import { useOfflineStore } from "../../store/offlineStore";
+import {
+  useOfflineStore,
+  type OfflineStatus,
+} from "../../store/offlineStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import { useThemeStore } from "../../store/themeStore";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+type ProviderStatus = "ready" | "needs-key" | "unknown";
 
 const SWATCHES = [
   "#000000",
@@ -95,12 +102,38 @@ const PROVIDER_ICONS: Record<
   offline: "chip",
 };
 
+const PROVIDER_ORDER: AiProvider[] = [
+  "offline",
+  "gemini",
+  "openai",
+  "anthropic",
+  "openrouter",
+];
+
+function modelStatusLabel(
+  provider: AiProvider | undefined,
+  status: ProviderStatus,
+  offlineStatus: OfflineStatus,
+): string {
+  if (provider === "offline") {
+    if (offlineStatus === "ready" || offlineStatus === "downloaded")
+      return "Installed";
+    if (offlineStatus === "downloading") return "Downloading…";
+    return "Not installed";
+  }
+  if (status === "ready") return "Ready";
+  if (status === "unknown") return "Checking…";
+  return "Add key";
+}
+
 function SectionCard({
   title,
+  icon,
   children,
   theme,
 }: {
   title: string;
+  icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
   children: React.ReactNode;
   theme: ReturnType<typeof useThemeColors>;
 }) {
@@ -112,6 +145,9 @@ function SectionCard({
       ]}
     >
       <View style={st.cardHeader}>
+        <View style={[st.cardIcon, { backgroundColor: theme.primary + "16" }]}>
+          <MaterialCommunityIcons name={icon} size={15} color={theme.primary} />
+        </View>
         <Text style={[st.cardTitle, { color: theme.text }]}>{title}</Text>
       </View>
       {children}
@@ -185,9 +221,10 @@ export default function SettingsScreen() {
   } = useSettingsStore();
 
   const { selectedModel, setSelectedModel } = useModelStore();
-  const { getToken } = useAuth();
+  const { getToken, profile } = useAuth();
   const { loadKeys, setKey, clearKey } = useAiKeysStore();
   const keys = useAiKeysStore((s) => s.keys);
+  const offlineStatus = useOfflineStore((s) => s.status);
 
   const [serverKeys, setServerKeys] = useState<
     Partial<Record<AiProvider, boolean>>
@@ -272,10 +309,8 @@ export default function SettingsScreen() {
     };
   }, [getToken, loadKeys]);
 
-  const offlineStatus = useOfflineStore((s) => s.status);
-
   const providerStatus = useCallback(
-    (provider: AiProvider): "ready" | "needs-key" | "unknown" => {
+    (provider: AiProvider): ProviderStatus => {
       if (provider === "offline") {
         if (offlineStatus === "ready" || offlineStatus === "downloaded")
           return "ready";
@@ -292,25 +327,34 @@ export default function SettingsScreen() {
   const userRatings = useModelRatingStore((s) => s.ratings);
 
   const modelGroups = useMemo(() => {
-    const order: AiProvider[] = [
-      "offline",
-      "gemini",
-      "openai",
-      "anthropic",
-      "openrouter",
-    ];
-    return order
-      .map((provider) => ({
-        provider,
-        models: sortModels(
-          AI_MODELS.filter((m) => m.provider === provider),
-          userRatings,
-        ),
-      }))
-      .filter((group) => group.models.length > 0);
+    return PROVIDER_ORDER.map((provider) => ({
+      provider,
+      models: sortModels(
+        AI_MODELS.filter((m) => m.provider === provider),
+        userRatings,
+      ),
+    })).filter((group) => group.models.length > 0);
   }, [userRatings]);
 
   const currentModel = getModelOption(selectedModel);
+  const currentStatus: ProviderStatus = currentModel
+    ? providerStatus(currentModel.provider)
+    : "unknown";
+  const currentStatusLabel = modelStatusLabel(
+    currentModel?.provider,
+    currentStatus,
+    offlineStatus,
+  );
+  const currentTierPaid = currentModel?.tier === "paid";
+  const currentRating = currentModel
+    ? effectiveRating(currentModel, userRatings)
+    : undefined;
+  const statusColor =
+    currentStatus === "ready"
+      ? theme.primary
+      : currentStatus === "unknown"
+        ? theme.textMuted
+        : theme.accent;
 
   const [showEditor, setShowEditor] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -331,6 +375,48 @@ export default function SettingsScreen() {
     keyof CustomThemeColors | null
   >(null);
   const [clearing, setClearing] = useState(false);
+
+  const rateModel = useModelRatingStore((s) => s.rate);
+  const [ratingPending, setRatingPending] = useState<string | null>(null);
+  const [ratingErrorText, setRatingErrorText] = useState<string | null>(null);
+
+  const handleRate = useCallback(
+    async (modelRef: string, value: number) => {
+      if (ratingPending) return;
+      setRatingPending(modelRef);
+      setRatingErrorText(null);
+      try {
+        const token = await getToken();
+        if (!token) return;
+        await rateModel(
+          modelRef,
+          value === 0 ? null : value,
+          profile?.uid ?? "",
+          token,
+        );
+      } catch (err) {
+        setRatingErrorText(
+          err instanceof Error ? err.message : "Could not save your rating.",
+        );
+      } finally {
+        setRatingPending(null);
+      }
+    },
+    [ratingPending, getToken, profile?.uid, rateModel],
+  );
+
+  const handleModelSelect = useCallback(
+    (model: AiModelOption) => {
+      setSelectedModel(model.ref);
+      setCandidateModel(null);
+      setShowModelPicker(false);
+    },
+    [setSelectedModel],
+  );
+
+  const handleModelInfo = useCallback((model: AiModelOption) => {
+    setCandidateModel(model);
+  }, []);
 
   const handleSaveCustom = useCallback(() => {
     if (!editorName.trim()) {
@@ -381,7 +467,7 @@ export default function SettingsScreen() {
                 await clearKey(provider);
               }
               Alert.alert("Done", "All local data has been cleared.");
-            } catch (err) {
+            } catch {
               Alert.alert("Error", "Failed to clear data.");
             } finally {
               setClearing(false);
@@ -399,23 +485,58 @@ export default function SettingsScreen() {
     >
       {/* Header */}
       <View style={[st.header, { borderBottomColor: theme.borderLight }]}>
-        <Pressable onPress={() => router.back()} style={st.backBtn} hitSlop={8}>
+        <Pressable
+          onPress={() => router.back()}
+          style={[st.backBtn, { backgroundColor: theme.glass, borderColor: theme.borderLight }]}
+          hitSlop={8}
+        >
           <MaterialCommunityIcons
             name="arrow-left"
-            size={24}
+            size={22}
             color={theme.text}
           />
         </Pressable>
         <Text style={[st.headerTitle, { color: theme.text }]}>Settings</Text>
-        <View style={{ width: 40 }} />
+        <View style={[st.versionChip, { borderColor: theme.borderLight }]}>
+          <Text style={[st.versionChipText, { color: theme.textMuted }]}>
+            v1.0.0
+          </Text>
+        </View>
       </View>
 
       <ScrollView
         contentContainerStyle={st.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Appearance */}
-        <SectionCard title="Appearance" theme={theme}>
+        {/* Hero */}
+        <LinearGradient
+          colors={[theme.gradientStart, theme.gradientMid, theme.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={st.hero}
+        >
+          <View style={st.heroTop}>
+            <View style={st.heroIconWrap}>
+              <MaterialCommunityIcons
+                name="creation"
+                size={20}
+                color="#FFFFFF"
+              />
+            </View>
+            <Text style={st.heroKicker}>YUINX</Text>
+          </View>
+          <Text style={st.heroTitle}>Make Yuinx yours</Text>
+          <Text style={st.heroSubtitle}>
+            Your AI model, themes, offline mode &amp; privacy — all in one
+            place.
+          </Text>
+        </LinearGradient>
+
+        {/* Personalize */}
+        <Text style={[st.groupKicker, { color: theme.textMuted }]}>
+          Personalize
+        </Text>
+        <SectionCard title="Appearance" icon="palette-outline" theme={theme}>
           <Text style={[st.themeGroupLabel, { color: theme.textMuted }]}>
             Dark
           </Text>
@@ -570,8 +691,285 @@ export default function SettingsScreen() {
           )}
         </SectionCard>
 
+        {/* AI & Models */}
+        <Text style={[st.groupKicker, { color: theme.textMuted }]}>
+          AI &amp; Models
+        </Text>
+        <SectionCard title="AI Model" icon="creation" theme={theme}>
+          <Text style={[st.aiIntro, { color: theme.textSecondary }]}>
+            The model that powers quizzes, notes, study, courses &amp; more.
+          </Text>
+          <Pressable
+            style={[
+              st.aiHero,
+              { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight },
+            ]}
+            onPress={() => setShowModelPicker(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Choose AI model"
+          >
+            <View
+              style={[st.aiHeroIcon, { backgroundColor: theme.primary + "1A" }]}
+            >
+              <MaterialCommunityIcons
+                name="brain"
+                size={22}
+                color={theme.primary}
+              />
+            </View>
+            <View style={st.aiHeroInfo}>
+              <View style={st.aiHeroTitleRow}>
+                <Text
+                  style={[st.aiHeroLabel, { color: theme.text }]}
+                  numberOfLines={1}
+                >
+                  {currentModel?.label ?? "Default model"}
+                </Text>
+                <View
+                  style={[
+                    st.tierChip,
+                    {
+                      backgroundColor: currentTierPaid
+                        ? theme.accent + "22"
+                        : theme.primary + "22",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      st.tierChipText,
+                      { color: currentTierPaid ? theme.accent : theme.primary },
+                    ]}
+                  >
+                    {currentTierPaid ? "PAID" : "FREE"}
+                  </Text>
+                </View>
+              </View>
+              <View style={st.aiHeroMetaRow}>
+                <Text style={[st.aiHeroMeta, { color: theme.textSecondary }]}>
+                  {currentModel
+                    ? AI_PROVIDER_LABELS[currentModel.provider]
+                    : "Google Gemini"}
+                </Text>
+                <View
+                  style={[
+                    st.statusPill,
+                    { backgroundColor: statusColor + "18" },
+                  ]}
+                >
+                  <View
+                    style={[st.statusDot, { backgroundColor: statusColor }]}
+                  />
+                  <Text style={[st.statusPillText, { color: statusColor }]}>
+                    {currentStatusLabel}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <View style={st.aiHeroRight}>
+              {currentRating != null && (
+                <View
+                  style={[st.ratingChip, { backgroundColor: theme.accent + "1A" }]}
+                >
+                  <MaterialCommunityIcons
+                    name="star"
+                    size={11}
+                    color={theme.accent}
+                  />
+                  <Text style={[st.ratingChipText, { color: theme.accent }]}>
+                    {currentRating}
+                  </Text>
+                </View>
+              )}
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={22}
+                color={theme.textMuted}
+              />
+            </View>
+          </Pressable>
+          <View style={st.aiNoteRow}>
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={14}
+              color={theme.textMuted}
+            />
+            <Text style={[st.aiNoteText, { color: theme.textMuted }]}>
+              Tap a model to see what&apos;s needed — add a provider key on the
+              server or on this device. Embeddings &amp; thumbnail images always
+              use Google Gemini.
+            </Text>
+          </View>
+        </SectionCard>
+
+        {/* AI API Keys */}
+        <SectionCard title="AI API Keys" icon="key-outline" theme={theme}>
+          <Text style={[st.aiIntro, { color: theme.textSecondary }]}>
+            Add a key for any provider to unlock its free &amp; paid models.
+            You only need a key where the server doesn&apos;t have one.
+          </Text>
+          {AI_PROVIDERS.map((provider) => {
+            const hasServerKey =
+              !serverKeysError && (serverKeys[provider] ?? false);
+            const hasOwnKey = Boolean(keys[provider]);
+            const expanded = editingKeyProvider === provider;
+            const ready = hasServerKey || hasOwnKey;
+            return (
+              <View key={provider}>
+                <Pressable
+                  style={[st.aiKeyRow, { borderBottomColor: theme.border }]}
+                  onPress={() => handleToggleKeyEditor(provider)}
+                >
+                  <View
+                    style={[
+                      st.aiKeyIconWrap,
+                      {
+                        backgroundColor: ready
+                          ? theme.primary + "15"
+                          : theme.border + "40",
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={PROVIDER_ICONS[provider]}
+                      size={18}
+                      color={ready ? theme.primary : theme.textSecondary}
+                    />
+                  </View>
+                  <View style={st.aiKeyInfo}>
+                    <Text style={[st.settingLabel, { color: theme.text }]}>
+                      {AI_PROVIDER_LABELS[provider]}
+                    </Text>
+                    <Text
+                      style={[st.aiKeyStatus, { color: theme.textSecondary }]}
+                    >
+                      {serverKeysError
+                        ? "Checking…"
+                        : hasServerKey
+                          ? "Server key configured"
+                          : hasOwnKey
+                            ? "Key saved on this device"
+                            : "No key — add one to unlock models"}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      st.aiStatusDot,
+                      {
+                        backgroundColor: serverKeysError
+                          ? theme.textMuted
+                          : ready
+                            ? theme.primary
+                            : theme.accent,
+                      },
+                    ]}
+                  />
+                  <MaterialCommunityIcons
+                    name={expanded ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color={theme.textMuted}
+                  />
+                </Pressable>
+                {expanded ? (
+                  <View
+                    style={[
+                      st.aiKeyEditor,
+                      {
+                        backgroundColor: theme.surfaceAlt,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[st.aiKeyEditorLabel, { color: theme.textSecondary }]}
+                    >
+                      Saving here keeps the key only on this device.
+                    </Text>
+                    {hasOwnKey ? (
+                      <View style={st.aiKeySavedRow}>
+                        <MaterialCommunityIcons
+                          name="shield-check"
+                          size={16}
+                          color={theme.primary}
+                        />
+                        <Text style={[st.aiKeySavedText, { color: theme.text }]}>
+                          A key is already saved.
+                        </Text>
+                        <Pressable
+                          onPress={() => handleRemoveProviderKey(provider)}
+                          hitSlop={8}
+                          disabled={keySaving}
+                        >
+                          <Text
+                            style={[st.aiKeyRemove, { color: theme.danger }]}
+                          >
+                            Remove
+                          </Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                    <View style={st.aiKeyInputRow}>
+                      <TextInput
+                        style={[
+                          st.aiKeyInput,
+                          {
+                            color: theme.text,
+                            borderColor: theme.border,
+                            backgroundColor: theme.surface,
+                          },
+                        ]}
+                        value={keyDraft}
+                        onChangeText={setKeyDraft}
+                        placeholder={`Paste ${AI_PROVIDER_LABELS[provider]} API key`}
+                        placeholderTextColor={theme.textMuted}
+                        secureTextEntry
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        editable={!keySaving}
+                      />
+                      <Pressable
+                        style={[
+                          st.aiKeySaveBtn,
+                          {
+                            backgroundColor: keySaving
+                              ? theme.border
+                              : theme.primary,
+                          },
+                        ]}
+                        onPress={handleSaveProviderKey}
+                        disabled={keySaving}
+                      >
+                        {keySaving ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <Text style={st.aiKeySaveText}>Save</Text>
+                        )}
+                      </Pressable>
+                    </View>
+                    {keyError ? (
+                      <Text
+                        style={[st.aiKeyError, { color: theme.danger }]}
+                      >
+                        {keyError}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </SectionCard>
+
+        {/* Offline AI */}
+        <SectionCard title="Offline AI" icon="chip" theme={theme}>
+          <OfflineAICard />
+        </SectionCard>
+
         {/* Notifications */}
-        <SectionCard title="Notifications" theme={theme}>
+        <Text style={[st.groupKicker, { color: theme.textMuted }]}>
+          Notifications
+        </Text>
+        <SectionCard title="Notifications" icon="bell-outline" theme={theme}>
           <View style={st.settingRow}>
             <View style={st.settingLeft}>
               <MaterialCommunityIcons
@@ -630,220 +1028,9 @@ export default function SettingsScreen() {
           </Pressable>
         </SectionCard>
 
-        {/* AI Model */}
-        <SectionCard title="AI Model" theme={theme}>
-          <View style={st.aiSubRow}>
-            <Text style={[st.aiSubText, { color: theme.textSecondary }]}>
-              Choose which model powers course, quiz & study generation.
-            </Text>
-          </View>
-          <Pressable
-            style={[
-              st.aiModelRow,
-              { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
-            ]}
-            onPress={() => setShowModelPicker(true)}
-          >
-            <View style={st.settingLeft}>
-              <MaterialCommunityIcons
-                name="brain"
-                size={20}
-                color={theme.primary}
-              />
-              <View style={st.aiModelInfo}>
-                <Text style={[st.settingLabel, { color: theme.text }]}>
-                  {currentModel?.label ?? "Default model"}
-                </Text>
-                <Text style={[st.aiModelMeta, { color: theme.textSecondary }]}>
-                  {currentModel
-                    ? `${AI_PROVIDER_LABELS[currentModel.provider]} · ${
-                        currentModel.tier === "paid" ? "Paid" : "Free"
-                      } · ${
-                        providerStatus(currentModel.provider) === "ready"
-                          ? "Ready"
-                          : providerStatus(currentModel.provider) === "unknown"
-                            ? "Checking…"
-                            : "Needs key"
-                      }`
-                    : "gemini::gemini-2.5-flash"}
-                </Text>
-              </View>
-            </View>
-            <MaterialCommunityIcons
-              name="chevron-right"
-              size={20}
-              color={theme.textMuted}
-            />
-          </Pressable>
-          <View style={st.aiNoteRow}>
-            <MaterialCommunityIcons
-              name="information-outline"
-              size={14}
-              color={theme.textMuted}
-            />
-            <Text style={[st.aiNoteText, { color: theme.textMuted }]}>
-              Tap a model to see what&apos;s needed — add a provider key on the
-              server or on this device. Embeddings & thumbnail images always use
-              Google Gemini.
-            </Text>
-          </View>
-        </SectionCard>
-
-        {/* AI API Keys */}
-        <SectionCard title="AI API Keys" theme={theme}>
-          <View style={st.aiSubRow}>
-            <Text style={[st.aiSubText, { color: theme.textSecondary }]}>
-              Add a key for any provider to unlock its free & paid models. You
-              only need a key where the server doesn&apos;t have one.
-            </Text>
-          </View>
-          {AI_PROVIDERS.map((provider) => {
-            const hasServerKey =
-              !serverKeysError && (serverKeys[provider] ?? false);
-            const hasOwnKey = Boolean(keys[provider]);
-            const expanded = editingKeyProvider === provider;
-            const ready = hasServerKey || hasOwnKey;
-            return (
-              <View key={provider}>
-                <Pressable
-                  style={[st.aiKeyRow, { borderBottomColor: theme.border }]}
-                  onPress={() => handleToggleKeyEditor(provider)}
-                >
-                  <View
-                    style={[
-                      st.aiKeyIconWrap,
-                      {
-                        backgroundColor: ready
-                          ? theme.primary + "15"
-                          : theme.border + "40",
-                      },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={PROVIDER_ICONS[provider]}
-                      size={18}
-                      color={ready ? theme.primary : theme.textSecondary}
-                    />
-                  </View>
-                  <View style={st.aiKeyInfo}>
-                    <Text style={[st.settingLabel, { color: theme.text }]}>
-                      {AI_PROVIDER_LABELS[provider]}
-                    </Text>
-                    <Text style={[st.aiKeyStatus, { color: theme.textSecondary }]}>
-                      {serverKeysError
-                        ? "Checking…"
-                        : hasServerKey
-                          ? "Server key configured"
-                          : hasOwnKey
-                            ? "Key saved on this device"
-                            : "No key — add one to unlock models"}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      st.aiStatusDot,
-                      {
-                        backgroundColor: serverKeysError
-                          ? theme.textMuted
-                          : ready
-                            ? theme.primary
-                            : theme.accent,
-                      },
-                    ]}
-                  />
-                  <MaterialCommunityIcons
-                    name={expanded ? "chevron-up" : "chevron-down"}
-                    size={20}
-                    color={theme.textMuted}
-                  />
-                </Pressable>
-                {expanded ? (
-                  <View
-                    style={[
-                      st.aiKeyEditor,
-                      {
-                        backgroundColor: theme.surfaceAlt,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <Text style={[st.aiKeyEditorLabel, { color: theme.textSecondary }]}>
-                      Saving here keeps the key only on this device.
-                    </Text>
-                    {hasOwnKey ? (
-                      <View style={st.aiKeySavedRow}>
-                        <MaterialCommunityIcons
-                          name="shield-check"
-                          size={16}
-                          color={theme.primary}
-                        />
-                        <Text style={[st.aiKeySavedText, { color: theme.text }]}>
-                          A key is already saved.
-                        </Text>
-                        <Pressable
-                          onPress={() => handleRemoveProviderKey(provider)}
-                          hitSlop={8}
-                          disabled={keySaving}
-                        >
-                          <Text style={[st.aiKeyRemove, { color: theme.danger }]}>
-                            Remove
-                          </Text>
-                        </Pressable>
-                      </View>
-                    ) : null}
-                    <View style={st.aiKeyInputRow}>
-                      <TextInput
-                        style={[
-                          st.aiKeyInput,
-                          {
-                            color: theme.text,
-                            borderColor: theme.border,
-                            backgroundColor: theme.surface,
-                          },
-                        ]}
-                        value={keyDraft}
-                        onChangeText={setKeyDraft}
-                        placeholder={`Paste ${AI_PROVIDER_LABELS[provider]} API key`}
-                        placeholderTextColor={theme.textMuted}
-                        secureTextEntry
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        editable={!keySaving}
-                      />
-                      <Pressable
-                        style={[
-                          st.aiKeySaveBtn,
-                          {
-                            backgroundColor: keySaving ? theme.border : theme.primary,
-                          },
-                        ]}
-                        onPress={handleSaveProviderKey}
-                        disabled={keySaving}
-                      >
-                        {keySaving ? (
-                          <ActivityIndicator size="small" color="#FFF" />
-                        ) : (
-                          <Text style={st.aiKeySaveText}>Save</Text>
-                        )}
-                      </Pressable>
-                    </View>
-                    {keyError ? (
-                      <Text style={[st.aiKeyError, { color: theme.danger }]}>{keyError}</Text>
-                    ) : null}
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-        </SectionCard>
-
-        {/* Offline AI */}
-        <SectionCard title="Offline AI" theme={theme}>
-          <OfflineAICard />
-        </SectionCard>
-
-        {/* Data Management */}
-        <SectionCard title="Data Management" theme={theme}>
+        {/* Data */}
+        <Text style={[st.groupKicker, { color: theme.textMuted }]}>Data</Text>
+        <SectionCard title="Data Management" icon="database-outline" theme={theme}>
           <Pressable
             style={[st.actionRow, { borderBottomWidth: 0 }]}
             onPress={handleClearAllData}
@@ -861,14 +1048,20 @@ export default function SettingsScreen() {
                 color={theme.danger}
               />
             </View>
-            <Text style={[st.actionLabel, { color: theme.danger }]}>
-              {clearing ? "Clearing..." : "Clear All Local Data"}
-            </Text>
+            <View style={st.actionInfo}>
+              <Text style={[st.actionLabel, { color: theme.danger }]}>
+                {clearing ? "Clearing..." : "Clear All Local Data"}
+              </Text>
+              <Text style={[st.actionHint, { color: theme.textMuted }]}>
+                Remove notes, courses, progress, trophies &amp; settings
+              </Text>
+            </View>
           </Pressable>
         </SectionCard>
 
         {/* About */}
-        <SectionCard title="About" theme={theme}>
+        <Text style={[st.groupKicker, { color: theme.textMuted }]}>About</Text>
+        <SectionCard title="About Yuinx" icon="information-outline" theme={theme}>
           <View style={st.infoRow}>
             <Text style={[st.infoLabel, { color: theme.textSecondary }]}>
               Version
@@ -908,310 +1101,193 @@ export default function SettingsScreen() {
 
       {/* Custom Theme Editor Modal */}
       {showEditor && (
-        <View style={[st.modalOverlay, { backgroundColor: theme.glass }]}>
-          <View style={[st.modalContent, { backgroundColor: theme.surface }]}>
-            <View style={st.modalHeader}>
-              <Text style={[st.modalTitle, { color: theme.text }]}>
-                {customTheme ? "Edit" : "Create"} Custom Theme
-              </Text>
-              <Pressable onPress={() => setShowEditor(false)}>
-                <MaterialIcons
-                  name="close"
-                  size={22}
-                  color={theme.textSecondary}
-                />
-              </Pressable>
-            </View>
-            <ScrollView
-              style={st.editorScroll}
-              showsVerticalScrollIndicator={false}
-            >
-              <Text style={[st.fieldLabel, { color: theme.textSecondary }]}>
-                Theme Name
-              </Text>
-              <TextInput
-                style={[
-                  st.editorInput,
-                  {
-                    color: theme.text,
-                    borderColor: theme.border,
-                    backgroundColor: theme.surfaceAlt,
-                  },
-                ]}
-                value={editorName}
-                onChangeText={setEditorName}
-                placeholder="My Theme"
-                placeholderTextColor={theme.textMuted}
-              />
-              {CUSTOM_FIELDS.map(({ key, label }) => (
-                <Pressable
-                  key={key}
-                  style={[st.colorRow, { borderBottomColor: theme.border }]}
-                  onPress={() => setPickingField(key)}
-                >
-                  <Text style={[st.colorRowLabel, { color: theme.text }]}>
-                    {label}
-                  </Text>
-                  <View style={st.colorRowRight}>
-                    <View
-                      style={[
-                        st.colorPreview,
-                        { backgroundColor: editColors[key] },
-                      ]}
-                    />
-                    <Text
-                      style={[st.colorValue, { color: theme.textSecondary }]}
-                    >
-                      {editColors[key]}
-                    </Text>
-                  </View>
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => {
+            setShowEditor(false);
+            setPickingField(null);
+          }}
+        >
+          <View style={[st.modalOverlay, { backgroundColor: theme.glass }]}>
+            <View style={[st.modalContent, { backgroundColor: theme.surface }]}>
+              <View style={st.modalHeader}>
+                <Text style={[st.modalTitle, { color: theme.text }]}>
+                  {customTheme ? "Edit" : "Create"} Custom Theme
+                </Text>
+                <Pressable onPress={() => setShowEditor(false)}>
+                  <MaterialIcons
+                    name="close"
+                    size={22}
+                    color={theme.textSecondary}
+                  />
                 </Pressable>
-              ))}
-              {pickingField && (
-                <View
-                  style={[st.pickerSection, { borderTopColor: theme.border }]}
-                >
-                  <Text style={[st.fieldLabel, { color: theme.textSecondary }]}>
-                    Pick color for:{" "}
-                    {CUSTOM_FIELDS.find((f) => f.key === pickingField)?.label}
-                  </Text>
-                  <View style={st.swatchGrid}>
-                    {SWATCHES.map((swatch) => (
-                      <Pressable
-                        key={swatch}
+              </View>
+              <ScrollView
+                style={st.editorScroll}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={[st.fieldLabel, { color: theme.textSecondary }]}>
+                  Theme Name
+                </Text>
+                <TextInput
+                  style={[
+                    st.editorInput,
+                    {
+                      color: theme.text,
+                      borderColor: theme.border,
+                      backgroundColor: theme.surfaceAlt,
+                    },
+                  ]}
+                  value={editorName}
+                  onChangeText={setEditorName}
+                  placeholder="My Theme"
+                  placeholderTextColor={theme.textMuted}
+                />
+                {CUSTOM_FIELDS.map(({ key, label }) => (
+                  <Pressable
+                    key={key}
+                    style={[st.colorRow, { borderBottomColor: theme.border }]}
+                    onPress={() => setPickingField(key)}
+                  >
+                    <Text style={[st.colorRowLabel, { color: theme.text }]}>
+                      {label}
+                    </Text>
+                    <View style={st.colorRowRight}>
+                      <View
                         style={[
-                          st.swatch,
+                          st.colorPreview,
+                          { backgroundColor: editColors[key] },
+                        ]}
+                      />
+                      <Text
+                        style={[st.colorValue, { color: theme.textSecondary }]}
+                      >
+                        {editColors[key]}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+                {pickingField && (
+                  <View
+                    style={[st.pickerSection, { borderTopColor: theme.border }]}
+                  >
+                    <Text style={[st.fieldLabel, { color: theme.textSecondary }]}>
+                      Pick color for:{" "}
+                      {CUSTOM_FIELDS.find((f) => f.key === pickingField)?.label}
+                    </Text>
+                    <View style={st.swatchGrid}>
+                      {SWATCHES.map((swatch) => (
+                        <Pressable
+                          key={swatch}
+                          style={[
+                            st.swatch,
+                            {
+                              backgroundColor: swatch,
+                              borderColor:
+                                editColors[pickingField] === swatch
+                                  ? theme.text
+                                  : "transparent",
+                              borderWidth:
+                                editColors[pickingField] === swatch ? 2 : 0,
+                            },
+                          ]}
+                          onPress={() =>
+                            setEditColors((prev) => ({
+                              ...prev,
+                              [pickingField]: swatch,
+                            }))
+                          }
+                        />
+                      ))}
+                    </View>
+                    <View style={st.hexRow}>
+                      <Text style={[st.hexPrefix, { color: theme.textMuted }]}>
+                        #
+                      </Text>
+                      <TextInput
+                        style={[
+                          st.hexInput,
                           {
-                            backgroundColor: swatch,
-                            borderColor:
-                              editColors[pickingField] === swatch
-                                ? theme.text
-                                : "transparent",
-                            borderWidth:
-                              editColors[pickingField] === swatch ? 2 : 0,
+                            color: theme.text,
+                            borderColor: theme.border,
+                            backgroundColor: theme.surfaceAlt,
                           },
                         ]}
-                        onPress={() =>
-                          setEditColors((prev) => ({
-                            ...prev,
-                            [pickingField]: swatch,
-                          }))
-                        }
+                        value={editColors[pickingField].replace("#", "")}
+                        onChangeText={(val) => {
+                          const clean = val
+                            .replace(/[^0-9a-fA-F]/g, "")
+                            .slice(0, 6);
+                          if (clean.length <= 6)
+                            setEditColors((prev) => ({
+                              ...prev,
+                              [pickingField]: `#${clean || "000000"}`,
+                            }));
+                        }}
+                        placeholder="000000"
+                        placeholderTextColor={theme.textMuted}
+                        maxLength={6}
+                        autoCapitalize="none"
                       />
-                    ))}
+                      <Pressable
+                        style={[st.doneBtn, { backgroundColor: theme.primary }]}
+                        onPress={() => setPickingField(null)}
+                      >
+                        <Text style={st.doneBtnText}>Done</Text>
+                      </Pressable>
+                    </View>
                   </View>
-                  <View style={st.hexRow}>
-                    <Text style={[st.hexPrefix, { color: theme.textMuted }]}>
-                      #
-                    </Text>
-                    <TextInput
-                      style={[
-                        st.hexInput,
-                        {
-                          color: theme.text,
-                          borderColor: theme.border,
-                          backgroundColor: theme.surfaceAlt,
-                        },
-                      ]}
-                      value={editColors[pickingField].replace("#", "")}
-                      onChangeText={(val) => {
-                        const clean = val
-                          .replace(/[^0-9a-fA-F]/g, "")
-                          .slice(0, 6);
-                        if (clean.length <= 6)
-                          setEditColors((prev) => ({
-                            ...prev,
-                            [pickingField]: `#${clean || "000000"}`,
-                          }));
-                      }}
-                      placeholder="000000"
-                      placeholderTextColor={theme.textMuted}
-                      maxLength={6}
-                      autoCapitalize="none"
-                    />
-                    <Pressable
-                      style={[st.doneBtn, { backgroundColor: theme.primary }]}
-                      onPress={() => setPickingField(null)}
-                    >
-                      <Text style={st.doneBtnText}>Done</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )}
-              <View style={st.editorActions}>
-                <Pressable
-                  style={[st.saveBtn, { backgroundColor: theme.primary }]}
-                  onPress={handleSaveCustom}
-                >
-                  <Text style={st.saveBtnText}>
-                    {customTheme ? "Update Theme" : "Save Theme"}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[st.cancelBtn, { borderColor: theme.border }]}
-                  onPress={() => {
-                    setShowEditor(false);
-                    setPickingField(null);
-                  }}
-                >
-                  <Text
-                    style={[st.cancelBtnText, { color: theme.textSecondary }]}
+                )}
+                <View style={st.editorActions}>
+                  <Pressable
+                    style={[st.saveBtn, { backgroundColor: theme.primary }]}
+                    onPress={handleSaveCustom}
                   >
-                    Cancel
-                  </Text>
-                </Pressable>
-              </View>
-            </ScrollView>
+                    <Text style={st.saveBtnText}>
+                      {customTheme ? "Update Theme" : "Save Theme"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[st.cancelBtn, { borderColor: theme.border }]}
+                    onPress={() => {
+                      setShowEditor(false);
+                      setPickingField(null);
+                    }}
+                  >
+                    <Text
+                      style={[st.cancelBtnText, { color: theme.textSecondary }]}
+                    >
+                      Cancel
+                    </Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </Modal>
       )}
 
-      {/* AI Model Picker Modal */}
-      {showModelPicker && (
-        <View style={[st.modalOverlay, { backgroundColor: theme.glass }]}>
-          <View style={[st.modalContent, { backgroundColor: theme.surface }]}>
-            <View style={st.modalHeader}>
-              <View>
-                <Text style={[st.modalTitle, { color: theme.text }]}>
-                  Choose AI Model
-                </Text>
-                <Text style={[st.modalSubTitle, { color: theme.textSecondary }]}>
-                  Primary — {currentModel?.label ?? "Default model"}
-                </Text>
-              </View>
-              <Pressable onPress={() => setShowModelPicker(false)}>
-                <MaterialIcons
-                  name="close"
-                  size={22}
-                  color={theme.textSecondary}
-                />
-              </Pressable>
-            </View>
-            <ScrollView
-              style={st.editorScroll}
-              showsVerticalScrollIndicator={false}
-            >
-              {modelGroups.map(({ provider, models }) => (
-                <View key={provider} style={st.aiGroup}>
-                  <Text style={[st.aiGroupLabel, { color: theme.textSecondary }]}>
-                    {AI_PROVIDER_LABELS[provider]}
-                  </Text>
-                  {models.map((m) => {
-                    const active = m.ref === selectedModel;
-                    const status = providerStatus(m.provider);
-                    const dotColor =
-                      status === "ready"
-                        ? theme.primary
-                        : status === "unknown"
-                          ? theme.textMuted
-                          : theme.accent;
-                    return (
-                      <Pressable
-                        key={m.ref}
-                        style={[st.aiItemRow, { borderBottomColor: theme.border }]}
-                        onPress={() => setCandidateModel(m)}
-                      >
-                        <View
-                          style={[st.aiStatusDot, { backgroundColor: dotColor }]}
-                        />
-                        <View style={st.aiItemInfo}>
-                          <View style={st.aiItemTitleRow}>
-                            <Text
-                              style={[
-                                st.aiItemLabel,
-                                {
-                                  color: theme.text,
-                                  fontWeight: active ? "700" : "400",
-                                },
-                              ]}
-                            >
-                              {m.label}
-                            </Text>
-                            <View
-                              style={[
-                                st.aiTierChip,
-                                {
-                                  backgroundColor:
-                                    m.tier === "paid"
-                                      ? theme.accent + "22"
-                                      : theme.primary + "22",
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  st.aiTierText,
-                                  {
-                                    color:
-                                      m.tier === "paid"
-                                        ? theme.accent
-                                        : theme.primary,
-                                  },
-                                ]}
-                              >
-                                {m.tier === "paid" ? "PAID" : "FREE"}
-                              </Text>
-                            </View>
-                            {effectiveRating(m, userRatings) != null && (
-                              <View style={[st.aiRatingChip, { backgroundColor: theme.accent + "1A" }]}>
-                                <MaterialCommunityIcons name="star" size={11} color={theme.accent} />
-                                <Text style={[st.aiRatingText, { color: theme.accent }]}>
-                                  {effectiveRating(m, userRatings)}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                          {m.note ? (
-                            <Text
-                              style={[st.aiItemNote, { color: theme.textMuted }]}
-                            >
-                              {m.note}
-                            </Text>
-                          ) : null}
-                        </View>
-                        {active && (
-                          <View
-                            style={[
-                              st.primaryChip,
-                              { backgroundColor: theme.primary + "1A" },
-                            ]}
-                          >
-                            <MaterialCommunityIcons
-                              name="check"
-                              size={11}
-                              color={theme.primary}
-                            />
-                            <Text
-                              style={[
-                                st.primaryChipText,
-                                { color: theme.primary },
-                              ]}
-                            >
-                              Primary
-                            </Text>
-                          </View>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ))}
-              <View style={st.aiPickerHint}>
-                <MaterialCommunityIcons
-                  name="information-outline"
-                  size={14}
-                  color={theme.textMuted}
-                />
-                <Text style={[st.aiPickerHintText, { color: theme.textMuted }]}>
-                  Green dot = ready to use. Tap a model to view its
-                  requirements.
-                </Text>
-              </View>
-              <View style={{ height: 20 }} />
-            </ScrollView>
-          </View>
-        </View>
-      )}
+      {/* AI Model Picker Sheet */}
+      <ModelPickerSheet
+        visible={showModelPicker}
+        selectedModel={selectedModel}
+        modelGroups={modelGroups}
+        providerStatus={providerStatus}
+        userRatings={userRatings}
+        ratingPending={ratingPending}
+        ratingErrorText={ratingErrorText}
+        onRate={handleRate}
+        onSelect={handleModelSelect}
+        onInfo={handleModelInfo}
+        onClose={() => {
+          setShowModelPicker(false);
+          setCandidateModel(null);
+          setRatingErrorText(null);
+        }}
+      />
 
       {/* AI Model Detail Sheet */}
       {candidateModel && (
@@ -1237,12 +1313,13 @@ export default function SettingsScreen() {
 
 const st = StyleSheet.create({
   container: { flex: 1 },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    height: 48,
+    paddingHorizontal: 16,
+    height: 56,
     borderBottomWidth: 1,
   },
   backBtn: {
@@ -1251,22 +1328,86 @@ const st = StyleSheet.create({
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", fontFamily },
-  scroll: { paddingTop: 16, paddingBottom: 40 },
+  headerTitle: { fontSize: 18, fontWeight: "700", fontFamily, flex: 1, marginLeft: 12 },
+  versionChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  versionChipText: { fontSize: 11, fontWeight: "700", fontFamily },
+
+  scroll: { paddingTop: 18, paddingBottom: 40 },
+
+  hero: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 28,
+    padding: 20,
+    gap: 6,
+    overflow: "hidden",
+  },
+  heroTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  heroIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroKicker: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    color: "rgba(255,255,255,0.85)",
+    fontFamily,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    fontFamily,
+    marginTop: 4,
+  },
+  heroSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "rgba(255,255,255,0.85)",
+    fontFamily,
+  },
+
+  groupKicker: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    marginHorizontal: 24,
+    marginBottom: 8,
+    fontFamily,
+  },
 
   card: {
     marginHorizontal: 20,
     borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    marginBottom: 14,
+    marginBottom: 20,
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 10,
     marginBottom: 12,
+  },
+  cardIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
   },
   cardTitle: { fontSize: 16, fontWeight: "700", fontFamily },
 
@@ -1333,11 +1474,67 @@ const st = StyleSheet.create({
   },
   deleteThemeText: { fontSize: 12, fontWeight: "600", fontFamily },
 
+  aiIntro: { fontSize: 13, fontFamily, marginBottom: 12, lineHeight: 18 },
+  aiHero: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  aiHeroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  aiHeroInfo: { flex: 1, gap: 6 },
+  aiHeroTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  aiHeroLabel: { fontSize: 16, fontWeight: "800", fontFamily, flexShrink: 1 },
+  tierChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  tierChipText: {
+    fontSize: 10,
+    fontWeight: "700",
+    fontFamily,
+    textTransform: "uppercase" as const,
+  },
+  aiHeroMetaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  aiHeroMeta: { fontSize: 12, fontFamily },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 3.5 },
+  statusPillText: { fontSize: 11, fontWeight: "700", fontFamily },
+  aiHeroRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  ratingChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  ratingChipText: { fontSize: 10, fontWeight: "700", fontFamily },
+  aiNoteRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: 12,
+  },
+  aiNoteText: { fontSize: 12, fontFamily, flex: 1, lineHeight: 16 },
+
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "transparent",
   },
@@ -1347,12 +1544,67 @@ const st = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 8,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "transparent",
   },
   manageText: { fontSize: 12, fontWeight: "500", flex: 1, fontFamily },
+
+  aiKeyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  aiKeyIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  aiKeyInfo: { flex: 1 },
+  aiKeyStatus: { fontSize: 12, fontFamily, marginTop: 1 },
+  aiStatusDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 2 },
+  aiKeyEditor: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 8,
+    marginBottom: 12,
+    gap: 10,
+  },
+  aiKeyEditorLabel: { fontSize: 12, fontFamily },
+  aiKeySavedRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  aiKeySavedText: { fontSize: 13, fontFamily, flex: 1 },
+  aiKeyRemove: { fontSize: 13, fontWeight: "700", fontFamily },
+  aiKeyInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  aiKeyInput: {
+    flex: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    borderWidth: 1,
+    fontFamily,
+  },
+  aiKeySaveBtn: {
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 68,
+  },
+  aiKeySaveText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "800",
+    fontFamily,
+  },
+  aiKeyError: { fontSize: 12, fontFamily },
 
   actionRow: {
     flexDirection: "row",
@@ -1365,37 +1617,35 @@ const st = StyleSheet.create({
   actionIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
+  actionInfo: { flex: 1 },
   actionLabel: { fontSize: 14, fontWeight: "600", fontFamily },
+  actionHint: { fontSize: 12, fontFamily, marginTop: 1 },
 
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   infoLabel: { fontSize: 14, fontWeight: "500", fontFamily },
   infoValue: { fontSize: 14, fontWeight: "600", fontFamily },
   linkRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 6,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "transparent",
   },
   linkText: { fontSize: 14, fontWeight: "600", fontFamily },
 
   modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 200,
+    flex: 1,
     justifyContent: "flex-end",
   },
   modalContent: {
@@ -1410,13 +1660,14 @@ const st = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  modalTitle: { fontSize: 18, fontWeight: "800" },
+  modalTitle: { fontSize: 18, fontWeight: "800", fontFamily },
   editorScroll: { maxHeight: 600 },
   fieldLabel: {
     fontSize: 12,
     fontWeight: "600",
     letterSpacing: 0.5,
     marginBottom: 8,
+    fontFamily,
   },
   editorInput: {
     borderRadius: 12,
@@ -1486,150 +1737,4 @@ const st = StyleSheet.create({
     borderWidth: 1,
   },
   cancelBtnText: { fontSize: 15, fontWeight: "700" },
-  aiSubRow: { marginBottom: 8 },
-  aiSubText: { fontSize: 13, fontFamily },
-  aiModelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  aiModelInfo: { flex: 1, marginLeft: 4 },
-  aiModelMeta: { fontSize: 12, fontFamily, marginTop: 1 },
-  aiNoteRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 10,
-  },
-  aiNoteText: { fontSize: 12, fontFamily, flex: 1 },
-  aiGroup: { marginBottom: 12 },
-  aiGroupLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    marginTop: 4,
-  },
-  aiItemRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  aiItemInfo: { flex: 1 },
-  aiItemTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  aiItemLabel: { fontSize: 14, fontFamily },
-  aiTierChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  aiTierText: {
-    fontSize: 10,
-    fontWeight: "700",
-    fontFamily,
-    textTransform: "uppercase" as const,
-  },
-  aiRatingChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  aiRatingText: {
-    fontSize: 10,
-    fontWeight: "700",
-    fontFamily,
-  },
-  aiItemNote: { fontSize: 11, fontFamily, marginTop: 2 },
-  aiStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginLeft: 2,
-  },
-  aiPickerHint: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4,
-  },
-  aiPickerHintText: { fontSize: 12, fontFamily, flex: 1 },
-
-  aiKeyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  aiKeyIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  aiKeyInfo: { flex: 1 },
-  aiKeyStatus: { fontSize: 12, fontFamily, marginTop: 1 },
-  aiKeyEditor: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 12,
-    marginTop: 8,
-    marginBottom: 12,
-    gap: 10,
-  },
-  aiKeyEditorLabel: { fontSize: 12, fontFamily },
-  aiKeySavedRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  aiKeySavedText: { fontSize: 13, fontFamily, flex: 1 },
-  aiKeyRemove: { fontSize: 13, fontWeight: "700", fontFamily },
-  aiKeyInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  aiKeyInput: {
-    flex: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-    borderWidth: 1,
-    fontFamily,
-  },
-  aiKeySaveBtn: {
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    minWidth: 68,
-  },
-  aiKeySaveText: {
-    color: "#FFF",
-    fontSize: 13,
-    fontWeight: "800",
-    fontFamily,
-  },
-  aiKeyError: { fontSize: 12, fontFamily },
-  modalSubTitle: { fontSize: 13, fontWeight: "500", marginTop: 2 },
-  primaryChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  primaryChipText: {
-    fontSize: 10,
-    fontWeight: "700",
-    fontFamily,
-    textTransform: "uppercase" as const,
-  },
 });
