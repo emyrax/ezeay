@@ -16,6 +16,7 @@ import { useRouter } from "expo-router";
 import { SPIN_SEGMENTS, getRandomOutcome, type SpinOutcome } from "../data/spinOutcomes";
 import { useSpinStore } from "../store/spinStore";
 import { useUserStore } from "../store/userStore";
+import { useMissionStore } from "../store/missionStore";
 import { useAuth } from "../contexts/AuthContext";
 import { useThemeColors } from "../hooks/useTheme";
 
@@ -143,6 +144,20 @@ export default function SpinWheel() {
 
   const handleResultAction = async () => {
     if (!result) return;
+    useMissionStore
+      .getState()
+      .markCompleted(
+        {
+          key: "spin",
+          title: "Take a spin",
+          icon: "rotate-right",
+          description: "You spun the wheel today.",
+          xp: 5,
+          coins: 0,
+        },
+        { grant: true, getToken, silent: result.type === "navigate" },
+      )
+      .catch(() => {});
     if (result.type === "free_spin") {
       setResult(null);
       setShowResult(false);

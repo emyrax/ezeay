@@ -1,15 +1,24 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../../contexts/AuthContext";
 import { trophyData } from "../../data/trophies";
 import { useThemeColors } from "../../hooks/useTheme";
+import { eventBus } from "../../lib/eventBus";
 import { useBountyStore } from "../../store/bountyStore";
 import { useCheckInStore } from "../../store/checkInStore";
+import { useCourseStore } from "../../store/courseStore";
+import {
+  getCycleLabel,
+  MISSION_ORDER,
+  useMissionStore,
+  type MissionKey,
+} from "../../store/missionStore";
 import { useSpinStore } from "../../store/spinStore";
 import { useUserStore } from "../../store/userStore";
 import { useUserTrophyStore } from "../../store/userTrophyStore";
+import MissionRewardOverlay from "./MissionRewardOverlay";
 
 const ICON_MAP: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
   rocket: "rocket-launch",
@@ -64,51 +73,129 @@ export default function MissionsSection() {
   const theme = useThemeColors();
   const router = useRouter();
   const { profile, getToken } = useAuth();
+  const missionStore = useMissionStore();
   const checkInStore = useCheckInStore();
   const spinStore = useSpinStore();
   const bounties = useBountyStore((s) => s.bounties);
+  const courseStoreCourses = useCourseStore((s) => s.courses);
   const gameProfile = useUserStore((s) => s.profile);
   const trophies = useUserTrophyStore((s) => s.trophies);
   const [checkingIn, setCheckingIn] = useState(false);
 
   const today = new Date().toISOString().slice(0, 10);
-  const checkedIn = !checkInStore.canCheckIn();
-  const spunToday = spinStore.lastSpinDate === today;
-  const hasClaimableBounty = useMemo(
-    () =>
-      bounties.some((b) => b.status === "completed" || b.status === "claimed"),
-    [bounties],
+
+  useEffect(() => {
+    useMissionStore.getState().load();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        useMissionStore.getState().beginCycleIfNeeded();
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    const unsub = eventBus.on("bounty:claimed", (item: { xp?: number; coins?: number }) => {
+      useMissionStore
+        .getState()
+        .markCompleted({
+          key: "bounty",
+          title: "Plan your day",
+          icon: "calendar-edit",
+          description: "Bounty reward claimed.",
+          xp: item.xp ?? 0,
+          coins: item.coins ?? 0,
+        })
+        .catch(() => {});
+    });
+    return unsub;
+  }, []);
+
+  const ownCourses = useMemo(
+    () => courseStoreCourses.filter((c) => c.creatorId === profile?.uid),
+    [courseStoreCourses, profile],
   );
-  const ownCourses = useMemo(() => {
-    return (profile?.courses ?? []).filter((c) => c.creatorId === profile?.uid);
-  }, [profile]);
-  const sharedCourse = useMemo(
-    () => ownCourses.find((c) => c.isPublic),
-    [ownCourses],
-  );
+  const sharedCourse = useMemo(() => ownCourses.find((c) => c.isPublic), [ownCourses]);
+
+  const prevSharedIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const currentId = sharedCourse?.id;
+    const prevId = prevSharedIdRef.current;
+    prevSharedIdRef.current = currentId;
+    if (currentId && prevId !== currentId) {
+      useMissionStore
+        .getState()
+        .markCompleted(
+          {
+            key: "share",
+            title: "Share a course",
+            icon: "earth",
+            description: "Your course is visible in the Camp.",
+            xp: 15,
+            coins: 10,
+          },
+          { grant: true, getToken },
+        )
+        .catch(() => {});
+    }
+  }, [sharedCourse, getToken]);
 
   const handleCheckIn = useCallback(async () => {
-    if (!profile || checkingIn || checkInStore.canCheckIn() === false) return;
+    if (!profile || checkingIn || !checkInStore.canCheckIn()) return;
     setCheckingIn(true);
     try {
-      await checkInStore.checkIn(profile.uid, getToken);
+      const result = await checkInStore.checkIn(profile.uid, getToken);
+      if (result.success) {
+        await useMissionStore
+          .getState()
+          .markCompleted({
+            key: "checkin",
+            title: "Daily check-in",
+            icon: "fire",
+            description: "Your streak is growing.",
+            xp: result.xpReward,
+            coins: result.coinReward,
+          });
+      }
     } finally {
       setCheckingIn(false);
     }
   }, [profile, checkingIn, checkInStore, getToken]);
 
   const handleShare = useCallback(() => {
-    if (sharedCourse) {
-      router.push(`/(course)/${sharedCourse.id}` as Href);
-    } else if (ownCourses.length > 0) {
-      router.push(`/(course)/${ownCourses[0].id}` as Href);
+    const target = ownCourses[0];
+    if (target) {
+      router.push(`/(course)/${target.id}/chapters` as Href);
     } else {
       router.push("/(tabs)/quests" as Href);
     }
-  }, [sharedCourse, ownCourses, router]);
+  }, [ownCourses, router]);
+
+  const doneMap: Record<MissionKey, boolean> = useMemo(() => {
+    const checkedInToday = !checkInStore.canCheckIn();
+    const claimable = bounties.some(
+      (b) => b.status === "completed" || b.status === "claimed",
+    );
+    const shared = !!sharedCourse;
+    return {
+      checkin: missionStore.isDone("checkin") || checkedInToday,
+      bounty: missionStore.isDone("bounty") || claimable,
+      spin: missionStore.isDone("spin") || spinStore.lastSpinDate === today,
+      share: missionStore.isDone("share") || shared,
+    };
+  }, [missionStore, checkInStore, bounties, sharedCourse, spinStore, today]);
+
+  const doneCount = MISSION_ORDER.filter((k) => doneMap[k]).length;
+  const percent = Math.round((doneCount / MISSION_ORDER.length) * 100);
+
+  useEffect(() => {
+    if (doneCount >= MISSION_ORDER.length && !missionStore.cycleBonusClaimed) {
+      useMissionStore.getState().maybeClaimCycleBonus(getToken, doneCount).catch(() => {});
+    }
+  }, [doneCount, missionStore.cycleBonusClaimed, getToken]);
 
   const missions: {
-    key: string;
+    key: MissionKey;
     title: string;
     subtitle: string;
     icon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -118,47 +205,74 @@ export default function MissionsSection() {
     {
       key: "checkin",
       title: "Check in",
-      subtitle: checkedIn
+      subtitle: doneMap.checkin
         ? `${checkInStore.currentStreak || 0}-day streak`
         : "Start the day with XP",
       icon: "fire",
-      done: checkedIn,
+      done: doneMap.checkin,
       onPress: handleCheckIn,
     },
     {
       key: "bounty",
       title: "Plan your day",
-      subtitle: hasClaimableBounty
+      subtitle: doneMap.bounty
         ? "Reward ready to claim"
         : "Complete challenges to earn XP",
       icon: "calendar-edit",
-      done: hasClaimableBounty,
+      done: doneMap.bounty,
       onPress: () => router.push("/(schedule)" as Href),
     },
     {
       key: "spin",
       title: "Take a spin",
-      subtitle: spunToday
+      subtitle: doneMap.spin
         ? "Wheel spun for today"
         : `${spinStore.spinsRemaining} spins left`,
       icon: "rotate-right",
-      done: spunToday,
+      done: doneMap.spin,
       onPress: () => spinStore.openWheel(),
     },
     {
       key: "share",
       title: "Share a course",
-      subtitle: sharedCourse
-        ? "Visible in the Camp"
-        : "Teach the camp something",
+      subtitle: doneMap.share ? "Visible in the Camp" : "Teach the camp something",
       icon: "earth",
-      done: !!sharedCourse,
+      done: doneMap.share,
       onPress: handleShare,
     },
   ];
 
-  const doneCount = missions.filter((m) => m.done).length;
-  const percent = Math.round((doneCount / missions.length) * 100);
+  const nextMissionKey = useMemo(
+    () => MISSION_ORDER.find((k) => !doneMap[k]),
+    [doneMap],
+  );
+
+  const overlayVisible = !!missionStore.pendingReward && !spinStore.wheelVisible;
+
+  const handleKeepGoing = useCallback(() => {
+    useMissionStore.getState().dismissReward();
+  }, []);
+
+  const handleNextMission = useCallback(() => {
+    const key = nextMissionKey;
+    handleKeepGoing();
+    if (key === "spin") {
+      spinStore.openWheel();
+    } else if (key === "bounty") {
+      router.push("/(schedule)" as Href);
+    } else if (key === "share") {
+      handleShare();
+    } else if (key === "checkin") {
+      handleCheckIn();
+    }
+  }, [nextMissionKey, handleKeepGoing, spinStore, router, handleShare, handleCheckIn]);
+
+  const cycleLabel = getCycleLabel(missionStore.cycleKey);
+  const resetLabel = missionStore.cycleKey?.endsWith(":AM")
+    ? "resets 6 PM"
+    : missionStore.cycleKey
+      ? "resets 6 AM"
+      : "";
 
   const completedCourses = useMemo(
     () => ownCourses.filter((c) => c.progress && c.progress >= 100).length,
@@ -202,6 +316,11 @@ export default function MissionsSection() {
           >
             Tiny quests, daily momentum
           </Text>
+          {cycleLabel && resetLabel && (
+            <Text style={[styles.cycleLabel, { color: theme.textMuted }]}>
+              {cycleLabel} set · {resetLabel}
+            </Text>
+          )}
         </View>
         <View
           style={[
@@ -210,7 +329,7 @@ export default function MissionsSection() {
           ]}
         >
           <Text style={[styles.progressChipText, { color: theme.primary }]}>
-            {doneCount}/{missions.length}
+            {doneCount}/{MISSION_ORDER.length}
           </Text>
         </View>
       </View>
@@ -329,6 +448,17 @@ export default function MissionsSection() {
           </Text>
         </TouchableOpacity>
       )}
+
+      <MissionRewardOverlay
+        visible={overlayVisible}
+        reward={missionStore.pendingReward}
+        doneCount={doneCount}
+        total={MISSION_ORDER.length}
+        cycleBonusClaimed={missionStore.cycleBonusClaimed}
+        cycleBonusXp={missionStore.cycleBonusXp}
+        onKeepGoing={handleKeepGoing}
+        onNextMission={handleNextMission}
+      />
     </View>
   );
 }
@@ -351,6 +481,11 @@ const styles = StyleSheet.create({
   },
   sectionSubtitle: {
     fontSize: 13,
+    marginTop: 2,
+  },
+  cycleLabel: {
+    fontSize: 11,
+    fontWeight: "600",
     marginTop: 2,
   },
   progressChip: {

@@ -10,60 +10,50 @@ import {
   View,
 } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
-import { useThemeColors } from "../hooks/useTheme";
-import { images } from "../constants/images";
-import { ConfettiLayer } from "./ConfettiLayer";
-import ProgressBar from "./ProgressBar";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useThemeColors } from "../../hooks/useTheme";
+import { ConfettiLayer } from "../ConfettiLayer";
+import ProgressBar from "../ProgressBar";
+import type { MissionDef } from "../../store/missionStore";
 
-interface QuizRewardOverlayProps {
+const MISSION_ACCENTS: Record<MissionDef["key"], string> = {
+  checkin: "#27D436",
+  bounty: "#F59E0B",
+  spin: "#FFD700",
+  share: "#38BDF8",
+};
+
+interface MissionRewardOverlayProps {
   visible: boolean;
-  score?: number;
-  total?: number;
-  title?: string;
-  subtitle?: string;
-  accentColor?: string;
-  progressCount?: number;
-  progressTotal?: number;
-  progressLabel?: string;
-  progressHint?: string;
-  primaryLabel?: string;
-  onPrimary?: () => void;
-  secondaryLabel?: string;
-  onSecondary?: () => void;
-  onRequestClose?: () => void;
-  children?: React.ReactNode;
+  reward: MissionDef | null;
+  doneCount: number;
+  total: number;
+  cycleBonusClaimed: boolean;
+  cycleBonusXp: number;
+  onKeepGoing: () => void;
+  onNextMission: () => void;
 }
 
-export default function QuizRewardOverlay({
+export default function MissionRewardOverlay({
   visible,
-  score,
+  reward,
+  doneCount,
   total,
-  title,
-  subtitle,
-  accentColor,
-  progressCount,
-  progressTotal,
-  progressLabel,
-  progressHint,
-  primaryLabel = "Continue",
-  onPrimary,
-  secondaryLabel,
-  onSecondary,
-  onRequestClose,
-  children,
-}: QuizRewardOverlayProps) {
+  cycleBonusClaimed,
+  cycleBonusXp,
+  onKeepGoing,
+  onNextMission,
+}: MissionRewardOverlayProps) {
   const theme = useThemeColors();
-  const accent = accentColor ?? theme.success;
-  const logoScale = useRef(new Animated.Value(0.3)).current;
+  const accent = reward ? MISSION_ACCENTS[reward.key] : theme.primary;
+
+  const iconScale = useRef(new Animated.Value(0.3)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
   const rings = useRef([new Animated.Value(0), new Animated.Value(0)]).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
-  const pct = total && total > 0 && score !== undefined ? Math.round((score / total) * 100) : 0;
-
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !reward) return;
     if (Platform.OS !== "web") {
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -77,8 +67,8 @@ export default function QuizRewardOverlay({
       duration: 280,
       useNativeDriver: true,
     }).start();
-    logoScale.setValue(0.3);
-    Animated.spring(logoScale, {
+    iconScale.setValue(0.3);
+    Animated.spring(iconScale, {
       toValue: 1,
       friction: 4,
       tension: 120,
@@ -112,7 +102,7 @@ export default function QuizRewardOverlay({
         }),
       ).start();
     });
-  }, [visible, backdropOpacity, logoScale, floatAnim, rings]);
+  }, [visible, reward, backdropOpacity, iconScale, floatAnim, rings]);
 
   const ringStyle = (ring: Animated.Value) => ({
     transform: [
@@ -123,31 +113,22 @@ export default function QuizRewardOverlay({
     opacity: ring.interpolate({ inputRange: [0, 0.7, 1], outputRange: [0.55, 0.35, 0] }),
   });
 
-  const showScore = score !== undefined && total !== undefined && total > 0;
-  const hasProgress =
-    progressCount !== undefined && progressTotal !== undefined && progressTotal > 0;
+  const remaining = Math.max(0, total - doneCount);
+  const hasReward = !!reward && (reward.xp > 0 || reward.coins > 0);
+  const allDone = doneCount >= total && total > 0;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onRequestClose ?? onPrimary ?? onSecondary}
-    >
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onKeepGoing}>
       <Animated.View style={[styles.backdropWrap, { opacity: backdropOpacity }]}>
         <ConfettiLayer />
 
         <View style={styles.stage}>
           {rings.map((ring, i) => (
-            <Animated.View
-              key={i}
-              style={[styles.ring, { borderColor: accent }, ringStyle(ring)]}
-            />
+            <Animated.View key={i} style={[styles.ring, { borderColor: accent }, ringStyle(ring)]} />
           ))}
           <Animated.View
             style={[
-              styles.logoHalo,
+              styles.iconHalo,
               {
                 transform: [
                   {
@@ -162,72 +143,80 @@ export default function QuizRewardOverlay({
           >
             <Animated.View
               style={[
-                styles.logoCircle,
+                styles.iconCircle,
                 { backgroundColor: theme.surface, borderColor: theme.borderLight },
-                { transform: [{ scale: logoScale }] },
+                { transform: [{ scale: iconScale }] },
               ]}
             >
-              <Image source={images.yuinxLogoTrans} style={styles.logoImg} contentFit="contain" />
+              {reward && (
+                <MaterialCommunityIcons name={reward.icon} size={44} color={accent} />
+              )}
             </Animated.View>
           </Animated.View>
         </View>
 
-        <Text style={[styles.title, { color: accent }]}>{title ?? "Quiz Passed!"}</Text>
-        {showScore && (
-          <Text style={[styles.score, { color: theme.text }]}>
-            {score} / {total} · {pct}%
-          </Text>
-        )}
-        <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-          {subtitle ??
-            (pct === 100
-              ? "Perfect score. Absolutely nailed it."
-              : "Great work — you've mastered this.")}
+        <Text style={[styles.title, { color: accent }]}>
+          {allDone ? "Cycle complete!" : "Mission complete!"}
         </Text>
-
-        {hasProgress && (
-          <View style={[styles.progressCard, { backgroundColor: theme.surfaceAlt }]}>
-            <View style={styles.progressRow}>
-              <Text style={[styles.progressLabel, { color: theme.text }]}>
-                {progressLabel ?? `${progressCount} of ${progressTotal} complete`}
-              </Text>
-              <Text style={[styles.progressHint, { color: accent }]}>
-                {progressHint ?? `${progressTotal - progressCount} to go`}
-              </Text>
-            </View>
-            <ProgressBar
-              progress={progressCount / progressTotal}
-              trackColor={theme.border}
-              filledColors={[accent, theme.accent] as [string, string]}
-              height={10}
-              borderRadius={5}
-            />
+        {reward && <Text style={[styles.subtitle, { color: theme.text }]}>{reward.title}</Text>}
+        {reward && reward.description ? (
+          <Text style={[styles.description, { color: theme.textMuted }]}>{reward.description}</Text>
+        ) : null}
+        {hasReward && (
+          <View style={[styles.rewardLine, { backgroundColor: accent + "1A", borderColor: accent }]}>
+            <MaterialCommunityIcons name="star" size={18} color={accent} />
+            <Text style={[styles.rewardText, { color: accent }]}>
+              +{reward!.xp} XP{reward!.coins > 0 ? ` · +${reward!.coins} Coins` : ""}
+            </Text>
           </View>
         )}
 
-        {children}
+        <View style={[styles.progressCard, { backgroundColor: theme.surfaceAlt }]}>
+          <View style={styles.progressRow}>
+            <Text style={[styles.progressLabel, { color: theme.text }]}>
+              {doneCount} of {total} missions done
+            </Text>
+            <Text style={[styles.progressHint, { color: accent }]}>
+              {allDone
+                ? cycleBonusClaimed
+                  ? `Bonus +${cycleBonusXp} XP claimed`
+                  : "Bonus ready!"
+                : `${remaining} to go`}
+            </Text>
+          </View>
+          <ProgressBar
+            progress={total > 0 ? doneCount / total : 0}
+            trackColor={theme.border}
+            filledColors={[accent, theme.accent] as [string, string]}
+            height={10}
+            borderRadius={5}
+          />
+          {!allDone && (
+            <Text style={[styles.motivation, { color: theme.textMuted }]}>
+              Finish everything for a bonus cycle reward.
+            </Text>
+          )}
+        </View>
 
         <View style={styles.actions}>
-          {secondaryLabel && onSecondary && (
+          {!allDone && (
             <TouchableOpacity
               style={[styles.secondaryBtn, { backgroundColor: theme.surfaceAlt }]}
-              onPress={onSecondary}
+              onPress={onNextMission}
               activeOpacity={0.8}
             >
               <Text style={[styles.secondaryLabel, { color: theme.textSecondary }]}>
-                {secondaryLabel}
+                Next mission
               </Text>
             </TouchableOpacity>
           )}
-          {onPrimary && (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: accent }]}
-              onPress={onPrimary}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryLabel}>{primaryLabel}</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: accent }]}
+            onPress={onKeepGoing}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryLabel}>{allDone ? "Awesome" : "Keep going"}</Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
     </Modal>
@@ -243,63 +232,73 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   stage: {
-    width: 168,
-    height: 168,
+    width: 160,
+    height: 160,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   ring: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 3,
-  },
-  logoHalo: {
     position: "absolute",
     width: 116,
     height: 116,
     borderRadius: 58,
+    borderWidth: 3,
+  },
+  iconHalo: {
+    position: "absolute",
+    width: 112,
+    height: 112,
+    borderRadius: 56,
     backgroundColor: "rgba(255,255,255,0.07)",
     alignItems: "center",
     justifyContent: "center",
   },
-  logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+  iconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-  },
-  logoImg: {
-    width: 72,
-    height: 72,
   },
   title: {
     fontSize: 26,
     fontWeight: "800",
     textAlign: "center",
   },
-  score: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginTop: 6,
-    textAlign: "center",
-  },
   subtitle: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: "700",
     textAlign: "center",
-    marginTop: 6,
+    marginTop: 4,
+  },
+  description: {
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 2,
     paddingHorizontal: 4,
+  },
+  rewardLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginTop: 14,
+  },
+  rewardText: {
+    fontSize: 15,
+    fontWeight: "800",
   },
   progressCard: {
     width: "100%",
     borderRadius: 16,
     padding: 14,
-    marginTop: 22,
+    marginTop: 20,
     gap: 10,
   },
   progressRow: {
@@ -316,6 +315,10 @@ const styles = StyleSheet.create({
   progressHint: {
     fontSize: 12,
     fontWeight: "700",
+  },
+  motivation: {
+    fontSize: 12,
+    fontWeight: "500",
   },
   actions: {
     width: "100%",

@@ -3,6 +3,7 @@ import { useBountyStore } from "../store/bountyStore";
 import { useCheckInStore } from "../store/checkInStore";
 import { useCourseStore } from "../store/courseStore";
 import { useEnrollmentStore } from "../store/courseEnrollmentStore";
+import { useMissionStore } from "../store/missionStore";
 import { useProgressStore } from "../store/courseProgressStore";
 import { useNoteStore } from "../store/noteStore";
 import { useSpinStore } from "../store/spinStore";
@@ -18,6 +19,7 @@ export const USER_DATA_KEYS = [
   "@yuinx_bounties_v1",
   "@yuinx_courses_v1",
   "@yuinx_course_progress_v1",
+  "@yuinx_missions_v1",
   "@yuinx_notes_v1",
   "@yuinx_stats_v1",
   "@yuinx_study_v1",
@@ -31,6 +33,7 @@ function resetUserDataStores(): void {
   useBountyStore.getState().reset();
   useCourseStore.getState().reset();
   useProgressStore.getState().reset();
+  useMissionStore.getState().reset();
   useNoteStore.getState().reset();
   useStatsStore.getState().reset();
   useStudyStore.getState().reset();
