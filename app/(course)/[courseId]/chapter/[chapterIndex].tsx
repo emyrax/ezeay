@@ -361,7 +361,12 @@ export default function ChapterScreen() {
             <>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Subtopics</Text>
               {subtopics.map((subtopic, index) => {
-                const unlocked = isSubtopicUnlocked(courseId ?? "", chapterIdx, index);
+                const unlocked = isSubtopicUnlocked(
+                  courseId ?? "",
+                  chapterIdx,
+                  index,
+                  chapters[chapterIdx - 1]?.subtopics?.length ?? 0,
+                );
                 const quizPassed = isQuizPassed(courseId ?? "", chapterIdx, index);
                 const isActive = activeSubtopic === index;
 

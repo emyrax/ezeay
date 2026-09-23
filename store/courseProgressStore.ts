@@ -26,7 +26,12 @@ interface ProgressState {
   loadProgress: () => Promise<void>;
   batchMarkCompleted: (courseId: string, chapterIndex: number, subtopicIndex: number) => Promise<void>;
   isQuizPassed: (courseId: string, chapterIndex: number, subtopicIndex: number) => boolean;
-  isSubtopicUnlocked: (courseId: string, chapterIndex: number, subtopicIndex: number) => boolean;
+  isSubtopicUnlocked: (
+    courseId: string,
+    chapterIndex: number,
+    subtopicIndex: number,
+    prevChapterSubtopicCount?: number,
+  ) => boolean;
   getCompletionPercent: (courseId: string, totalSubtopics: number) => number;
   getCompletedSubtopicCount: (courseId: string, chapterIndex: number) => number;
   recordQuizAttempt: (courseId: string, chapterIndex: number, subtopicIndex: number) => Promise<void>;
@@ -92,14 +97,15 @@ export const useProgressStore = create<ProgressState>((set, get) => ({
     ).length;
   },
 
-  isSubtopicUnlocked: (courseId, chapterIndex, subtopicIndex) => {
+  isSubtopicUnlocked: (courseId, chapterIndex, subtopicIndex, prevChapterSubtopicCount) => {
     if (chapterIndex === 0 && subtopicIndex === 0) return true;
     if (subtopicIndex > 0) {
       return !!get().passedQuizzes[subtopicKey(courseId, chapterIndex, subtopicIndex - 1)];
     }
     if (chapterIndex > 0) {
-      const prevChapterSubtopics = 4;
-      return !!get().passedQuizzes[subtopicKey(courseId, chapterIndex - 1, prevChapterSubtopics - 1)];
+      const count = prevChapterSubtopicCount ?? 0;
+      if (count <= 0) return false;
+      return !!get().passedQuizzes[subtopicKey(courseId, chapterIndex - 1, count - 1)];
     }
     return false;
   },
