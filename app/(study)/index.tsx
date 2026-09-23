@@ -86,6 +86,7 @@ export default function StudyScreen() {
         : await uploadFile(fileUri, filename, mimeType || "application/octet-stream", getToken);
       await processMaterial({ fileUrl: url, fileType, sourceType }, getToken);
     } catch (err: any) {
+      console.error("[StudyScreen] upload failed:", { fileUri, fileType, sourceType, mimeType }, err);
       Alert.alert("Upload Failed", err.message || "Could not upload file.");
     }
   };

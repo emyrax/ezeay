@@ -1,5 +1,5 @@
-import { File } from "expo-file-system";
 import { API_BASE } from "./api";
+import { readFileAsBase64 } from "./fileAccess";
 
 export async function uploadFile(
   fileUri: string,
@@ -10,7 +10,7 @@ export async function uploadFile(
   const token = await getToken();
   if (!token) throw new Error("Not authenticated");
 
-  const base64 = await new File(fileUri).base64();
+  const base64 = await readFileAsBase64(fileUri);
 
   const res = await fetch(`${API_BASE}/api/study/upload`, {
     method: "POST",

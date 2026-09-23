@@ -1,5 +1,5 @@
-import { File } from "expo-file-system";
 import { API_BASE } from "./api";
+import { readFileAsBase64 } from "./fileAccess";
 
 export async function uploadImage(
   fileUri: string,
@@ -12,7 +12,7 @@ export async function uploadImage(
   const match = /\.(\w+)$/.exec(filename);
   const mimeType = match ? `image/${match[1].toLowerCase()}` : "image/jpeg";
 
-  const base64 = await new File(fileUri).base64();
+  const base64 = await readFileAsBase64(fileUri);
 
   const res = await fetch(`${API_BASE}/api/uploads/cloudinary`, {
     method: "POST",
