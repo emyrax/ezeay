@@ -13,21 +13,6 @@ export interface PeriodSummary {
   subtopicsCompleted: number;
 }
 
-export function generateMockActivity(days = 365): DayActivity[] {
-  const today = new Date();
-  const activity: DayActivity[] = [];
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const count = Math.random() < 0.55 ? Math.floor(Math.random() * 12) : 0;
-    activity.push({
-      date: d.toISOString().slice(0, 10),
-      count,
-    });
-  }
-  return activity;
-}
-
 export function getWeekCount(dates: DayActivity[], weekStart: string): number {
   const start = new Date(weekStart);
   const end = new Date(start);

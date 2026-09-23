@@ -33,6 +33,7 @@ interface NoteStore {
     getToken: () => Promise<string | null>,
   ) => Promise<void>;
   sortedNotes: () => Note[];
+  reset: () => void;
 }
 
 function persistAll(notes: Note[], tags: NoteTag[]): void {
@@ -47,6 +48,17 @@ function normalizeRepeatType(raw: unknown): RepeatType {
     ? value
     : "none";
 }
+
+const DEFAULT_TAGS: NoteTag[] = [
+  { id: "tag_lecture", name: "Lecture", color: "#3B82F6" },
+  { id: "tag_idea", name: "Idea", color: "#8B5CF6" },
+  { id: "tag_todo", name: "To-Do", color: "#10B981" },
+  { id: "tag_summary", name: "Summary", color: "#F59E0B" },
+  { id: "tag_question", name: "Question", color: "#EF4444" },
+  { id: "tag_reference", name: "Reference", color: "#06B4D6" },
+  { id: "tag_reading", name: "Reading", color: "#EC4899" },
+  { id: "tag_project", name: "Project", color: "#14B8A6" },
+];
 
 function normalizeNote(raw: Record<string, unknown>): Note {
   return {
@@ -79,16 +91,7 @@ function normalizeNote(raw: Record<string, unknown>): Note {
 
 export const useNoteStore = create<NoteStore>((set, get) => ({
   notes: [],
-  tags: [
-    { id: "tag_lecture", name: "Lecture", color: "#3B82F6" },
-    { id: "tag_idea", name: "Idea", color: "#8B5CF6" },
-    { id: "tag_todo", name: "To-Do", color: "#10B981" },
-    { id: "tag_summary", name: "Summary", color: "#F59E0B" },
-    { id: "tag_question", name: "Question", color: "#EF4444" },
-    { id: "tag_reference", name: "Reference", color: "#06B4D6" },
-    { id: "tag_reading", name: "Reading", color: "#EC4899" },
-    { id: "tag_project", name: "Project", color: "#14B8A6" },
-  ],
+  tags: DEFAULT_TAGS.map((t) => ({ ...t })),
   loaded: false,
   loading: false,
 
@@ -223,4 +226,6 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
       console.error("[NoteStore] unindexNote failed:", err);
     }
   },
+
+  reset: () => set({ notes: [], tags: DEFAULT_TAGS.map((t) => ({ ...t })), loaded: false, loading: false }),
 }));

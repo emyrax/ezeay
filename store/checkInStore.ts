@@ -25,6 +25,7 @@ interface CheckInStore extends CheckInState {
     coinReward: number;
   }>;
   canCheckIn: () => boolean;
+  reset: () => void;
 }
 
 function persistState(state: Pick<CheckInState, "lastCheckInDate" | "currentStreak" | "longestStreak" | "pending">) {
@@ -196,4 +197,13 @@ export const useCheckInStore = create<CheckInStore>((set, get) => ({
     const today = new Date().toISOString().slice(0, 10);
     return get().lastCheckInDate !== today;
   },
+
+  reset: () =>
+    set({
+      lastCheckInDate: null,
+      currentStreak: 0,
+      longestStreak: 0,
+      loaded: false,
+      pending: false,
+    }),
 }));

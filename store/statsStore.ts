@@ -9,6 +9,7 @@ interface StatsStore {
   days: DayActivity[];
   loaded: boolean;
   loading: boolean;
+  reset: () => void;
   loadDays: (uid: string, getToken: () => Promise<string | null>) => Promise<void>;
   recordActivity: (
     uid: string,
@@ -35,6 +36,8 @@ export const useStatsStore = create<StatsStore>((set, get) => ({
   days: [],
   loaded: false,
   loading: false,
+
+  reset: () => set({ days: [], loaded: false, loading: false }),
 
   loadDays: async (uid, getToken) => {
     if (get().loaded) {

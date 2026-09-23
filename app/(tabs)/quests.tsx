@@ -48,7 +48,7 @@ const ADD_NEW_INTEREST = "__add_new__";
 const DIFFICULTY_OPTIONS: DropdownOption[] = [
   { label: "Beginner", value: "Beginner" },
   { label: "Intermediate", value: "Intermediate" },
-  { label: "Advanced", value: "Advanced", locked: true },
+  { label: "Advanced", value: "Advanced" },
 ];
 
 function normalizeCategory(value: string): string {

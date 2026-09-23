@@ -9,6 +9,7 @@ import {
 interface ModelState {
   selectedModel: string;
   setSelectedModel: (ref: string) => void;
+  reset: () => void;
 }
 
 const MODEL_KEY = "@yuinx_model_v1";
@@ -19,6 +20,7 @@ export const useModelStore = create<ModelState>()(
       selectedModel: AI_MODEL_DEFAULT,
       setSelectedModel: (ref) =>
         set({ selectedModel: isModelAllowed(ref) ? ref : AI_MODEL_DEFAULT }),
+      reset: () => set({ selectedModel: AI_MODEL_DEFAULT }),
     }),
     {
       name: MODEL_KEY,

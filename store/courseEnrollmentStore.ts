@@ -42,6 +42,7 @@ interface EnrollmentStore {
     getToken: () => Promise<string | null>,
   ) => Promise<{ success: boolean; error?: string }>;
   getEnrollmentForCourse: (courseId: string) => CourseEnrollment | undefined;
+  reset: () => void;
 }
 
 export const useEnrollmentStore = create<EnrollmentStore>((set, get) => ({
@@ -49,6 +50,8 @@ export const useEnrollmentStore = create<EnrollmentStore>((set, get) => ({
   loaded: false,
   loading: false,
   error: null,
+
+  reset: () => set({ enrollments: [], loaded: false, loading: false, error: null }),
 
   fetchEnrollments: async (userId, getToken) => {
     const state = get();

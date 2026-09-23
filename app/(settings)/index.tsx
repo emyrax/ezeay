@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { ComponentProps } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +19,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ModelDetailSheet from "../../component/ModelDetailSheet";
 import ModelPickerSheet from "../../component/ModelPickerSheet";
@@ -34,6 +34,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { useThemeColors } from "../../hooks/useTheme";
 import { api } from "../../lib/api";
+import { resetUserData } from "../../lib/resetAppState";
 import {
   AI_MODELS,
   AI_PROVIDER_LABELS,
@@ -46,10 +47,7 @@ import {
 import { AI_PROVIDERS, useAiKeysStore } from "../../store/aiKeysStore";
 import { useModelRatingStore } from "../../store/modelRatingStore";
 import { useModelStore } from "../../store/modelStore";
-import {
-  useOfflineStore,
-  type OfflineStatus,
-} from "../../store/offlineStore";
+import { useOfflineStore, type OfflineStatus } from "../../store/offlineStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import { useThemeStore } from "../../store/themeStore";
 
@@ -96,7 +94,7 @@ const PROVIDER_ICONS: Record<
   ComponentProps<typeof MaterialCommunityIcons>["name"]
 > = {
   gemini: "google",
-  openai: "snake",
+  openai: "lightning-bolt-outline",
   anthropic: "star-four-points-outline",
   openrouter: "network",
   offline: "chip",
@@ -233,9 +231,8 @@ export default function SettingsScreen() {
   const [candidateModel, setCandidateModel] = useState<AiModelOption | null>(
     null,
   );
-  const [editingKeyProvider, setEditingKeyProvider] = useState<AiProvider | null>(
-    null,
-  );
+  const [editingKeyProvider, setEditingKeyProvider] =
+    useState<AiProvider | null>(null);
   const [keyDraft, setKeyDraft] = useState("");
   const [keySaving, setKeySaving] = useState(false);
   const [keyError, setKeyError] = useState<string | null>(null);
@@ -441,7 +438,7 @@ export default function SettingsScreen() {
   const handleClearAllData = useCallback(() => {
     Alert.alert(
       "Clear All Local Data",
-      "This will remove all notes, courses, progress, trophies, and settings. This action cannot be undone.",
+      "This will remove all notes, courses, progress, trophies, stats, and settings (including AI model, offline model, and theme). This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -450,19 +447,19 @@ export default function SettingsScreen() {
           onPress: async () => {
             setClearing(true);
             try {
-              const keys = [
-                "@yuinx_notes_v1",
-                "@yuinx_courses_v1",
-                "@yuinx_course_progress_v1",
-                "@yuinx_enrollments_v1",
-                "@yuinx_study_v1",
-                "@yuinx_bounties_v1",
-                "@yuinx_user_trophies_v1",
+              await resetUserData();
+              useThemeStore.getState().reset();
+              useSettingsStore.getState().reset();
+              useModelStore.getState().reset();
+              useOfflineStore.getState().reset();
+              await AsyncStorage.multiRemove([
                 "yuinx-theme",
                 "@yuinx_settings_v1",
                 "@yuinx_model_v1",
-              ];
-              await AsyncStorage.multiRemove(keys);
+                "@yuinx_offline_v1",
+                "userProfile",
+                "currentUser",
+              ]);
               for (const provider of AI_PROVIDERS) {
                 await clearKey(provider);
               }
@@ -487,7 +484,10 @@ export default function SettingsScreen() {
       <View style={[st.header, { borderBottomColor: theme.borderLight }]}>
         <Pressable
           onPress={() => router.back()}
-          style={[st.backBtn, { backgroundColor: theme.glass, borderColor: theme.borderLight }]}
+          style={[
+            st.backBtn,
+            { backgroundColor: theme.glass, borderColor: theme.borderLight },
+          ]}
           hitSlop={8}
         >
           <MaterialCommunityIcons
@@ -702,7 +702,10 @@ export default function SettingsScreen() {
           <Pressable
             style={[
               st.aiHero,
-              { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight },
+              {
+                backgroundColor: theme.surfaceAlt,
+                borderColor: theme.borderLight,
+              },
             ]}
             onPress={() => setShowModelPicker(true)}
             accessibilityRole="button"
@@ -769,7 +772,10 @@ export default function SettingsScreen() {
             <View style={st.aiHeroRight}>
               {currentRating != null && (
                 <View
-                  style={[st.ratingChip, { backgroundColor: theme.accent + "1A" }]}
+                  style={[
+                    st.ratingChip,
+                    { backgroundColor: theme.accent + "1A" },
+                  ]}
                 >
                   <MaterialCommunityIcons
                     name="star"
@@ -805,8 +811,8 @@ export default function SettingsScreen() {
         {/* AI API Keys */}
         <SectionCard title="AI API Keys" icon="key-outline" theme={theme}>
           <Text style={[st.aiIntro, { color: theme.textSecondary }]}>
-            Add a key for any provider to unlock its free &amp; paid models.
-            You only need a key where the server doesn&apos;t have one.
+            Add a key for any provider to unlock its free &amp; paid models. You
+            only need a key where the server doesn&apos;t have one.
           </Text>
           {AI_PROVIDERS.map((provider) => {
             const hasServerKey =
@@ -881,7 +887,10 @@ export default function SettingsScreen() {
                     ]}
                   >
                     <Text
-                      style={[st.aiKeyEditorLabel, { color: theme.textSecondary }]}
+                      style={[
+                        st.aiKeyEditorLabel,
+                        { color: theme.textSecondary },
+                      ]}
                     >
                       Saving here keeps the key only on this device.
                     </Text>
@@ -892,7 +901,9 @@ export default function SettingsScreen() {
                           size={16}
                           color={theme.primary}
                         />
-                        <Text style={[st.aiKeySavedText, { color: theme.text }]}>
+                        <Text
+                          style={[st.aiKeySavedText, { color: theme.text }]}
+                        >
                           A key is already saved.
                         </Text>
                         <Pressable
@@ -947,9 +958,7 @@ export default function SettingsScreen() {
                       </Pressable>
                     </View>
                     {keyError ? (
-                      <Text
-                        style={[st.aiKeyError, { color: theme.danger }]}
-                      >
+                      <Text style={[st.aiKeyError, { color: theme.danger }]}>
                         {keyError}
                       </Text>
                     ) : null}
@@ -1030,7 +1039,11 @@ export default function SettingsScreen() {
 
         {/* Data */}
         <Text style={[st.groupKicker, { color: theme.textMuted }]}>Data</Text>
-        <SectionCard title="Data Management" icon="database-outline" theme={theme}>
+        <SectionCard
+          title="Data Management"
+          icon="database-outline"
+          theme={theme}
+        >
           <Pressable
             style={[st.actionRow, { borderBottomWidth: 0 }]}
             onPress={handleClearAllData}
@@ -1061,7 +1074,11 @@ export default function SettingsScreen() {
 
         {/* About */}
         <Text style={[st.groupKicker, { color: theme.textMuted }]}>About</Text>
-        <SectionCard title="About Yuinx" icon="information-outline" theme={theme}>
+        <SectionCard
+          title="About Yuinx"
+          icon="information-outline"
+          theme={theme}
+        >
           <View style={st.infoRow}>
             <Text style={[st.infoLabel, { color: theme.textSecondary }]}>
               Version
@@ -1174,7 +1191,9 @@ export default function SettingsScreen() {
                   <View
                     style={[st.pickerSection, { borderTopColor: theme.border }]}
                   >
-                    <Text style={[st.fieldLabel, { color: theme.textSecondary }]}>
+                    <Text
+                      style={[st.fieldLabel, { color: theme.textSecondary }]}
+                    >
                       Pick color for:{" "}
                       {CUSTOM_FIELDS.find((f) => f.key === pickingField)?.label}
                     </Text>
@@ -1330,7 +1349,13 @@ const st = StyleSheet.create({
     alignItems: "center",
     borderWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", fontFamily, flex: 1, marginLeft: 12 },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    fontFamily,
+    flex: 1,
+    marginLeft: 12,
+  },
   versionChip: {
     borderRadius: 999,
     paddingHorizontal: 10,

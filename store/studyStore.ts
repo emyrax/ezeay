@@ -27,6 +27,7 @@ interface StudyStore {
     token: string,
   ) => Promise<void>;
   clearError: () => void;
+  reset: () => void;
 }
 
 export const useStudyStore = create<StudyStore>((set, get) => ({
@@ -35,6 +36,8 @@ export const useStudyStore = create<StudyStore>((set, get) => ({
   loading: false,
   processing: false,
   error: null,
+
+  reset: () => set({ materials: [], loaded: false, loading: false, processing: false, error: null }),
 
   fetchMaterials: async (userId, getToken) => {
     const state = get();

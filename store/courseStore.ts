@@ -65,6 +65,7 @@ interface CourseStore {
   deleteCourse: (id: string, getToken: () => Promise<string | null>) => Promise<void>;
   myCourses: (userId: string) => Course[];
   retry: () => Promise<void>;
+  reset: () => void;
 }
 
 let lastFetchParams: { userId: string; getToken: () => Promise<string | null> } | null = null;
@@ -75,6 +76,8 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
   loading: false,
   generating: false,
   error: null,
+
+  reset: () => set({ courses: [], loaded: false, loading: false, generating: false, error: null }),
 
   fetchCourses: async (userId, getToken) => {
     const state = get();

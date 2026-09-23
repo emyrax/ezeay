@@ -14,6 +14,7 @@ interface ThemeState {
   setTheme: (id: string) => void;
   saveCustomTheme: (name: string, colors: CustomThemeColors) => void;
   deleteCustomTheme: () => void;
+  reset: () => void;
 }
 
 export const useThemeStore = create<ThemeState>()(
@@ -24,6 +25,7 @@ export const useThemeStore = create<ThemeState>()(
       setTheme: (themeId) => set({ themeId }),
       saveCustomTheme: (name, colors) => set({ themeId: "custom", customTheme: { name, colors } }),
       deleteCustomTheme: () => set({ themeId: "hero", customTheme: null }),
+      reset: () => set({ themeId: "hero", customTheme: null }),
     }),
     {
       name: "yuinx-theme",

@@ -85,6 +85,7 @@ interface BountyStore {
     courses: Course[],
   ) => Promise<void>;
   clearBounties: () => void;
+  reset: () => void;
 }
 
 function getDateSeed(): string {
@@ -562,4 +563,15 @@ export const useBountyStore = create<BountyStore>((set, get) => ({
       error: null,
     });
   },
+
+  reset: () =>
+    set({
+      bounties: [],
+      hiddenGems: HIDDEN_GEMS.map((g) => ({ ...g })),
+      generatedAt: null,
+      courseSnapshot: null,
+      loaded: false,
+      loading: false,
+      error: null,
+    }),
 }));

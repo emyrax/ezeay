@@ -35,6 +35,7 @@ interface ProgressState {
   getProgressDetails: (courseId: string) => string;
   loadProgressFromDetails: (courseId: string, details: string) => void;
   clearProgress: () => Promise<void>;
+  reset: () => void;
 }
 
 function subtopicKey(courseId: string, ch: number, sub: number): string {
@@ -48,6 +49,16 @@ export const useProgressStore = create<ProgressState>((set, get) => ({
   quizScores: {},
   loaded: false,
   error: null,
+
+  reset: () =>
+    set({
+      completedSubtopics: {},
+      passedQuizzes: {},
+      quizAttempts: {},
+      quizScores: {},
+      loaded: false,
+      error: null,
+    }),
 
   loadProgress: async () => {
     try {

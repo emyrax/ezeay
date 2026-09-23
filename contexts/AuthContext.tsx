@@ -8,6 +8,7 @@ import { consumePendingGoals } from '../lib/pendingGoals';
 import type { UserProfile, MappedUser } from '../types/user';
 import { useUserStore } from '../store/userStore';
 import { useModelRatingStore } from '../store/modelRatingStore';
+import { resetUserData } from '../lib/resetAppState';
 
 export function toProfile(apiProfile: ApiUserProfile): UserProfile {
   return {
@@ -276,6 +277,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await clerkSignOut();
     useUserStore.getState().clearProfile();
     useModelRatingStore.getState().clearRatings();
+    await resetUserData();
     await AsyncStorage.multiRemove(["userProfile", "currentUser"]);
   }, [clerkSignOut]);
 

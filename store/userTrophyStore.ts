@@ -18,6 +18,7 @@ interface UserTrophyStore {
   isEarned: (trophyId: string) => boolean;
   check: (userId: string, getToken: () => Promise<string | null>) => Promise<void>;
   retry: () => Promise<void>;
+  reset: () => void;
 }
 
 let lastFetchParams: { userId: string; getToken: () => Promise<string | null> } | null = null;
@@ -94,5 +95,10 @@ export const useUserTrophyStore = create<UserTrophyStore>((set, get) => ({
     if (lastFetchParams) {
       await get().fetchTrophies(lastFetchParams.userId, lastFetchParams.getToken);
     }
+  },
+
+  reset: () => {
+    lastFetchParams = null;
+    set({ trophies: [], loaded: false, loading: false, error: null });
   },
 }));

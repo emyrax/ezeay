@@ -34,6 +34,7 @@ interface SpinStore {
   markSessionTriggered: () => Promise<void>;
   hasSessionTriggered: () => Promise<boolean>;
   load: () => Promise<void>;
+  reset: () => void;
 }
 
 function getTodayKey(): string {
@@ -125,4 +126,13 @@ export const useSpinStore = create<SpinStore>((set, get) => ({
       set({ spinsRemaining: DAILY_LIMIT });
     }
   },
+
+  reset: () =>
+    set({
+      spinsRemaining: DAILY_LIMIT,
+      lastSpinAt: null,
+      lastSpinDate: null,
+      totalSpins: 0,
+      wheelVisible: false,
+    }),
 }));

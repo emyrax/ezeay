@@ -1,13 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { useThemeColors } from "../hooks/useTheme";
 
 export interface DropdownOption {
   label: string;
   value: string;
-  locked?: boolean;
   icon?: keyof typeof Ionicons.glyphMap;
 }
 
@@ -27,9 +26,6 @@ export default function DropdownSelect({ options, selected, onSelect, placeholde
 
   const handleSelect = (opt: DropdownOption) => {
     setOpen(false);
-    if (opt.locked) {
-      Alert.alert("Premium Feature", "Upgrade to Premium to unlock Advanced difficulty.");
-    }
     onSelect(opt.value);
   };
 
@@ -57,14 +53,10 @@ export default function DropdownSelect({ options, selected, onSelect, placeholde
                     style={[
                       styles.optionText,
                       isSelected && [styles.optionTextSelected, { color: theme.textSecondary }],
-                      opt.locked && styles.optionLocked,
                     ]}
                   >
                     {opt.label}
                   </Text>
-                  {opt.locked && (
-                    <Ionicons name="lock-closed" size={14} color="#64748B" style={{ marginLeft: 6 }} />
-                  )}
                   {opt.icon && (
                     <Ionicons name={opt.icon} size={14} color="#64748B" style={{ marginLeft: 6 }} />
                   )}
@@ -126,8 +118,5 @@ const styles = StyleSheet.create({
   },
   optionTextSelected: {
     fontWeight: "700",
-  },
-  optionLocked: {
-    color: "#64748B",
   },
 });

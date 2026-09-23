@@ -713,7 +713,7 @@ app.get("/api/users/:id/activity", async (req, res) => {
       .where(and(eq(userDailyActivity.userId, req.params.id), gte(userDailyActivity.date, startDate)))
       .orderBy(asc(userDailyActivity.date));
 
-    res.json({ days, daysData: rows });
+    res.json({ days, daysData: rows, activity: rows, totalDays: rows.length });
   } catch (err: any) {
     if (isTokenError(err)) {
       res.status(401).json({ error: "Invalid token" });
