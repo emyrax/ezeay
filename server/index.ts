@@ -2,7 +2,11 @@ import "dotenv/config";
 import dns from "dns";
 dns.setDefaultResultOrder("ipv4first");
 import express from "express";
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
+import net from "net";
+import cors from "cors";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -47,6 +51,66 @@ import type { Course } from "../types/course";
 
 const app = express();
 app.use(express.json({ limit: "25mb" }));
+app.use(helmet());
+
+const isProd = process.env.NODE_ENV === "production";
+const DEV_ORIGINS = ["http://localhost:8081", "http://127.0.0.1:8081"];
+const CORS_ORIGINS = (process.env.CORS_ORIGINS ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+const allowedOrigins: string[] = isProd ? CORS_ORIGINS : [...new Set([...DEV_ORIGINS, ...CORS_ORIGINS])];
+app.use(cors({ origin: allowedOrigins.length > 0 ? allowedOrigins : false }));
+
+const GLOBAL_RATE_LIMIT = Number(process.env.GLOBAL_RATE_LIMIT ?? 300);
+const STRICT_RATE_LIMIT = Number(process.env.STRICT_RATE_LIMIT ?? 20);
+
+const globalLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: GLOBAL_RATE_LIMIT,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests" },
+});
+
+const strictLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: STRICT_RATE_LIMIT,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests" },
+});
+
+app.use(globalLimiter);
+app.use(
+  [
+    "/api/bounties/generate",
+    "/api/courses/generate",
+    "/api/courses/:id/thumbnail",
+    "/api/subtopics/quiz",
+    "/api/study/process",
+    "/api/study/upload",
+    "/api/study/rag-query",
+    "/api/ai/rag-contexts",
+    "/api/study/:id/quiz/generate",
+    "/api/study/:id/cheatsheet",
+    "/api/study/:id/flashcards/generate",
+    "/api/audio/transcribe",
+    "/api/notes/ai",
+    "/api/notes/ai/chat",
+    "/api/schedule/suggest",
+  ],
+  strictLimiter,
+);
+
+async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await verifyClerkToken(req.headers.authorization);
+    next();
+  } catch (err) {
+    res.status(401).json({ error: isTokenError(err) ? "Invalid token" : "Unauthorized" });
+  }
+}
 
 const DATABASE_URL = process.env.NEON_DATABASE_URL;
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
@@ -98,7 +162,7 @@ function aiRequestOptions(req: Request): { modelRef: string; apiKey?: string } {
 
 function sendRouteError(res: Response, err: unknown, label = "[Server] Request failed"): void {
   if (isTokenError(err)) {
-    res.status(401).json({ error: `Invalid token: ${(err as any)?.reason || (err as Error)?.message}` });
+    res.status(401).json({ error: "Invalid token" });
     return;
   }
   console.error(`${label}:`, err);
@@ -109,20 +173,19 @@ function sendRouteError(res: Response, err: unknown, label = "[Server] Request f
       : typeof anyErr?.status === "number"
         ? anyErr.status
         : 0;
-  const status =
-    rawStatus >= 400 && rawStatus <= 599 ? rawStatus : 500;
-  const baseMessage = (err as Error)?.message || "Internal server error";
-  const causeMessage =
-    typeof (err as any)?.cause?.message === "string"
-      ? ((err as any).cause as Error).message
-      : undefined;
-  const payload: Record<string, string> = {
-    error: causeMessage ? `${baseMessage} — ${causeMessage}` : baseMessage,
-  };
-  if (typeof (err as any)?.code === "string") {
-    payload.code = (err as any).code as string;
+  const status = rawStatus >= 400 && rawStatus <= 599 ? rawStatus : 500;
+
+  let message = "Internal server error";
+  const rawMessage = (err as Error)?.message;
+  if (status >= 400 && status < 500) {
+    message = rawMessage || message;
+  } else if (
+    typeof rawMessage === "string" &&
+    /timeout|too large|quota|rate limit|failed to fetch file|file not found/i.test(rawMessage)
+  ) {
+    message = rawMessage;
   }
-  res.status(status).json(payload);
+  res.status(status).json({ error: message });
 }
 
 const rawSql = neon(DATABASE_URL);
@@ -392,7 +455,7 @@ app.get("/api/users/:id", async (req, res) => {
     res.json(mapUser(row as unknown as UserRow));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/users/:id failed");
@@ -437,7 +500,7 @@ app.post("/api/users", async (req, res) => {
     res.status(201).json(mapUser(values as unknown as UserRow));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/users failed");
@@ -506,7 +569,7 @@ app.put("/api/users/:id", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] PUT /api/users/:id failed");
@@ -583,7 +646,7 @@ app.post("/api/users/:id/checkin", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/users/:id/checkin failed");
@@ -622,7 +685,7 @@ app.post("/api/users/:id/activity", async (req, res) => {
     res.json({ date, count: inserted[0]?.count ?? 0 });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/users/:id/activity failed");
@@ -653,7 +716,7 @@ app.get("/api/users/:id/activity", async (req, res) => {
     res.json({ days, daysData: rows });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/users/:id/activity failed");
@@ -743,7 +806,7 @@ app.get("/api/community/overview", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/overview failed");
@@ -883,7 +946,7 @@ app.get("/api/community/feed", async (req, res) => {
     res.json({ posts, refreshedAt: new Date().toISOString(), hasMore: rows.length === limit });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/feed failed");
@@ -945,7 +1008,7 @@ app.post("/api/community/feed/:id/like", async (req, res) => {
     res.json({ liked, likeCount: Number(agg[0]?.count ?? 0) });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/feed/:id/like failed");
@@ -989,7 +1052,7 @@ app.post("/api/community/feed/:id/view", async (req, res) => {
     res.json({ viewCount: Number(updated[0]?.views ?? 0) });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/feed/:id/view failed");
@@ -1107,7 +1170,7 @@ app.get("/api/community/posts", async (req, res) => {
     res.json({ posts });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/posts failed");
@@ -1162,7 +1225,7 @@ app.post("/api/community/posts", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/posts failed");
@@ -1217,7 +1280,7 @@ app.post("/api/community/posts/:id/reactions", async (req, res) => {
     res.status(201).json({ active: true, reaction });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/posts/:id/reactions failed");
@@ -1277,7 +1340,7 @@ app.post("/api/community/posts/:id/comments", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/posts/:id/comments failed");
@@ -1294,7 +1357,7 @@ app.get("/api/levels", async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/levels failed");
@@ -1310,7 +1373,7 @@ app.get("/api/trophies", async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/trophies failed");
@@ -1371,11 +1434,12 @@ async function callGemini(courses: BountyRequest["courses"], dateSeed: string, m
 }
 
 app.post("/api/bounties/generate", async (req, res) => {
+  let claims: { sub: string } | null = null;
   try {
-    await verifyClerkToken(req.headers.authorization);
+    claims = await verifyClerkToken(req.headers.authorization);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/bounties/generate failed");
@@ -1386,6 +1450,11 @@ app.post("/api/bounties/generate", async (req, res) => {
 
   if (!Array.isArray(courses) || !userId || !dateSeed) {
     res.status(400).json({ error: "Missing required fields: courses, userId, dateSeed" });
+    return;
+  }
+
+  if (claims?.sub !== userId) {
+    res.status(403).json({ error: "Forbidden" });
     return;
   }
 
@@ -1451,7 +1520,7 @@ app.post("/api/bounties/claim", async (req, res) => {
     res.status(201).json({ claimed: true, alreadyClaimed: false, date: today });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/bounties/claim failed");
@@ -1462,41 +1531,32 @@ app.post("/api/bounties/claim", async (req, res) => {
 
 app.get("/api/courses", async (req, res) => {
   try {
-    await verifyClerkToken(req.headers.authorization);
-    const { userId } = req.query;
+    const claims = await verifyClerkToken(req.headers.authorization);
 
-    let rows;
-    if (userId && typeof userId === "string") {
-      rows = await db
-        .select()
-        .from(courses)
-        .where(
-          and(
-            isNull(courses.deletedAt),
-            or(
-              eq(courses.creatorId, userId),
-              inArray(
-                courses.id,
-                db
-                  .select({ courseId: courseEnrollments.courseId })
-                  .from(courseEnrollments)
-                  .where(eq(courseEnrollments.userId, userId)),
-              ),
+    const rows = await db
+      .select()
+      .from(courses)
+      .where(
+        and(
+          isNull(courses.deletedAt),
+          or(
+            eq(courses.creatorId, claims.sub),
+            inArray(
+              courses.id,
+              db
+                .select({ courseId: courseEnrollments.courseId })
+                .from(courseEnrollments)
+                .where(eq(courseEnrollments.userId, claims.sub)),
             ),
           ),
-        )
-        .orderBy(desc(courses.pinned), courses.createdAt);
-    } else {
-      rows = await db
-        .select()
-        .from(courses)
-        .where(isNull(courses.deletedAt))
-        .orderBy(desc(courses.pinned), courses.createdAt);
-    }
+        ),
+      )
+      .orderBy(desc(courses.pinned), courses.createdAt);
+
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/courses failed");
@@ -1541,7 +1601,7 @@ app.get("/api/courses/:id", async (req, res) => {
     res.json(row);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/courses/:id failed");
@@ -1729,6 +1789,22 @@ app.post("/api/courses/:id/thumbnail", async (req, res) => {
       return;
     }
 
+    const [existing] = await db
+      .select({ id: courses.id, creatorId: courses.creatorId })
+      .from(courses)
+      .where(and(eq(courses.id, req.params.id), isNull(courses.deletedAt)))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ error: "Course not found" });
+      return;
+    }
+
+    if (existing.creatorId !== claims.sub) {
+      res.status(403).json({ error: "Not your course" });
+      return;
+    }
+
     try {
       const fullPrompt = buildThumbnailGenerationPrompt(prompt);
       const image = await generateThumbnailImage(genAI, fullPrompt);
@@ -1758,7 +1834,7 @@ app.post("/api/courses/:id/thumbnail", async (req, res) => {
     }
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/courses/:id/thumbnail failed");
@@ -1829,7 +1905,7 @@ app.patch("/api/courses/:id", async (req, res) => {
     res.json(updated);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] PATCH /api/courses/:id failed");
@@ -1866,7 +1942,7 @@ app.delete("/api/courses/:id", async (req, res) => {
     res.json({ id: req.params.id });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/courses/:id failed");
@@ -1907,6 +1983,11 @@ app.post("/api/uploads/cloudinary", async (req, res) => {
       return;
     }
 
+    if (Buffer.byteLength(base64, "base64") > MAX_FILE_BYTES) {
+      res.status(413).json({ error: "File too large (max 25 MB)" });
+      return;
+    }
+
     const secure_url = await uploadToCloudinary(
       base64,
       typeof mimeType === "string" && mimeType ? mimeType : undefined,
@@ -1914,7 +1995,7 @@ app.post("/api/uploads/cloudinary", async (req, res) => {
     res.json({ secure_url });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/uploads/cloudinary failed");
@@ -1960,22 +2041,17 @@ app.post("/api/subtopics/quiz", async (req, res) => {
 
 app.get("/api/enrollments", async (req, res) => {
   try {
-    await verifyClerkToken(req.headers.authorization);
-    const userId = req.query.userId as string;
-    if (!userId) {
-      res.status(400).json({ error: "Missing userId query param" });
-      return;
-    }
+    const claims = await verifyClerkToken(req.headers.authorization);
 
     const rows = await db
       .select()
       .from(courseEnrollments)
-      .where(eq(courseEnrollments.userId, userId));
+      .where(eq(courseEnrollments.userId, claims.sub));
 
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/enrollments failed");
@@ -1983,12 +2059,30 @@ app.get("/api/enrollments", async (req, res) => {
 });
 
 app.post("/api/enrollments", async (req, res) => {
+  let enrollmentUserId = "";
   try {
     const claims = await verifyClerkToken(req.headers.authorization);
+    enrollmentUserId = claims.sub;
     const body = req.body;
 
-    if (!body.userId || !body.courseId) {
-      res.status(400).json({ error: "Missing userId or courseId" });
+    if (!body.courseId) {
+      res.status(400).json({ error: "Missing courseId" });
+      return;
+    }
+
+    const [course] = await db
+      .select({ id: courses.id, creatorId: courses.creatorId, isPublic: courses.isPublic })
+      .from(courses)
+      .where(and(eq(courses.id, body.courseId), isNull(courses.deletedAt)))
+      .limit(1);
+
+    if (!course) {
+      res.status(404).json({ error: "Course not found" });
+      return;
+    }
+
+    if (course.creatorId !== claims.sub && !course.isPublic) {
+      res.status(403).json({ error: "You cannot enroll in this course" });
       return;
     }
 
@@ -1997,7 +2091,7 @@ app.post("/api/enrollments", async (req, res) => {
       .from(courseEnrollments)
       .where(
         and(
-          eq(courseEnrollments.userId, body.userId),
+          eq(courseEnrollments.userId, claims.sub),
           eq(courseEnrollments.courseId, body.courseId),
         ),
       )
@@ -2008,12 +2102,12 @@ app.post("/api/enrollments", async (req, res) => {
       return;
     }
 
-    const id = `enr_${body.userId}_${body.courseId}_${Date.now()}`;
+    const id = `enr_${claims.sub}_${body.courseId}_${Date.now()}`;
     const now = new Date();
 
     const values = {
       id,
-      userId: body.userId,
+      userId: claims.sub,
       courseId: body.courseId,
       currentChapter: 0,
       progress: 0,
@@ -2028,7 +2122,7 @@ app.post("/api/enrollments", async (req, res) => {
     res.status(201).json(values);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     if (err?.code === "23505") {
@@ -2037,7 +2131,7 @@ app.post("/api/enrollments", async (req, res) => {
         .from(courseEnrollments)
         .where(
           and(
-            eq(courseEnrollments.userId, req.body?.userId),
+            eq(courseEnrollments.userId, enrollmentUserId),
             eq(courseEnrollments.courseId, req.body?.courseId),
           ),
         )
@@ -2090,7 +2184,7 @@ app.put("/api/enrollments/:id", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] PUT /api/enrollments/:id failed");
@@ -2125,7 +2219,7 @@ app.delete("/api/enrollments/:id", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/enrollments/:id failed");
@@ -2136,22 +2230,17 @@ app.delete("/api/enrollments/:id", async (req, res) => {
 
 app.get("/api/user-trophies", async (req, res) => {
   try {
-    await verifyClerkToken(req.headers.authorization);
-    const userId = req.query.userId as string;
-    if (!userId) {
-      res.status(400).json({ error: "Missing userId query param" });
-      return;
-    }
+    const claims = await verifyClerkToken(req.headers.authorization);
 
     const rows = await db
       .select()
       .from(userTrophies)
-      .where(eq(userTrophies.userId, userId));
+      .where(eq(userTrophies.userId, claims.sub));
 
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/user-trophies failed");
@@ -2162,9 +2251,10 @@ app.post("/api/user-trophies", async (req, res) => {
   try {
     const claims = await verifyClerkToken(req.headers.authorization);
     const body = req.body;
+    const userId = claims.sub;
 
-    if (!body.userId || !body.trophyId) {
-      res.status(400).json({ error: "Missing userId or trophyId" });
+    if (!body.trophyId) {
+      res.status(400).json({ error: "Missing trophyId" });
       return;
     }
 
@@ -2174,7 +2264,7 @@ app.post("/api/user-trophies", async (req, res) => {
       .from(userTrophies)
       .where(
         and(
-          eq(userTrophies.userId, body.userId),
+          eq(userTrophies.userId, userId),
           eq(userTrophies.trophyId, body.trophyId),
         ),
       )
@@ -2185,10 +2275,10 @@ app.post("/api/user-trophies", async (req, res) => {
       return;
     }
 
-    const id = `ut_${body.userId}_${body.trophyId}`;
+    const id = `ut_${userId}_${body.trophyId}`;
     const values = {
       id,
-      userId: body.userId,
+      userId,
       trophyId: body.trophyId,
       earnedAt: new Date(),
     };
@@ -2199,7 +2289,7 @@ app.post("/api/user-trophies", async (req, res) => {
     const [userRow] = await db
       .select({ earnedTrophies: users.earnedTrophies })
       .from(users)
-      .where(eq(users.id, body.userId))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (userRow) {
@@ -2210,15 +2300,15 @@ app.post("/api/user-trophies", async (req, res) => {
         await db
           .update(users)
           .set({ earnedTrophies: JSON.stringify(list) })
-          .where(eq(users.id, body.userId));
+          .where(eq(users.id, userId));
       }
     }
 
-    console.debug(`[Server] POST /api/user-trophies — awarded ${body.trophyId} to ${body.userId}`);
+    console.debug(`[Server] POST /api/user-trophies — awarded ${body.trophyId} to ${userId}`);
     res.status(201).json(values);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/user-trophies failed");
@@ -2228,13 +2318,7 @@ app.post("/api/user-trophies", async (req, res) => {
 app.post("/api/user-trophies/check", async (req, res) => {
   try {
     const claims = await verifyClerkToken(req.headers.authorization);
-    const body = req.body;
-    const userId = body.userId;
-
-    if (!userId) {
-      res.status(400).json({ error: "Missing userId" });
-      return;
-    }
+    const userId = claims.sub;
 
     // Get user stats
     const [userRow] = await db
@@ -2326,7 +2410,7 @@ app.post("/api/user-trophies/check", async (req, res) => {
     res.json({ awarded });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/user-trophies/check failed");
@@ -2358,18 +2442,114 @@ function mimeFromExtension(filename: string): string {
   }
 }
 
-async function fetchFileBytes(fileUrl: string): Promise<{ buffer: Buffer; mimeType: string }> {
-  let url = fileUrl;
-  if (url.startsWith("/")) {
-    const port = process.env.PORT || "3001";
-    url = `http://localhost:${port}${url}`;
+const CLOUDINARY_HOST_SUFFIX = "cloudinary.com";
+const STUDY_FETCH_ALLOWLIST = (process.env.STUDY_FETCH_ALLOWLIST ?? "")
+  .split(",")
+  .map((h) => h.trim().toLowerCase())
+  .filter(Boolean);
+
+function hostAllowed(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (host.endsWith(CLOUDINARY_HOST_SUFFIX)) return true;
+  return STUDY_FETCH_ALLOWLIST.some((h) => host === h || host.endsWith(`.${h}`));
+}
+
+function isPrivateIpv4(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  const a = parts[0] ?? -1;
+  const b = parts[1] ?? -1;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
+function isPrivateIpv6(ip: string): boolean {
+  const lower = ip.toLowerCase();
+  if (lower === "::" || lower === "::1") return true;
+  const [lhs] = lower.split("::");
+  const head = lhs ? lhs.split(":")[0] : "0";
+  const first = parseInt(head || "0", 16);
+  if (!Number.isFinite(first)) return false;
+  if (first >= 0xfc00 && first <= 0xfdff) return true;
+  if (first >= 0xfe80 && first <= 0xfebf) return true;
+  return false;
+}
+
+async function assertFetchableUrl(rawUrl: string): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error("Invalid file URL");
   }
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch file: HTTP ${res.status}`);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Only http(s) file URLs are allowed");
+  }
+  const hostname = parsed.hostname;
+  if (!hostAllowed(hostname)) {
+    throw new Error("File URL not allowed");
+  }
+  if (net.isIP(hostname) !== 0) {
+    if (isPrivateIpv4(hostname) || isPrivateIpv6(hostname)) {
+      throw new Error("File URL not allowed");
+    }
+    return;
+  }
+  const addresses = await dns.promises.lookup(hostname, { all: true }).catch(() => []);
+  for (const { address } of addresses) {
+    if (isPrivateIpv4(address) || isPrivateIpv6(address)) {
+      throw new Error("File URL not allowed");
+    }
+  }
+}
+
+type FetchResponse = Awaited<ReturnType<typeof fetch>>;
+
+async function safeFetchUrl(url: string): Promise<FetchResponse> {
+  let current = url;
+  for (let hop = 0; hop <= 2; hop++) {
+    await assertFetchableUrl(current);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let res: FetchResponse;
+    try {
+      res = await fetch(current, { redirect: "manual", signal: controller.signal });
+    } catch {
+      throw new Error("Failed to fetch file");
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      if (!location) throw new Error("Unsafe redirect");
+      current = new URL(location, current).toString();
+      continue;
+    }
+    if (!res.ok) throw new Error(`Failed to fetch file: HTTP ${res.status}`);
+    return res;
+  }
+  throw new Error("Too many redirects");
+}
+
+async function fetchFileBytes(fileUrl: string): Promise<{ buffer: Buffer; mimeType: string }> {
+  // Relative path → read the file we own on disk instead of an HTTP self-call.
+  if (fileUrl.startsWith("/uploads/")) {
+    const filename = path.basename(fileUrl);
+    const filePath = path.join(UPLOADS_DIR, filename);
+    if (!fs.existsSync(filePath)) throw new Error("File not found");
+    const buffer = await fs.promises.readFile(filePath);
+    if (buffer.length > MAX_FILE_BYTES) throw new Error("File too large (max 25 MB)");
+    return { buffer, mimeType: mimeFromExtension(filename) };
+  }
+
+  const res = await safeFetchUrl(fileUrl);
   const buffer = Buffer.from(await res.arrayBuffer());
   if (buffer.length > MAX_FILE_BYTES) throw new Error("File too large (max 25 MB)");
   const contentType = res.headers.get("content-type");
-  const mimeType = contentType ? contentType.split(";")[0] : mimeFromExtension(url);
+  const mimeType = contentType ? contentType.split(";")[0] : mimeFromExtension(res.url);
   return { buffer, mimeType };
 }
 
@@ -2564,17 +2744,11 @@ app.post("/api/study/process", async (req, res) => {
 app.get("/api/study/materials", async (req, res) => {
   try {
     const claims = await verifyClerkToken(req.headers.authorization);
-    const userId = req.query.userId as string;
-
-    if (!userId) {
-      res.status(400).json({ error: "Missing userId query param" });
-      return;
-    }
 
     const rows = await db
       .select()
       .from(studyMaterials)
-      .where(eq(studyMaterials.userId, userId))
+      .where(eq(studyMaterials.userId, claims.sub))
       .orderBy(studyMaterials.createdAt);
 
     res.json(rows);
@@ -2660,22 +2834,59 @@ const UPLOADS_DIR = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
-app.use("/uploads", express.static(UPLOADS_DIR));
+app.use(
+  "/uploads",
+  requireAuth,
+  express.static(UPLOADS_DIR, {
+    setHeaders: (res) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Disposition", "attachment");
+    },
+  }),
+);
+
+const ALLOWED_UPLOAD_EXTS = new Set([
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif",
+  ".txt",
+  ".md",
+  ".doc",
+  ".docx",
+  ".m4a",
+  ".mp4",
+  ".mp3",
+  ".wav",
+  ".json",
+]);
 
 app.post("/api/study/upload", async (req, res) => {
   try {
     await verifyClerkToken(req.headers.authorization);
-    const { base64, filename, mimeType } = req.body;
+    const { base64, filename } = req.body;
 
     if (!base64 || !filename) {
       res.status(400).json({ error: "Missing required fields: base64, filename" });
       return;
     }
 
-    const ext = path.extname(filename) || ".bin";
+    const ext = path.extname(filename).toLowerCase();
+    if (!ext || !ALLOWED_UPLOAD_EXTS.has(ext)) {
+      res.status(400).json({ error: "File type not allowed" });
+      return;
+    }
+
+    const buffer = Buffer.from(base64, "base64");
+    if (buffer.length > MAX_FILE_BYTES) {
+      res.status(400).json({ error: "File too large (max 25 MB)" });
+      return;
+    }
+
     const safeName = `${crypto.randomUUID()}${ext}`;
     const filePath = path.join(UPLOADS_DIR, safeName);
-    const buffer = Buffer.from(base64, "base64");
     fs.writeFileSync(filePath, buffer);
 
     const url = `/uploads/${safeName}`;
@@ -3154,7 +3365,7 @@ app.get("/api/flashcards", async (req, res) => {
     res.json(list.map((r: any) => mapFlashcard(r)));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/flashcards failed");
@@ -3238,7 +3449,7 @@ app.post("/api/flashcards/:id/review", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     console.error("[Server] POST /api/flashcards/:id/review failed:", err);
@@ -3272,7 +3483,7 @@ app.delete("/api/flashcards/:id", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/flashcards/:id failed");
@@ -3383,7 +3594,7 @@ app.get("/api/study/attempts", async (req, res) => {
     );
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/study/attempts failed");
@@ -3442,7 +3653,7 @@ app.post("/api/audio/transcribe", async (req, res) => {
     res.json({ transcript });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     if (isGeminiBusyError(err)) {
@@ -3452,7 +3663,7 @@ app.post("/api/audio/transcribe", async (req, res) => {
       return;
     }
     console.error("[Server] POST /api/audio/transcribe failed:", err);
-    res.status(500).json({ error: err.message || "Failed to transcribe audio" });
+    res.status(500).json({ error: "Failed to transcribe audio" });
   }
 });
 
@@ -3640,7 +3851,7 @@ app.post("/api/notes/ai", async (req, res) => {
 
     const ai = aiRequestOptions(req);
     try {
-      const textKey = NOTES_AI_TEXT_KEYS[action];
+      const textKey = NOTES_AI_TEXT_KEYS[action as NotesAiAction];
       if (textKey) {
         const text = await generateText({
           modelRef: ai.modelRef,
@@ -3895,11 +4106,11 @@ app.post("/api/notes/index", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     console.error("[Server] POST /api/notes/index failed:", err);
-    res.status(500).json({ error: err.message || "Failed to index note" });
+    res.status(500).json({ error: "Failed to index note" });
   }
 });
 
@@ -3915,7 +4126,7 @@ app.delete("/api/notes/index/:noteId", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/notes/index/:noteId failed");
@@ -3939,7 +4150,7 @@ app.get("/api/notes/:noteId/chats", async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     console.error("[Server] GET /api/notes/:noteId/chats failed:", err);
@@ -3984,7 +4195,7 @@ app.post("/api/notes/:noteId/chats", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     console.error("[Server] POST /api/notes/:noteId/chats failed:", err);
@@ -4002,7 +4213,7 @@ app.delete("/api/notes/:noteId/chats", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: `Invalid token: ${err.reason || err.message}` });
+      res.status(401).json({ error: "Invalid token" });
       return;
     }
     console.error("[Server] DELETE /api/notes/:noteId/chats failed:", err);

@@ -185,7 +185,11 @@ function NavigationGuard() {
 }
 
 export default function RootLayout() {
-  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || "pk_test_ZXplYXktM2M1NDEuY2xlcmsuYWNjb3VudHMuZGV2JA";
+  const devFallbackKey = "pk_test_ZXplYXktM2M1NDEuY2xlcmsuYWNjb3VudHMuZGV2JA";
+  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || (__DEV__ ? devFallbackKey : "");
+  if (!publishableKey) {
+    throw new Error("Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY — set it in your .env (see .env.example)");
+  }
   const [fontsLoaded] = useFonts({
     SpaceGrotesk_300Light,
     SpaceGrotesk_400Regular,

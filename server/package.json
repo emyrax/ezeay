@@ -9,12 +9,16 @@
     "@anthropic-ai/sdk": "^0.126.0",
     "@clerk/backend": "^1.25.0",
     "@neondatabase/serverless": "^1.1.0",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.7",
     "drizzle-orm": "0.44.5",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "openai": "^7.15.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.1",
     "@types/node": "^22.15.0",
     "tsx": "^4.19.4",
