@@ -2,6 +2,9 @@
   "name": "ezeay",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -13,6 +16,7 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web",
+    "deploy:web": "npx --yes vercel@latest --prod",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
