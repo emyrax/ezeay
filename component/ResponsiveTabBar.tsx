@@ -78,7 +78,7 @@ function TabButton({
   );
 }
 
-export default function ResponsiveTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
   const router = useRouter();
