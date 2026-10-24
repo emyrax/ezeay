@@ -9,6 +9,7 @@ import { fontFamily } from "../../constants/themes";
 import { useAuth } from "../../contexts/AuthContext";
 import { getNextLevel } from "../../data/levels";
 import { useThemeColors } from "../../hooks/useTheme";
+import { useResponsive } from "../../hooks/useResponsive";
 import { getLevelProgress } from "../../services/LevelService";
 import { useNavLock } from "../../lib/guard";
 import { useCheckInStore } from "../../store/checkInStore";
@@ -29,6 +30,7 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 export default function HeaderSection() {
   const profile = useUserStore((s) => s.profile);
   const theme = useThemeColors();
+  const { isWebWide } = useResponsive();
   const router = useRouter();
   const { navigate } = useNavLock();
   const { getToken } = useAuth();
@@ -80,7 +82,7 @@ export default function HeaderSection() {
       colors={[theme.gradientStart, theme.gradientMid, theme.gradientEnd]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.gradient}
+      style={[styles.gradient, isWebWide && styles.gradientWide]}
     >
       <View style={styles.glassOverlay} />
       <View
@@ -439,6 +441,12 @@ const styles = StyleSheet.create({
     position: "relative",
     marginHorizontal: -16,
     overflow: "hidden",
+  },
+  gradientWide: {
+    marginHorizontal: 0,
+    borderRadius: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
   glassOverlay: {
     position: "absolute",

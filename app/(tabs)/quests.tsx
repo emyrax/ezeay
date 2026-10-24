@@ -27,7 +27,7 @@ import ProgressBar from "../../component/ProgressBar";
 import ErrorBoundary from "../../component/ErrorBoundary";
 import { images } from "../../constants/images";
 import { useThemeColors } from "../../hooks/useTheme";
-import { useTabBarInset } from "../../hooks/useResponsive";
+import { useResponsive, useTabBarInset } from "../../hooks/useResponsive";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavLock } from "../../lib/guard";
 import { useCourseStore } from "../../store/courseStore";
@@ -59,6 +59,7 @@ function normalizeCategory(value: string): string {
 export default function QuestsScreen() {
   const { profile, getToken, updateProfile } = useAuth();
   const theme = useThemeColors();
+  const { isWebWide } = useResponsive();
   const tabBarInset = useTabBarInset(80);
   const router = useRouter();
   const { navigate } = useNavLock();
@@ -795,7 +796,9 @@ export default function QuestsScreen() {
         ) : null}
 
         {!isEnrolledFilter && (
-          <>{paginatedCourses.map((course) => {
+          <>
+          <View style={isWebWide ? styles.courseGrid : undefined}>
+          {paginatedCourses.map((course) => {
           const isGenerating = course.id.startsWith("generating_");
           const enrollment = getEnrollmentForCourse(course.id);
           const progress = enrollment?.progress ?? course.progress ?? 0;
@@ -806,7 +809,12 @@ export default function QuestsScreen() {
             return (
               <View
                 key={course.id}
-                style={[styles.courseCard, styles.skeletonCard, { backgroundColor: theme.surface }]}
+                style={[
+                  styles.courseCard,
+                  styles.skeletonCard,
+                  isWebWide && styles.courseCardFull,
+                  { backgroundColor: theme.surface },
+                ]}
               >
                 <View style={styles.courseCardContent}>
                   <View style={styles.courseInfo}>
@@ -839,7 +847,7 @@ export default function QuestsScreen() {
                     ? ["rgba(255, 152, 0, 0.2)", "rgba(139, 92, 246, 0.2)"]
                     : ["rgba(244, 67, 54, 0.2)", "rgba(236, 72, 153, 0.2)"]
               }
-              style={styles.courseCard}
+              style={[styles.courseCard, isWebWide && styles.courseCardGrid]}
             >
               <Pressable onPress={() => handleCardPress(course.id)} onLongPress={() => handleCardLongPress(course.id)}>
                 <View style={styles.courseCardContent}>
@@ -924,6 +932,7 @@ export default function QuestsScreen() {
             </GradientOutlineContainer>
           );
         })}
+          </View>
           {hasMore && (
             <View style={styles.loadMoreRow}>
               <ActivityIndicator size="small" color={theme.accent} />
@@ -1381,6 +1390,23 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: "center", paddingVertical: 40, paddingHorizontal: 40, gap: 12 },
   emptyText: { fontSize: 14, textAlign: "center", lineHeight: 20 },
   courseCard: { marginHorizontal: 20, marginTop: 14 },
+  courseGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+  },
+  courseCardGrid: {
+    width: "48.5%",
+    marginHorizontal: 0,
+    marginTop: 0,
+  },
+  courseCardFull: {
+    width: "100%",
+    marginHorizontal: 0,
+    marginTop: 0,
+  },
   courseCardContent: { flexDirection: "row", justifyContent: "space-between" },
   courseInfo: { flex: 1, justifyContent: "space-between" },
   courseTitleRow: { flexDirection: "row", alignItems: "center" },

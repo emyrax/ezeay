@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { getBreakpoint, getContentWidth, getGridColumns, getGutter } from "./responsive";
+import {
+  getBreakpoint,
+  getCarouselTranslate,
+  getContentWidth,
+  getGridColumns,
+  getGutter,
+} from "./responsive";
 
 test("getBreakpoint resolves every breakpoint boundary", () => {
   assert.equal(getBreakpoint(0), "phone");
@@ -31,4 +37,12 @@ test("getGutter scales with the breakpoint", () => {
   assert.equal(getGutter("phone"), 16);
   assert.equal(getGutter("tablet"), 24);
   assert.equal(getGutter("laptop"), 32);
+});
+
+test("getCarouselTranslate moves one panel per index", () => {
+  assert.equal(getCarouselTranslate(0, 960), -0);
+  assert.equal(getCarouselTranslate(1, 960), -960);
+  assert.equal(getCarouselTranslate(2, 960), -1920);
+  assert.equal(getCarouselTranslate(-1, 960), -0);
+  assert.equal(getCarouselTranslate(2, 0), -0);
 });

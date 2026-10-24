@@ -39,6 +39,7 @@ export default function ContributionGraph() {
   const theme = useThemeColors();
   const [range, setRange] = useState<Range>("year");
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const [graphWidth, setGraphWidth] = useState(0);
   const days = useStatsStore((s) => s.days);
   const loaded = useStatsStore((s) => s.loaded);
   const loadDays = useStatsStore((s) => s.loadDays);
@@ -58,7 +59,16 @@ export default function ContributionGraph() {
   }, [days]);
 
   const config = RANGE_CONFIG[range];
-  const { cols, square, gap } = config;
+  const { cols, square: baseSquare, gap } = config;
+  const gridSpace = Math.max(0, graphWidth - LABEL_WIDTH - 4);
+  const fittedSquare =
+    gridSpace > 0
+      ? Math.floor((gridSpace - gap * (cols - 1)) / cols)
+      : baseSquare;
+  const square =
+    gridSpace >= 600
+      ? Math.max(6, Math.min(baseSquare, fittedSquare))
+      : baseSquare;
   const totalDays = cols * ROWS;
   const today = new Date();
   const baseColor = theme.tabInactive;
@@ -85,7 +95,7 @@ export default function ContributionGraph() {
 
   const height = ROWS * (square + gap);
   const width = cols * (square + gap);
-  const needsScroll = width > 250;
+  const needsScroll = graphWidth > 0 ? width > gridSpace : width > 250;
 
   const monthLabels = useMemo(() => {
     if (cols < 20) return [];
@@ -188,7 +198,10 @@ export default function ContributionGraph() {
           </View>
         )}
 
-        <View style={styles.graphRow}>
+        <View
+          style={styles.graphRow}
+          onLayout={(e) => setGraphWidth(Math.round(e.nativeEvent.layout.width))}
+        >
           <View style={styles.labelsCol}>
             {DAY_LABELS.map((l, i) => (
               <Text

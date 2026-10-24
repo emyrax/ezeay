@@ -11,7 +11,7 @@ import { useUserTrophyStore } from "../../store/userTrophyStore";
 import { useUserStore } from "../../store/userStore";
 import { useCommunityStore } from "../../store/communityStore";
 import { useThemeColors } from "../../hooks/useTheme";
-import { useTabBarInset } from "../../hooks/useResponsive";
+import { useResponsive, useTabBarInset } from "../../hooks/useResponsive";
 import HeaderSection from "../../component/homeScreenTab/HeaderSection";
 import ContributionGraph from "../../component/ContributionGraph";
 import MissionsSection from "../../component/homeScreenTab/MissionsSection";
@@ -27,6 +27,7 @@ export default function CampScreen() {
   const { getToken } = useAuth();
   const profile = useUserStore((s) => s.profile);
   const theme = useThemeColors();
+  const { isWebWide } = useResponsive();
   const tabBarInset = useTabBarInset(100);
   const [refreshing, setRefreshing] = useState(false);
   const loadBounties = useBountyStore((s) => s.loadBounties);
@@ -114,25 +115,51 @@ export default function CampScreen() {
     <ErrorBoundary>
       <ScreenContainer>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isWebWide && styles.scrollContentWide,
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
           }
         >
-          <AnimatedCard index={0}>
-            <HeaderSection />
-          </AnimatedCard>
-          <AnimatedCard index={1}>
-            <ContributionGraph />
-          </AnimatedCard>
-          <View style={[styles.divider, { backgroundColor: theme.borderLight }]} />
-          <AnimatedCard index={2}>
-            <MissionsSection />
-          </AnimatedCard>
-          <AnimatedCard index={3}>
-            <RivalRadar />
-          </AnimatedCard>
+          {isWebWide ? (
+            <View style={styles.grid}>
+              <View style={styles.mainColumn}>
+                <AnimatedCard index={0}>
+                  <HeaderSection />
+                </AnimatedCard>
+                <AnimatedCard index={1}>
+                  <ContributionGraph />
+                </AnimatedCard>
+              </View>
+              <View style={styles.sideColumn}>
+                <AnimatedCard index={2}>
+                  <MissionsSection />
+                </AnimatedCard>
+                <AnimatedCard index={3}>
+                  <RivalRadar />
+                </AnimatedCard>
+              </View>
+            </View>
+          ) : (
+            <>
+              <AnimatedCard index={0}>
+                <HeaderSection />
+              </AnimatedCard>
+              <AnimatedCard index={1}>
+                <ContributionGraph />
+              </AnimatedCard>
+              <View style={[styles.divider, { backgroundColor: theme.borderLight }]} />
+              <AnimatedCard index={2}>
+                <MissionsSection />
+              </AnimatedCard>
+              <AnimatedCard index={3}>
+                <RivalRadar />
+              </AnimatedCard>
+            </>
+          )}
           <View style={{ height: tabBarInset }} />
         </ScrollView>
       </ScreenContainer>
@@ -143,6 +170,23 @@ export default function CampScreen() {
 const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 24,
+  },
+  scrollContentWide: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  grid: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 24,
+  },
+  mainColumn: {
+    flex: 1.62,
+    minWidth: 0,
+  },
+  sideColumn: {
+    flex: 1,
+    minWidth: 0,
   },
   divider: {
     height: 1,

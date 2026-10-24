@@ -23,6 +23,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import LoadingScreen from "../../component/LoadingScreen";
 import { hero, safeFont } from "../../constants/themes";
+import { useResponsive } from "../../hooks/useResponsive";
 // Required for Clerk OAuth Web Browser redirects
 WebBrowser.maybeCompleteAuthSession();
 
@@ -68,6 +69,8 @@ function OTPInput({
 }
 
 export default function Login() {
+  const { isWebWide, breakpoint } = useResponsive();
+  const isTablet = breakpoint === "tablet";
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -292,33 +295,84 @@ const handleGoogleLogin = async () => {
     }
   };
 
+  const brand = (
+    <View style={styles.brandWrapper}>
+      <View style={styles.brandIconRing}>
+        <MaterialCommunityIcons name="infinity" size={28} color={hero.primary} />
+      </View>
+      <Text style={styles.brandText}>{brandName}</Text>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       {authReady ? (
         <LoadingScreen message="Signing in..." />
       ) : (
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
         <SafeAreaView style={styles.safeArea}>
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              isTablet && styles.scrollContentTablet,
+              isWebWide && styles.scrollContentWide,
+            ]}
             bounces={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Brand header */}
-            <View style={styles.header}>
-              <View style={styles.brandWrapper}>
-                <View style={styles.brandIconRing}>
-                  <MaterialCommunityIcons name="infinity" size={28} color={hero.primary} />
+            {isWebWide ? (
+              <View style={styles.brandPanel}>
+                {brand}
+                <Text style={styles.brandHeadline}>
+                  Built around{"\n"}
+                  <Text style={styles.brandHeadlineAccent}>your curiosity.</Text>
+                </Text>
+                <Text style={styles.brandSub}>
+                  Personalized learning paths, gamified quests, and real progress — all in one place.
+                </Text>
+                <View style={styles.perks}>
+                  <View style={styles.perkRow}>
+                    <View style={styles.perkIcon}>
+                      <MaterialCommunityIcons name="compass" size={18} color={hero.primary} />
+                    </View>
+                    <Text style={styles.perkText}>Personalized learning paths</Text>
+                  </View>
+                  <View style={styles.perkRow}>
+                    <View style={styles.perkIcon}>
+                      <MaterialCommunityIcons name="trophy" size={18} color={hero.primary} />
+                    </View>
+                    <Text style={styles.perkText}>Gamified quests and streaks</Text>
+                  </View>
+                  <View style={styles.perkRow}>
+                    <View style={styles.perkIcon}>
+                      <MaterialCommunityIcons name="chart-line" size={18} color={hero.primary} />
+                    </View>
+                    <Text style={styles.perkText}>Track real progress</Text>
+                  </View>
                 </View>
-                <Text style={styles.brandText}>{brandName}</Text>
               </View>
-            </View>
+            ) : (
+              <View style={[styles.header, isTablet && styles.headerTablet]}>{brand}</View>
+            )}
 
             {/* Card area */}
-            <View style={styles.cardContainer}>
+            <View
+              style={[
+                styles.formPanel,
+                isTablet && styles.formPanelTablet,
+                isWebWide && styles.formPanelWide,
+              ]}
+            >
+            <View
+              style={[
+                styles.cardContainer,
+                isTablet && styles.cardContainerTablet,
+                isWebWide && styles.cardContainerWide,
+              ]}
+            >
               <Animated.View
                 style={{
                   transform: [
@@ -498,6 +552,7 @@ const handleGoogleLogin = async () => {
                 </View>
               </Animated.View>
             </View>
+            </View>
           </ScrollView>
         </SafeAreaView>
       </KeyboardAvoidingView>
@@ -516,9 +571,98 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
   },
+  scrollContentTablet: {
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  scrollContentWide: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 72,
+    paddingHorizontal: 48,
+    paddingVertical: 40,
+  },
+  brandPanel: {
+    flex: 1,
+    maxWidth: 520,
+    gap: 20,
+  },
+  brandHeadline: {
+    color: "#fff",
+    fontSize: 44,
+    lineHeight: 52,
+    fontWeight: "800",
+    fontFamily: safeFont,
+    letterSpacing: -0.8,
+  },
+  brandHeadlineAccent: {
+    color: hero.primary,
+  },
+  brandSub: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 16,
+    lineHeight: 24,
+    fontFamily: safeFont,
+    maxWidth: 420,
+  },
+  perks: {
+    gap: 14,
+    marginTop: 8,
+  },
+  perkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  perkIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  perkText: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 14,
+    fontWeight: "500",
+    fontFamily: safeFont,
+  },
+  formPanel: {
+    flex: 1,
+  },
+  formPanelTablet: {
+    flex: 0,
+  },
+  formPanelWide: {
+    flex: 0,
+    width: 440,
+  },
+  cardContainerTablet: {
+    flex: 0,
+    width: "100%",
+    maxWidth: 440,
+    alignSelf: "center",
+    paddingBottom: 0,
+    marginTop: 24,
+  },
+  cardContainerWide: {
+    flex: 0,
+    justifyContent: "center",
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+  },
   header: {
     paddingHorizontal: 24,
     paddingTop: 32,
+  },
+  headerTablet: {
+    alignItems: "center",
+    paddingHorizontal: 0,
+    paddingTop: 0,
   },
   brandWrapper: {
     flexDirection: "row",

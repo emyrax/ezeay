@@ -7,6 +7,7 @@ import {
   Easing,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -15,10 +16,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { hero, safeFont } from "../constants/themes";
 import { images } from "../constants/images";
 import { useAuth } from "../contexts/AuthContext";
+import { useResponsive } from "../hooks/useResponsive";
 
 export default function Index() {
   const router = useRouter();
   const { user, profile, loading } = useAuth();
+  const { isWebWide } = useResponsive();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -71,6 +74,76 @@ export default function Index() {
     outputRange: [0, -10],
   });
 
+  const illustration = (
+    <Animated.View
+      style={[
+        styles.illustrationContainer,
+        isWebWide && styles.illustrationContainerWide,
+        { transform: [{ translateY: floatTranslate }] },
+      ]}
+    >
+      <View style={styles.glowBackdrop} />
+      <Image
+        source={images.researching}
+        style={styles.illustration}
+        resizeMode="contain"
+      />
+    </Animated.View>
+  );
+
+  const copy = (
+    <View style={[styles.textBlock, isWebWide && styles.textBlockWide]}>
+      <View style={styles.pillBadge}>
+        <Ionicons name="sparkles" size={13} color={hero.primary} />
+        <Text style={styles.pillText}>Gamified Learning Companion</Text>
+      </View>
+      <Text style={[styles.title, isWebWide && styles.titleWide]}>
+        Built Around{"\n"}
+        <Text style={styles.titleHighlight}>Your Curiosity</Text>
+      </Text>
+      <Text style={[styles.subtitle, isWebWide && styles.subtitleWide]}>
+        Personalized paths, gamified quests, and real mastery. Tailored for your unique ambition.
+      </Text>
+    </View>
+  );
+
+  const footer = (
+    <Animated.View
+      style={[styles.footer, isWebWide && styles.footerWide, { opacity: fadeAnim }]}
+    >
+      <Pressable
+        style={({ pressed }) => [
+          styles.primaryBtn,
+          pressed && styles.primaryBtnPressed,
+        ]}
+        onPress={() => router.push("/onboarding")}
+      >
+        <LinearGradient
+          colors={[hero.gradientStart, hero.gradientMid, hero.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.primaryBtnGradient}
+        >
+          <Text style={styles.primaryBtnText}>Get Started</Text>
+          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+        </LinearGradient>
+      </Pressable>
+
+      <Pressable
+        style={({ pressed }) => [
+          styles.secondaryBtn,
+          pressed && styles.secondaryBtnPressed,
+        ]}
+        onPress={() => router.push("/login")}
+      >
+        <Text style={styles.secondaryBtnText}>
+          Already have an account?{" "}
+          <Text style={styles.secondaryBtnHighlight}>Sign In</Text>
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+
   return (
     <View style={styles.container}>
       {/* Background gradient lighting */}
@@ -82,88 +155,50 @@ export default function Index() {
       />
 
       <SafeAreaView style={styles.safeArea}>
-        {/* Top brand header */}
-        <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-          <View style={styles.brandRow}>
-            <View style={styles.brandBadge}>
-              <MaterialCommunityIcons name="infinity" size={24} color={hero.primary} />
-            </View>
-            <Text style={styles.brandTitle}>Yuinx</Text>
-          </View>
-        </Animated.View>
-
-        {/* Hero content card */}
-        <Animated.View
-          style={[
-            styles.heroContent,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            isWebWide && styles.scrollContentWide,
           ]}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
         >
-          <Animated.View
-            style={[
-              styles.illustrationContainer,
-              { transform: [{ translateY: floatTranslate }] },
-            ]}
-          >
-            <View style={styles.glowBackdrop} />
-            <Image
-              source={images.researching}
-              style={styles.illustration}
-              resizeMode="contain"
-            />
+          {/* Top brand header */}
+          <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+            <View style={styles.brandRow}>
+              <View style={styles.brandBadge}>
+                <MaterialCommunityIcons name="infinity" size={24} color={hero.primary} />
+              </View>
+              <Text style={styles.brandTitle}>Yuinx</Text>
+            </View>
           </Animated.View>
 
-          <View style={styles.textBlock}>
-            <View style={styles.pillBadge}>
-              <Ionicons name="sparkles" size={13} color={hero.primary} />
-              <Text style={styles.pillText}>Gamified Learning Companion</Text>
+          {isWebWide ? (
+            <View style={styles.heroWide}>
+              {illustration}
+              <View style={styles.textColumnWide}>
+                {copy}
+                {footer}
+              </View>
             </View>
-            <Text style={styles.title}>
-              Built Around{"\n"}
-              <Text style={styles.titleHighlight}>Your Curiosity</Text>
-            </Text>
-            <Text style={styles.subtitle}>
-              Personalized paths, gamified quests, and real mastery. Tailored for your unique ambition.
-            </Text>
-          </View>
-        </Animated.View>
-
-        {/* Apple-style Action Stack */}
-        <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              pressed && styles.primaryBtnPressed,
-            ]}
-            onPress={() => router.push("/onboarding")}
-          >
-            <LinearGradient
-              colors={[hero.gradientStart, hero.gradientMid, hero.gradientEnd]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.primaryBtnGradient}
-            >
-              <Text style={styles.primaryBtnText}>Get Started</Text>
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-            </LinearGradient>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              pressed && styles.secondaryBtnPressed,
-            ]}
-            onPress={() => router.push("/login")}
-          >
-            <Text style={styles.secondaryBtnText}>
-              Already have an account?{" "}
-              <Text style={styles.secondaryBtnHighlight}>Sign In</Text>
-            </Text>
-          </Pressable>
-        </Animated.View>
+          ) : (
+            <>
+              <Animated.View
+                style={[
+                  styles.heroContent,
+                  {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                  },
+                ]}
+              >
+                {illustration}
+                {copy}
+              </Animated.View>
+              {footer}
+            </>
+          )}
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -176,9 +211,53 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    justifyContent: "space-between",
     paddingHorizontal: 24,
     paddingVertical: 12,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "space-between",
+  },
+  scrollContentWide: {
+    justifyContent: "center",
+    paddingVertical: 32,
+  },
+  heroWide: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 64,
+    width: "100%",
+    maxWidth: 1100,
+    alignSelf: "center",
+    paddingVertical: 32,
+  },
+  textColumnWide: {
+    flex: 1,
+    maxWidth: 440,
+    alignItems: "flex-start",
+    gap: 28,
+  },
+  illustrationContainerWide: {
+    width: 420,
+    height: 360,
+  },
+  textBlockWide: {
+    alignItems: "flex-start",
+    maxWidth: 440,
+    marginTop: 0,
+  },
+  titleWide: {
+    fontSize: 46,
+    lineHeight: 54,
+    textAlign: "left",
+  },
+  subtitleWide: {
+    fontSize: 16,
+    textAlign: "left",
+  },
+  footerWide: {
+    alignSelf: "flex-start",
   },
   header: {
     paddingTop: 8,

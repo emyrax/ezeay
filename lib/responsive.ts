@@ -32,3 +32,7 @@ export function getGridColumns(
   const columns = Math.floor((containerWidth + gap) / (minCardWidth + gap));
   return Math.min(max, Math.max(1, columns));
 }
+
+export function getCarouselTranslate(index: number, panelWidth: number): number {
+  return -Math.max(0, index) * Math.max(0, panelWidth);
+}

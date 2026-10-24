@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Dimensions,
   Easing,
   KeyboardAvoidingView,
   Platform,
@@ -14,14 +13,14 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { hero, safeFont } from "../../constants/themes";
 import { useAuth } from "../../contexts/AuthContext";
+import { useResponsive } from "../../hooks/useResponsive";
 import { api } from "../../lib/api";
 import { savePendingGoals } from "../../lib/pendingGoals";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const MAX_GOALS = 6;
 
@@ -67,9 +66,13 @@ const FEATURES = [
 function SlideWelcome({
   visible,
   onContinue,
+  width,
+  wide,
 }: {
   visible: boolean;
   onContinue: () => void;
+  width: number;
+  wide: boolean;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
@@ -104,10 +107,10 @@ function SlideWelcome({
     }
   }, [visible, fadeAnim, slideAnim, scaleAnim]);
 
-  if (!visible) return <View style={styles.slide} />;
+  if (!visible) return <View style={[styles.slide, { width }]} />;
 
   return (
-    <View style={styles.slide}>
+    <View style={[styles.slide, { width }]}>
       <Animated.View
         style={[
           styles.welcomeContent,
@@ -132,7 +135,7 @@ function SlideWelcome({
       </Animated.View>
 
       <Animated.View
-        style={[styles.actionWrap, { opacity: fadeAnim }]}
+        style={[styles.actionWrap, wide && styles.actionWrapWide, { opacity: fadeAnim }]}
       >
         <Pressable
           style={({ pressed }) => [
@@ -152,9 +155,13 @@ function SlideWelcome({
 function SlideFeatures({
   visible,
   onContinue,
+  width,
+  wide,
 }: {
   visible: boolean;
   onContinue: () => void;
+  width: number;
+  wide: boolean;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const cardAnims = useRef(FEATURES.map(() => new Animated.Value(0))).current;
@@ -184,10 +191,10 @@ function SlideFeatures({
     }
   }, [visible, fadeAnim, cardAnims]);
 
-  if (!visible) return <View style={styles.slide} />;
+  if (!visible) return <View style={[styles.slide, { width }]} />;
 
   return (
-    <View style={styles.slide}>
+    <View style={[styles.slide, { width }]}>
       <Animated.View style={[styles.featuresHeader, { opacity: fadeAnim }]}>
         <Text style={styles.featuresTitle}>Your Journey Awaits</Text>
         <Text style={styles.featuresSubtitle}>
@@ -195,7 +202,7 @@ function SlideFeatures({
         </Text>
       </Animated.View>
 
-      <View style={styles.featuresList}>
+      <View style={[styles.featuresList, wide && styles.featuresListWide]}>
         {FEATURES.map((feat, i) => (
           <Animated.View
             key={feat.title}
@@ -231,7 +238,7 @@ function SlideFeatures({
         ))}
       </View>
 
-      <Animated.View style={[styles.actionWrap, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.actionWrap, wide && styles.actionWrapWide, { opacity: fadeAnim }]}>
         <Pressable
           style={({ pressed }) => [
             styles.continueBtn,
@@ -247,7 +254,15 @@ function SlideFeatures({
   );
 }
 
-function GoalsSlide({ visible }: { visible: boolean }) {
+function GoalsSlide({
+  visible,
+  width,
+  wide,
+}: {
+  visible: boolean;
+  width: number;
+  wide: boolean;
+}) {
   const { user, profile, getToken, updateProfile } = useAuth();
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
@@ -323,10 +338,10 @@ function GoalsSlide({ visible }: { visible: boolean }) {
     }
   };
 
-  if (!visible) return <View style={styles.slide} />;
+  if (!visible) return <View style={[styles.slide, { width }]} />;
 
   return (
-    <View style={styles.slide}>
+    <View style={[styles.slide, { width }]}>
       <KeyboardAvoidingView
         style={styles.goalsFlex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -334,6 +349,7 @@ function GoalsSlide({ visible }: { visible: boolean }) {
         <Animated.View
           style={[
             styles.goalsContent,
+            wide && styles.goalsContentWide,
             { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
           ]}
         >
@@ -350,7 +366,7 @@ function GoalsSlide({ visible }: { visible: boolean }) {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.chipsWrap}>
+            <View style={[styles.chipsWrap, wide && styles.chipsWrapWide]}>
               {PRESET_GOALS.map((goal) => {
                 const isSelected = selected.includes(goal);
                 return (
@@ -368,7 +384,7 @@ function GoalsSlide({ visible }: { visible: boolean }) {
               })}
             </View>
 
-            <View style={styles.customRow}>
+            <View style={[styles.customRow, wide && styles.customRowWide]}>
               <TextInput
                 style={styles.customInput}
                 value={custom}
@@ -432,6 +448,16 @@ export default function OnboardingScreen() {
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<import("react-native").FlatList<any>>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
+  const { width: slideWidth } = useWindowDimensions();
+  const { isWebWide } = useResponsive();
+
+  useEffect(() => {
+    scrollRef.current?.scrollToOffset({
+      offset: currentIndexRef.current * slideWidth,
+      animated: false,
+    });
+  }, [slideWidth]);
 
   const onScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { x: scrollX } } }],
@@ -439,12 +465,14 @@ export default function OnboardingScreen() {
   );
 
   const onMomentumEnd = (e: any) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    const idx = Math.round(e.nativeEvent.contentOffset.x / slideWidth);
+    currentIndexRef.current = idx;
     setCurrentIndex(idx);
   };
 
   const goToSlide = (idx: number) => {
-    scrollRef.current?.scrollToOffset({ offset: idx * SCREEN_WIDTH, animated: true });
+    currentIndexRef.current = idx;
+    scrollRef.current?.scrollToOffset({ offset: idx * slideWidth, animated: true });
   };
 
   const renderSlide = ({ item }: { item: (typeof SLIDES)[0]; index: number }) => {
@@ -452,11 +480,25 @@ export default function OnboardingScreen() {
 
     switch (item.id) {
       case "welcome":
-        return <SlideWelcome visible={isVisible} onContinue={() => goToSlide(1)} />;
+        return (
+          <SlideWelcome
+            visible={isVisible}
+            onContinue={() => goToSlide(1)}
+            width={slideWidth}
+            wide={isWebWide}
+          />
+        );
       case "features":
-        return <SlideFeatures visible={isVisible} onContinue={() => goToSlide(2)} />;
+        return (
+          <SlideFeatures
+            visible={isVisible}
+            onContinue={() => goToSlide(2)}
+            width={slideWidth}
+            wide={isWebWide}
+          />
+        );
       case "goals":
-        return <GoalsSlide visible={isVisible} />;
+        return <GoalsSlide visible={isVisible} width={slideWidth} wide={isWebWide} />;
       default:
         return null;
     }
@@ -488,8 +530,10 @@ export default function OnboardingScreen() {
 
       <View style={styles.dotsRow}>
         {SLIDES.map((_, i) => (
-          <Animated.View
+          <Pressable
             key={i}
+            onPress={() => goToSlide(i)}
+            hitSlop={8}
             style={[
               styles.dot,
               {
@@ -509,7 +553,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   slide: {
-    width: SCREEN_WIDTH,
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -565,6 +608,9 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
   },
+  actionWrapWide: {
+    maxWidth: 520,
+  },
   continueBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -608,6 +654,9 @@ const styles = StyleSheet.create({
     gap: 14,
     width: "100%",
     maxWidth: 360,
+  },
+  featuresListWide: {
+    maxWidth: 520,
   },
   featureCard: {
     flexDirection: "row",
@@ -656,6 +705,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
   },
+  goalsContentWide: {
+    maxWidth: 520,
+  },
   goalsBrand: {
     width: 72,
     height: 72,
@@ -696,6 +748,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     maxWidth: 360,
   },
+  chipsWrapWide: {
+    maxWidth: 520,
+  },
   chip: {
     flexDirection: "row",
     alignItems: "center",
@@ -727,6 +782,9 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
     marginBottom: 10,
+  },
+  customRowWide: {
+    maxWidth: 520,
   },
   customInput: {
     flex: 1,

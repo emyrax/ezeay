@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  View, Text, TextInput, StyleSheet, Pressable, ScrollView, Alert, ActivityIndicator, Animated, Dimensions,
+  View, Text, TextInput, StyleSheet, Pressable, ScrollView, Alert, ActivityIndicator, Animated, useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
@@ -13,6 +13,9 @@ import * as ImagePicker from "expo-image-picker";
 import { AntDesign, MaterialIcons, MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useThemeColors } from "../../hooks/useTheme";
+import { useResponsive, useTabBarInset } from "../../hooks/useResponsive";
+import { getCarouselTranslate } from "../../lib/responsive";
+import { CONTENT_WIDTHS } from "../../constants/layout";
 import { fontFamily } from "../../constants/themes";
 import type { UserProfile, Availability, Education, WorkExperience, Certification } from "../../types/user";
 import ErrorBoundary from "../../component/ErrorBoundary";
@@ -22,8 +25,6 @@ import { useUserStore } from "../../store/userStore";
 import { useCheckInStore } from "../../store/checkInStore";
 import { useUserTrophyStore } from "../../store/userTrophyStore";
 import { getLevelProgress } from "../../services/LevelService";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const AVAILABILITY_CONFIG: Record<Availability, { label: string; color: string; icon: string }> = {
   open_to_work: { label: "Open to Work", color: "#22C55E", icon: "briefcase" },
@@ -181,6 +182,12 @@ export default function ProfileScreen() {
   const [avatarError, setAvatarError] = useState(false);
   const router = useRouter();
   const theme = useThemeColors();
+  const { isWebWide } = useResponsive();
+  const tabBarInset = useTabBarInset(80);
+  const { width: windowWidth } = useWindowDimensions();
+  const [panelWidth, setPanelWidth] = useState(
+    Math.min(windowWidth, CONTENT_WIDTHS.standard),
+  );
 
   const [startEditing, setStartEditing] = useState(false);
   const editingProfileRef = useRef(profile);
@@ -286,7 +293,7 @@ export default function ProfileScreen() {
 
   return (
     <ErrorBoundary>
-        <ScreenContainer edges={["top"]}>
+        <ScreenContainer edges={["top"]} width="standard">
         <ScrollView contentContainerStyle={pfStyles.scroll} showsVerticalScrollIndicator={false}>
           {startEditing ? (
             <View style={{ paddingHorizontal: 20 }}>
@@ -301,7 +308,7 @@ export default function ProfileScreen() {
           ) : (
           <>
           {/* Cover */}
-          <View style={pfStyles.coverWrap}>
+          <View style={[pfStyles.coverWrap, isWebWide && pfStyles.coverWrapWide]}>
             <LinearGradient
               colors={[theme.gradientStart + "60", theme.gradientMid + "30", theme.bg]}
               start={{ x: 0, y: 0 }}
@@ -462,23 +469,33 @@ export default function ProfileScreen() {
           </View>
 
           {/* Animated Panel */}
-          <View style={pfStyles.panelOuter}>
+          <View
+            style={pfStyles.panelOuter}
+            onLayout={(e) => {
+              const next = Math.round(e.nativeEvent.layout.width);
+              if (next > 0 && next !== panelWidth) setPanelWidth(next);
+            }}
+          >
             <Animated.View
               style={[
                 pfStyles.panelInner,
                 {
-                  width: SCREEN_WIDTH * 3,
+                  width: panelWidth * 3,
                   transform: [{
                     translateX: slideAnim.interpolate({
                       inputRange: [0, 1, 2],
-                      outputRange: [0, -SCREEN_WIDTH, -SCREEN_WIDTH * 2],
+                      outputRange: [
+                        0,
+                        getCarouselTranslate(1, panelWidth),
+                        getCarouselTranslate(2, panelWidth),
+                      ],
                     }),
                   }],
                 },
               ]}
             >
               {/* Panel 0: Info */}
-              <View style={{ width: SCREEN_WIDTH, paddingHorizontal: 20 }}>
+              <View style={{ width: panelWidth, paddingHorizontal: 20 }}>
                 {profile ? (
                   <ProfileInfoSection
                     profile={profile}
@@ -489,7 +506,7 @@ export default function ProfileScreen() {
               </View>
 
               {/* Panel 1: Skills & Exp */}
-              <View style={{ width: SCREEN_WIDTH, paddingHorizontal: 20 }}>
+              <View style={{ width: panelWidth, paddingHorizontal: 20 }}>
                 {/* Skills */}
                 {profile?.skills && profile.skills.length > 0 ? (
                   <SectionCard title="Skills" theme={theme}>
@@ -567,7 +584,7 @@ export default function ProfileScreen() {
               </View>
 
               {/* Panel 2: Progress */}
-              <View style={{ width: SCREEN_WIDTH, paddingHorizontal: 20 }}>
+              <View style={{ width: panelWidth, paddingHorizontal: 20 }}>
                 {/* Courses */}
                 {profile?.courses && profile.courses.length > 0 ? (
                   <View style={[pfStyles.sectionCard, { backgroundColor: theme.glass, borderColor: theme.borderLight }]}>
@@ -629,7 +646,7 @@ export default function ProfileScreen() {
           </View>
 
           <Text style={[pfStyles.versionText, { color: theme.textMuted }]}>Version 1.0.0</Text>
-          <View style={{ height: 80 }} />
+          <View style={{ height: tabBarInset }} />
           </>
           )}
         </ScrollView>
@@ -646,6 +663,13 @@ const pfStyles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 200,
+  },
+  coverWrapWide: {
+    top: 8,
+    left: 20,
+    right: 20,
+    borderRadius: 24,
+    overflow: "hidden",
   },
   coverGradient: {
     flex: 1,
