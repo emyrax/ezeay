@@ -7,7 +7,7 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Dimensions,
+  useWindowDimensions,
   Easing,
 } from "react-native";
 import Svg, { Path, Circle, G, Line, Polygon } from "react-native-svg";
@@ -20,9 +20,6 @@ import { useMissionStore } from "../store/missionStore";
 import { useAuth } from "../contexts/AuthContext";
 import { useThemeColors } from "../hooks/useTheme";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const WHEEL_SIZE = SCREEN_WIDTH * 0.75;
-const WHEEL_RADIUS = WHEEL_SIZE / 2;
 const SEGMENT_COUNT = SPIN_SEGMENTS.length;
 const SEGMENT_ANGLE = (2 * Math.PI) / SEGMENT_COUNT;
 
@@ -49,6 +46,9 @@ type WheelMode = "wheel" | "slots";
 
 export default function SpinWheel() {
   const theme = useThemeColors();
+  const { width, height } = useWindowDimensions();
+  const wheelSize = Math.min(420, Math.max(240, Math.min(width, height) * 0.75));
+  const wheelRadius = wheelSize / 2;
   const router = useRouter();
   const { getToken } = useAuth();
   const { canSpin, useSpin: decrementSpin, wheelVisible, openWheel, closeWheel } = useSpinStore();
@@ -202,9 +202,9 @@ export default function SpinWheel() {
     return SPIN_SEGMENTS.map((_, i) => {
       const startAngle = i * SEGMENT_ANGLE - Math.PI / 2;
       const endAngle = startAngle + SEGMENT_ANGLE;
-      return describeArc(WHEEL_RADIUS, WHEEL_RADIUS, WHEEL_RADIUS - 4, startAngle, endAngle);
+      return describeArc(wheelRadius, wheelRadius, wheelRadius - 4, startAngle, endAngle);
     });
-  }, []);
+  }, [wheelRadius]);
 
   const wheelRotate = spinValue.interpolate({
     inputRange: [0, 360],
@@ -257,7 +257,7 @@ export default function SpinWheel() {
                   <MaterialCommunityIcons name="triangle" size={24} color="#FFD700" />
                 </View>
                 <Animated.View style={{ transform: [{ rotate: wheelRotate }] }}>
-                  <Svg width={WHEEL_SIZE} height={WHEEL_SIZE}>
+                  <Svg width={wheelSize} height={wheelSize}>
                     {segmentPaths.map((d, i) => (
                       <Path
                         key={i}
@@ -268,8 +268,8 @@ export default function SpinWheel() {
                       />
                     ))}
                     <Circle
-                      cx={WHEEL_RADIUS}
-                      cy={WHEEL_RADIUS}
+                      cx={wheelRadius}
+                      cy={wheelRadius}
                       r={18}
                       fill="#1A1A2E"
                       stroke="#FFD700"

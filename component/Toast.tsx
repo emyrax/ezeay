@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { TOAST_MAX_WIDTH } from "../constants/layout";
 import { eventBus } from "../lib/eventBus";
 import { useThemeColors } from "../hooks/useTheme";
 
@@ -117,46 +118,60 @@ export default function Toast() {
 
   return (
     <Animated.View
-      style={[
-        styles.container,
-        { backgroundColor: theme.surface, top: insets.top + 8, borderLeftColor: isError ? theme.danger : "#FFD700", borderLeftWidth: 3 },
-        { opacity, transform: [{ translateY }] },
-      ]}
+      style={[styles.wrap, { top: insets.top + 8, opacity, transform: [{ translateY }] }]}
+      pointerEvents="none"
     >
-      <View style={[styles.iconWrap, { backgroundColor: isError ? (theme.danger + "20") : (theme.primary + "20") }]}>
-        <MaterialCommunityIcons
-          name={isError ? "alert-circle" : "trophy"}
-          size={20}
-          color={isError ? theme.danger : "#FFD700"}
-        />
-      </View>
-      <View style={styles.textWrap}>
-        <Text style={[styles.title, { color: theme.text }]}>{currentToast.title}</Text>
-        {currentToast.xp !== undefined && currentToast.coins !== undefined && (
-          <Text style={[styles.reward, { color: "#FFD700" }]}>
-            +{currentToast.xp} XP & {currentToast.coins}
-          </Text>
-        )}
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: theme.surface,
+            borderLeftColor: isError ? theme.danger : "#FFD700",
+          },
+        ]}
+      >
+        <View style={[styles.iconWrap, { backgroundColor: isError ? (theme.danger + "20") : (theme.primary + "20") }]}>
+          <MaterialCommunityIcons
+            name={isError ? "alert-circle" : "trophy"}
+            size={20}
+            color={isError ? theme.danger : "#FFD700"}
+          />
+        </View>
+        <View style={styles.textWrap}>
+          <Text style={[styles.title, { color: theme.text }]}>{currentToast.title}</Text>
+          {currentToast.xp !== undefined && currentToast.coins !== undefined && (
+            <Text style={[styles.reward, { color: "#FFD700" }]}>
+              +{currentToast.xp} XP & {currentToast.coins}
+            </Text>
+          )}
+        </View>
       </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrap: {
     position: "absolute",
-    left: 16,
-    right: 16,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    paddingHorizontal: 16,
+    zIndex: 9999,
+  },
+  container: {
+    width: "100%",
+    maxWidth: TOAST_MAX_WIDTH,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 16,
     padding: 14,
+    borderLeftWidth: 3,
     elevation: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
-    zIndex: 9999,
   },
   iconWrap: {
     width: 40,

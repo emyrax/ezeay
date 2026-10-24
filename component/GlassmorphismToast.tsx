@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { TOAST_MAX_WIDTH } from "../constants/layout";
 import { useThemeColors } from "../hooks/useTheme";
 
 interface Props {
@@ -49,36 +50,48 @@ export default function GlassmorphismToast({ visible, title, xp, coins, onDismis
   return (
     <Animated.View
       style={[
-        styles.container,
-        {
-          top: insets.top + 8,
-          backgroundColor: theme.glass,
-          borderColor: theme.borderLight,
-          opacity,
-          transform: [{ translateY }, { scale }],
-        },
+        styles.wrap,
+        { top: insets.top + 8, opacity, transform: [{ translateY }, { scale }] },
       ]}
+      pointerEvents="none"
     >
-      <View style={[styles.iconWrap, { backgroundColor: theme.success + "25" }]}>
-        <Ionicons name="trophy" size={22} color={theme.success} />
-      </View>
-      <View style={styles.textWrap}>
-        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
-        {xp > 0 || coins > 0 ? (
-          <Text style={[styles.reward, { color: theme.warning }]}>
-            +{xp} XP & {coins} Coin{coins !== 1 ? "s" : ""}
-          </Text>
-        ) : null}
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: theme.glass,
+            borderColor: theme.borderLight,
+          },
+        ]}
+      >
+        <View style={[styles.iconWrap, { backgroundColor: theme.success + "25" }]}>
+          <Ionicons name="trophy" size={22} color={theme.success} />
+        </View>
+        <View style={styles.textWrap}>
+          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+          {xp > 0 || coins > 0 ? (
+            <Text style={[styles.reward, { color: theme.warning }]}>
+              +{xp} XP & {coins} Coin{coins !== 1 ? "s" : ""}
+            </Text>
+          ) : null}
+        </View>
       </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrap: {
     position: "absolute",
-    left: 16,
-    right: 16,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    paddingHorizontal: 16,
+    zIndex: 9999,
+  },
+  container: {
+    width: "100%",
+    maxWidth: TOAST_MAX_WIDTH,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 20,
@@ -89,7 +102,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
-    zIndex: 9999,
     backdropFilter: "blur(12px)",
   },
   iconWrap: {

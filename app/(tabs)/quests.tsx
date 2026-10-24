@@ -27,6 +27,7 @@ import ProgressBar from "../../component/ProgressBar";
 import ErrorBoundary from "../../component/ErrorBoundary";
 import { images } from "../../constants/images";
 import { useThemeColors } from "../../hooks/useTheme";
+import { useTabBarInset } from "../../hooks/useResponsive";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavLock } from "../../lib/guard";
 import { useCourseStore } from "../../store/courseStore";
@@ -58,6 +59,7 @@ function normalizeCategory(value: string): string {
 export default function QuestsScreen() {
   const { profile, getToken, updateProfile } = useAuth();
   const theme = useThemeColors();
+  const tabBarInset = useTabBarInset(80);
   const router = useRouter();
   const { navigate } = useNavLock();
   const [refreshing, setRefreshing] = useState(false);
@@ -1042,7 +1044,7 @@ export default function QuestsScreen() {
             </>
           )}
 
-          <View style={{ height: 80 }} />
+          <View style={{ height: tabBarInset }} />
 
         </ScrollView>
       <Modal

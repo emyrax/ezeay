@@ -39,7 +39,7 @@ export default function ExploreScreen() {
   return (
     <View style={styles.root}>
       <ErrorBoundary>
-        <ScreenContainer>
+        <ScreenContainer width="full">
           
           <ExploreReels
             refreshKey={exploreRefresh}

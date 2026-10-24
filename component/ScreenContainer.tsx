@@ -1,7 +1,9 @@
 import React from "react";
 import { type StyleProp, StyleSheet, View, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type { ContentWidth } from "../constants/layout";
 import { useThemeColors } from "../hooks/useTheme";
+import ContentColumn from "./ContentColumn";
 import GridBackground from "./GridBackground";
 
 interface Props {
@@ -9,9 +11,16 @@ interface Props {
   style?: StyleProp<ViewStyle>;
   noGrid?: boolean;
   edges?: ("top" | "bottom" | "left" | "right")[];
+  width?: ContentWidth;
 }
 
-export default function ScreenContainer({ children, style, noGrid, edges }: Props) {
+export default function ScreenContainer({
+  children,
+  style,
+  noGrid,
+  edges,
+  width = "wide",
+}: Props) {
   const theme = useThemeColors();
 
   return (
@@ -20,7 +29,9 @@ export default function ScreenContainer({ children, style, noGrid, edges }: Prop
       edges={edges ?? ["top"]}
     >
       {!noGrid && <GridBackground />}
-      <View style={[styles.content, style]}>{children}</View>
+      <View style={[styles.content, style]}>
+        <ContentColumn width={width}>{children}</ContentColumn>
+      </View>
     </SafeAreaView>
   );
 }

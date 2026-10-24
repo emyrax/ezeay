@@ -11,6 +11,7 @@ import { useUserTrophyStore } from "../../store/userTrophyStore";
 import { useUserStore } from "../../store/userStore";
 import { useCommunityStore } from "../../store/communityStore";
 import { useThemeColors } from "../../hooks/useTheme";
+import { useTabBarInset } from "../../hooks/useResponsive";
 import HeaderSection from "../../component/homeScreenTab/HeaderSection";
 import ContributionGraph from "../../component/ContributionGraph";
 import MissionsSection from "../../component/homeScreenTab/MissionsSection";
@@ -26,6 +27,7 @@ export default function CampScreen() {
   const { getToken } = useAuth();
   const profile = useUserStore((s) => s.profile);
   const theme = useThemeColors();
+  const tabBarInset = useTabBarInset(100);
   const [refreshing, setRefreshing] = useState(false);
   const loadBounties = useBountyStore((s) => s.loadBounties);
   const loaded = useBountyStore((s) => s.loaded);
@@ -131,7 +133,7 @@ export default function CampScreen() {
           <AnimatedCard index={3}>
             <RivalRadar />
           </AnimatedCard>
-          <View style={{ height: 100 }} />
+          <View style={{ height: tabBarInset }} />
         </ScrollView>
       </ScreenContainer>
     </ErrorBoundary>
