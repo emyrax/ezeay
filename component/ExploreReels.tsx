@@ -914,9 +914,15 @@ export default function ExploreReels({
   }, [openingId, onOpeningChange]);
 
   const ensureCourse = useCallback(
-    async (post: CommunityFeedPost): Promise<Course | null> => {
+    async (
+      post: CommunityFeedPost,
+      minChapters = 0,
+    ): Promise<Course | null> => {
       const cached = useCourseStore.getState().getCourseById(post.id);
-      if (cached && parseChapters(cached.chapters).length > 0) return cached;
+      const cachedChapters = cached ? parseChapters(cached.chapters).length : 0;
+      // Treat a cached copy that can't cover the requested chapter as stale.
+      const required = Math.max(minChapters, 1);
+      if (cached && cachedChapters >= required) return cached;
 
       if (fetchingIds.current.has(post.id)) {
         return useCourseStore.getState().getCourseById(post.id) ?? null;
@@ -975,7 +981,7 @@ export default function ExploreReels({
       openingRef.current = true;
       setOpeningId(item.key);
       try {
-        const course = await ensureCourse(item.post);
+        const course = await ensureCourse(item.post, item.chapterOrder + 1);
         if (!course) {
           throw new Error("Course details aren't available.");
         }

@@ -9,7 +9,11 @@ import {
   real,
   vector,
   index,
+  uniqueIndex,
+  jsonb,
+  uuid,
 } from "drizzle-orm/pg-core";
+import type { AudioClip, NoteImage } from "../types/note";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -138,6 +142,10 @@ export const courseEnrollments = pgTable(
   },
   (table) => ({
     uniqueEnrollment: unique().on(table.userId, table.courseId),
+    enrollmentUserUpdatedIdx: index("course_enrollments_user_updated_idx").on(
+      table.userId,
+      table.updatedAt,
+    ),
   }),
 );
 
@@ -159,7 +167,12 @@ export const studyMaterials = pgTable("study_materials", {
   cheatsheet: text("cheatsheet"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
-});
+}, (table) => ({
+  studyMaterialsUserCreatedIdx: index("study_materials_user_created_idx").on(
+    table.userId,
+    table.createdAt,
+  ),
+}));
 
 export const studyFlashcards = pgTable("study_flashcards", {
   id: text("id").primaryKey(),
@@ -270,6 +283,29 @@ export const bountyClaims = pgTable(
   }),
 );
 
+export const spinClaims = pgTable(
+  "spin_claims",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    spinIndex: integer("spin_index").notNull(),
+    prizeId: text("prize_id").notNull(),
+    prizeType: text("prize_type").notNull(),
+    label: text("label").notNull().default(""),
+    rewardXp: integer("reward_xp").notNull().default(0),
+    rewardCoins: integer("reward_coins").notNull().default(0),
+    consumesSpin: boolean("consumes_spin").notNull().default(true),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueSpinIndex: unique().on(table.userId, table.date, table.spinIndex),
+    spinsByUserDate: index("spin_claims_user_date_idx").on(table.userId, table.date),
+  }),
+);
+
 export const userDailyActivity = pgTable(
   "user_daily_activity",
   {
@@ -355,5 +391,28 @@ export const courseFeedLikes = pgTable(
   (table) => ({
     courseFeedLikeUnique: unique().on(table.courseId, table.userId),
     courseFeedLikeCourseIdx: index("course_feed_likes_course_idx").on(table.courseId),
+  }),
+);
+
+export const notes = pgTable(
+  "notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    title: text("title").notNull().default(""),
+    body: text("body").notNull().default(""),
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    images: jsonb("images").$type<NoteImage[]>().notNull().default([]),
+    audio: jsonb("audio").$type<AudioClip[]>().notNull().default([]),
+    pinned: boolean("pinned").notNull().default(false),
+    color: text("color"),
+    sourceNoteId: text("source_note_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => ({
+    notesUserUpdatedIdx: index("notes_user_updated_idx").on(table.userId, table.updatedAt),
+    notesUserSourceIdx: uniqueIndex("notes_user_source_idx").on(table.userId, table.sourceNoteId),
   }),
 );

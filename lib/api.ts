@@ -128,6 +128,13 @@ async function apiFetch<T>(
       body && typeof body.error === "string" && body.error
         ? body.error
         : `Request failed (${res.status})`;
+    if (__DEV__) {
+      console.warn(
+        `[api] ${fetchOptions.method ?? "GET"} ${path} → ${res.status}${
+          body?.code ? ` (${body.code})` : ""
+        }${body?.requestId ? ` [req ${body.requestId}]` : ""}: ${message}`,
+      );
+    }
     throw new ApiError(message, res.status, body?.code);
   }
 

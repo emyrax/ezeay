@@ -91,7 +91,11 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
       if (stored) {
         try {
           const parsed = JSON.parse(stored) as Course[];
-          set({ courses: parsed, loaded: true, loading: false });
+          // Keep in-memory courses the snapshot doesn't contain (e.g. a
+          // course browsed via Explore that was upserted after the snapshot).
+          const snapshotIds = new Set(parsed.map((c) => c.id));
+          const kept = get().courses.filter((c) => !snapshotIds.has(c.id));
+          set({ courses: [...kept, ...parsed], loaded: true, loading: false });
         } catch {
           // corrupted cache, continue to API
         }
@@ -101,10 +105,21 @@ export const useCourseStore = create<CourseStore>((set, get) => ({
       if (token && userId) {
         try {
           const result = await api.courses.getAll(userId, token);
+          const serverIds = new Set(result.map((c) => c.id));
+          // The API only returns owned + enrolled courses. Retain other
+          // people's courses already in memory (browsed via Explore) so a
+          // refetch can't evict one the user is currently viewing. Our own
+          // courses still drop when the server no longer returns them (deleted).
+          const retained = get().courses.filter(
+            (c) =>
+              !c.id.startsWith("generating_") &&
+              c.creatorId !== userId &&
+              !serverIds.has(c.id),
+          );
           const livePlaceholders = get().courses.filter((c) =>
             c.id.startsWith("generating_"),
           );
-          const merged = [...livePlaceholders, ...result];
+          const merged = [...livePlaceholders, ...result, ...retained];
           await AsyncStorage.setItem(COURSE_STORAGE_KEY, JSON.stringify(merged));
           set({ courses: merged, loaded: true, loading: false, error: null });
           return;

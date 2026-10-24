@@ -9,6 +9,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "start:server": "node scripts/free-port.mjs && tsx server/index.ts",
+    "test:server": "tsx --test --test-force-exit server/app.test.ts",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web",
@@ -76,9 +77,11 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.4",
+    "@types/supertest": "^7.2.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~57.0.2",
+    "supertest": "^7.3.1",
     "tsx": "^4.19.0",
     "typescript": "~6.0.3"
   },

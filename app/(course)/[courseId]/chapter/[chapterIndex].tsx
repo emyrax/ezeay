@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { useLocalSearchParams, Stack } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../../../contexts/AuthContext";
@@ -38,9 +38,12 @@ export default function ChapterScreen() {
     subtopic?: string;
   }>();
   const theme = useThemeColors();
+  const router = useRouter();
   const { getToken } = useAuth();
   const profile = useUserStore((s) => s.profile);
   const course = useCourseStore((s) => s.getCourseById(courseId ?? ""));
+  const storeLoaded = useCourseStore((s) => s.loaded);
+  const upsertCourse = useCourseStore((s) => s.upsertCourse);
   const {
     isQuizPassed,
     batchMarkCompleted,
@@ -79,6 +82,47 @@ export default function ChapterScreen() {
     if (Number.isNaN(idx) || idx < 0 || idx >= subtopics.length) return null;
     return idx;
   }, [subtopic, subtopics]);
+
+  const [fetchKey, setFetchKey] = useState(0);
+  const [courseFetching, setCourseFetching] = useState(false);
+  const attemptedFetchRef = useRef(-1);
+
+  // Fetch the course when it isn't in the store yet (deep link, cold start) or
+  // was evicted from it (a store refresh can drop browsed courses).
+  // A manual retry (fetchKey > 0) re-fetches even when a copy exists.
+  useEffect(() => {
+    if (!courseId || courseId.startsWith("generating_")) return;
+    if (attemptedFetchRef.current === fetchKey) return;
+    if (fetchKey === 0) {
+      if (course && chapters.length > 0) return;
+      if (!storeLoaded) return;
+    }
+
+    attemptedFetchRef.current = fetchKey;
+
+    getToken()
+      .then(async (token) => {
+        if (!token) return;
+        setCourseFetching(true);
+        try {
+          const fetched = await api.courses.getById(courseId, token);
+          if (fetched) await upsertCourse(fetched);
+        } catch (err) {
+          console.error("[Chapter] course fetch failed:", err);
+        }
+      })
+      .finally(() => setCourseFetching(false));
+  }, [courseId, course, chapters.length, storeLoaded, fetchKey, getToken, upsertCourse]);
+
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)");
+    }
+  }, [router]);
+
+  const handleCourseRetry = useCallback(() => setFetchKey((k) => k + 1), []);
 
   const [activeSubtopic, setActiveSubtopic] = useState<number | null>(requestedSubtopic);
   const [quizState, setQuizState] = useState<QuizState>("idle");
@@ -315,11 +359,55 @@ export default function ChapterScreen() {
   }, []);
 
   if (!chapter) {
+    if (courseFetching) {
+      return (
+        <ErrorBoundary>
+          <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+            <Stack.Screen
+              options={{
+                headerShown: true,
+                headerTitle: "Chapter",
+                headerStyle: { backgroundColor: theme.bg },
+                headerTintColor: theme.text,
+                headerBackTitle: "Course",
+              }}
+            />
+            <View style={styles.center}>
+              <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+          </SafeAreaView>
+        </ErrorBoundary>
+      );
+    }
+
     return (
       <ErrorBoundary>
         <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+          <Stack.Screen
+            options={{
+              headerShown: true,
+              headerTitle: "Chapter",
+              headerStyle: { backgroundColor: theme.bg },
+              headerTintColor: theme.text,
+              headerBackTitle: "Course",
+            }}
+          />
           <View style={styles.center}>
             <Text style={[styles.errorText, { color: theme.textSecondary }]}>Chapter not found</Text>
+            <View style={styles.errorActions}>
+              <TouchableOpacity
+                style={[styles.errorBtn, { backgroundColor: theme.primary }]}
+                onPress={handleCourseRetry}
+              >
+                <Text style={[styles.errorBtnText, { color: "#FFFFFF" }]}>Retry</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.errorBtn, { backgroundColor: theme.surfaceAlt }]}
+                onPress={handleBack}
+              >
+                <Text style={[styles.errorBtnText, { color: theme.textSecondary }]}>Go back</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </SafeAreaView>
       </ErrorBoundary>
@@ -679,7 +767,10 @@ export default function ChapterScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  errorText: { fontSize: 16 },
+  errorText: { fontSize: 16, marginBottom: 16 },
+  errorActions: { flexDirection: "row", gap: 12 },
+  errorBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
+  errorBtnText: { fontSize: 14, fontWeight: "700" },
   scroll: { padding: 16 },
   progressSection: {
     marginBottom: 20,

@@ -13,7 +13,7 @@ import crypto from "crypto";
 import { verifyToken } from "@clerk/backend";
 import { neon, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { eq, and, or, inArray, gte, desc, asc, isNull, isNotNull, ne, sql as drizzleSql, count, sum, gt } from "drizzle-orm";
+import { eq, and, or, inArray, gte, desc, asc, isNull, isNotNull, ne, ilike, sql as drizzleSql, count, sum, gt } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { initGemini, generateCourseContent, generateJsonContent, generateQuizQuestions, generateDailyBounties, generateThumbnailImage, generateTextWithFile, generateEmbedding } from "../lib/gemini";
 import type { GeminiBounty } from "../lib/gemini";
@@ -32,7 +32,9 @@ import {
   quizAttempts,
   knowledgeChunks,
   noteChats,
+  notes,
   bountyClaims,
+  spinClaims,
   userDailyActivity,
   communityPosts,
   communityPostReactions,
@@ -48,22 +50,124 @@ import { buildNotesAiPrompt, buildNotesChatPrompt } from "./prompts/notesPrompts
 import type { NotesAiAction, NotesChatMode } from "./prompts/notesPrompts";
 import { buildScheduleSuggestPrompt } from "./prompts/scheduleSuggest";
 import type { Course } from "../types/course";
+import type { AudioClip, NoteImage } from "../types/note";
+
+const SERVER_LOG_FILE = process.env.SERVER_LOG_FILE ?? path.join(process.cwd(), "server.log");
+
+function formatLogArg(value: unknown): string {
+  if (value instanceof Error) {
+    return `${value.name}: ${value.message}${value.stack ? `\n${value.stack}` : ""}`;
+  }
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+// Mirror console.error/warn into a file so real server errors survive after the
+// terminal scrolls away (previously only startup output was ever captured).
+for (const level of ["error", "warn"] as const) {
+  const original = console[level].bind(console);
+  console[level] = (...args: unknown[]) => {
+    original(...args);
+    try {
+      const line = `[${new Date().toISOString()}] ${level.toUpperCase()} ${args
+        .map(formatLogArg)
+        .join(" ")}\n`;
+      fs.appendFileSync(SERVER_LOG_FILE, line);
+    } catch {
+      // logging must never break a request
+    }
+  };
+}
+
+let errorCounter = 0;
 
 const app = express();
 app.use(express.json({ limit: "25mb" }));
 app.use(helmet());
 
 const isProd = process.env.NODE_ENV === "production";
-const DEV_ORIGINS = ["http://localhost:8081", "http://127.0.0.1:8081"];
+const DEV_ORIGINS = [
+  "http://localhost:8081",
+  "http://127.0.0.1:8081",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+];
+const APP_ORIGINS = ["https://app.yuinx.xyz"];
+const WEB_ORIGINS = ["https://yuinx.xyz", "https://www.yuinx.xyz"];
 const CORS_ORIGINS = (process.env.CORS_ORIGINS ?? "")
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
-const allowedOrigins: string[] = isProd ? CORS_ORIGINS : [...new Set([...DEV_ORIGINS, ...CORS_ORIGINS])];
-app.use(cors({ origin: allowedOrigins.length > 0 ? allowedOrigins : false }));
+const allowedOrigins: string[] = [
+  ...new Set([
+    ...(isProd ? [] : DEV_ORIGINS),
+    ...APP_ORIGINS,
+    ...WEB_ORIGINS,
+    ...CORS_ORIGINS,
+  ]),
+];
+app.use(
+  cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : false,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Idempotency-Key",
+      "x-ai-model",
+      "x-ai-key",
+    ],
+    exposedHeaders: [
+      "x-request-id",
+      "Retry-After",
+      "RateLimit-Limit",
+      "RateLimit-Remaining",
+      "RateLimit-Reset",
+    ],
+    maxAge: 86400,
+  }),
+);
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const incoming = req.headers["x-request-id"];
+  const id =
+    typeof incoming === "string" && /^[A-Za-z0-9._:-]{1,100}$/.test(incoming)
+      ? incoming
+      : crypto.randomUUID();
+  (req as any).requestId = id;
+  res.setHeader("x-request-id", id);
+  next();
+});
+
+const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS ?? 60_000);
+const TIMEOUT_EXEMPT_PREFIXES = ["/api/notes/ai/chat"];
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (
+    req.method === "OPTIONS" ||
+    !req.path.startsWith("/api/") ||
+    TIMEOUT_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))
+  ) {
+    next();
+    return;
+  }
+  const timer = setTimeout(() => {
+    if (res.headersSent) return;
+    res.status(503).json({ error: "Request timed out. Please try again.", code: "timeout" });
+  }, REQUEST_TIMEOUT_MS);
+  const clear = () => clearTimeout(timer);
+  res.on("finish", clear);
+  res.on("close", clear);
+  next();
+});
 
 const GLOBAL_RATE_LIMIT = Number(process.env.GLOBAL_RATE_LIMIT ?? 300);
 const STRICT_RATE_LIMIT = Number(process.env.STRICT_RATE_LIMIT ?? 20);
+const AI_USER_RATE_LIMIT = Number(process.env.AI_USER_RATE_LIMIT ?? 30);
 
 const globalLimiter = rateLimit({
   windowMs: 60_000,
@@ -81,27 +185,109 @@ const strictLimiter = rateLimit({
   message: { error: "Too many requests" },
 });
 
+const AI_ROUTES = [
+  "/api/bounties/generate",
+  "/api/courses/generate",
+  "/api/courses/:id/thumbnail",
+  "/api/subtopics/quiz",
+  "/api/study/process",
+  "/api/study/upload",
+  "/api/study/rag-query",
+  "/api/ai/rag-contexts",
+  "/api/study/:id/quiz/generate",
+  "/api/study/:id/cheatsheet",
+  "/api/study/:id/flashcards/generate",
+  "/api/audio/transcribe",
+  "/api/notes/ai",
+  "/api/notes/ai/chat",
+  "/api/schedule/suggest",
+];
+
+type AiBucket = { count: number; resetAt: number };
+const aiUserBuckets = new Map<string, AiBucket>();
+
+function aiUserKey(req: Request): string {
+  const auth = req.headers.authorization;
+  if (auth) {
+    const payload = auth.replace(/^Bearer\s+/i, "").split(".")[1];
+    if (payload) {
+      try {
+        const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+        if (decoded && typeof decoded.sub === "string" && decoded.sub) {
+          return `user:${decoded.sub}`;
+        }
+      } catch {
+        // fall through to IP key
+      }
+    }
+  }
+  return `ip:${req.ip ?? "unknown"}`;
+}
+
+function aiUserLimiter(req: Request, res: Response, next: NextFunction): void {
+  const key = aiUserKey(req);
+  const now = Date.now();
+  const bucket = aiUserBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    if (aiUserBuckets.size > 10_000) aiUserBuckets.clear();
+    aiUserBuckets.set(key, { count: 1, resetAt: now + 60_000 });
+    next();
+    return;
+  }
+  if (bucket.count >= AI_USER_RATE_LIMIT) {
+    res.setHeader("Retry-After", Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)));
+    res.status(429).json({ error: "Too many AI requests. Please slow down.", code: "rate_limited" });
+    return;
+  }
+  bucket.count += 1;
+  next();
+}
+
 app.use(globalLimiter);
-app.use(
-  [
-    "/api/bounties/generate",
-    "/api/courses/generate",
-    "/api/courses/:id/thumbnail",
-    "/api/subtopics/quiz",
-    "/api/study/process",
-    "/api/study/upload",
-    "/api/study/rag-query",
-    "/api/ai/rag-contexts",
-    "/api/study/:id/quiz/generate",
-    "/api/study/:id/cheatsheet",
-    "/api/study/:id/flashcards/generate",
-    "/api/audio/transcribe",
-    "/api/notes/ai",
-    "/api/notes/ai/chat",
-    "/api/schedule/suggest",
-  ],
-  strictLimiter,
-);
+app.use(AI_ROUTES, strictLimiter);
+app.use(AI_ROUTES, aiUserLimiter);
+
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+type IdempotencyRecord = { status: number; body: unknown; expiresAt: number };
+const idempotencyStore = new Map<string, IdempotencyRecord>();
+const idempotencyInFlight = new Set<string>();
+
+type IdempotencyState =
+  | { state: "none" }
+  | { state: "replay"; status: number; body: unknown }
+  | { state: "pending"; key: string }
+  | { state: "new"; key: string };
+
+function beginIdempotent(req: Request, userId: string): IdempotencyState {
+  const raw = req.headers["idempotency-key"];
+  if (typeof raw !== "string" || !raw.trim()) return { state: "none" };
+  if (raw.length > 128) return { state: "none" };
+  const key = `${userId}:${raw.trim()}`;
+  const now = Date.now();
+  const hit = idempotencyStore.get(key);
+  if (hit && hit.expiresAt > now) {
+    return { state: "replay", status: hit.status, body: hit.body };
+  }
+  if (hit) idempotencyStore.delete(key);
+  if (idempotencyInFlight.has(key)) return { state: "pending", key };
+  idempotencyInFlight.add(key);
+  return { state: "new", key };
+}
+
+function finishIdempotent(key: string, status: number, body: unknown): void {
+  idempotencyInFlight.delete(key);
+  if (idempotencyStore.size > 5_000) {
+    const now = Date.now();
+    for (const [k, v] of idempotencyStore) {
+      if (v.expiresAt <= now) idempotencyStore.delete(k);
+    }
+  }
+  idempotencyStore.set(key, { status, body, expiresAt: Date.now() + IDEMPOTENCY_TTL_MS });
+}
+
+function abortIdempotent(key: string): void {
+  idempotencyInFlight.delete(key);
+}
 
 async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -165,27 +351,51 @@ function sendRouteError(res: Response, err: unknown, label = "[Server] Request f
     res.status(401).json({ error: "Invalid token" });
     return;
   }
-  console.error(`${label}:`, err);
   const anyErr = err as any;
+  errorCounter = (errorCounter + 1) & 0xffffff;
+  const requestId =
+    (res.req as any)?.requestId ?? `${Date.now().toString(36)}-${errorCounter.toString(36)}`;
+  console.error(`${label} [req ${requestId}]:`, err);
+
   const rawStatus =
     typeof anyErr?.statusCode === "number"
       ? anyErr.statusCode
       : typeof anyErr?.status === "number"
         ? anyErr.status
-        : 0;
-  const status = rawStatus >= 400 && rawStatus <= 599 ? rawStatus : 500;
+        : typeof anyErr?.response?.status === "number"
+          ? anyErr.response.status
+          : 0;
+  const pgCode = typeof anyErr?.code === "string" ? anyErr.code : undefined;
+  const isUniqueViolation = pgCode === "23505";
+  const isForeignKeyViolation = pgCode === "23503";
+  const status = isUniqueViolation
+    ? 409
+    : isForeignKeyViolation
+      ? 400
+      : rawStatus >= 400 && rawStatus <= 599
+        ? rawStatus
+        : 500;
+
+  const rawMessage = typeof (err as Error)?.message === "string" ? (err as Error).message : "";
+  const exposesMessage = anyErr?.expose === true;
+  const safePattern = /timeout|too large|quota|rate limit|failed to fetch file|file not found|overloaded|unavailable/i;
 
   let message = "Internal server error";
-  const rawMessage = (err as Error)?.message;
-  if (status >= 400 && status < 500) {
-    message = rawMessage || message;
-  } else if (
-    typeof rawMessage === "string" &&
-    /timeout|too large|quota|rate limit|failed to fetch file|file not found/i.test(rawMessage)
-  ) {
+  if (rawMessage && (status < 500 || exposesMessage || safePattern.test(rawMessage))) {
     message = rawMessage;
   }
-  res.status(status).json({ error: message });
+  if (isUniqueViolation) message = "This record already exists.";
+  if (isForeignKeyViolation) message = "Related record not found.";
+
+  const body: { error: string; code?: string; requestId?: string } = { error: message };
+  const code = isUniqueViolation
+    ? "conflict"
+    : isForeignKeyViolation
+      ? "invalid_reference"
+      : pgCode;
+  if (code) body.code = code;
+  if (status >= 500) body.requestId = requestId;
+  res.status(status).json(body);
 }
 
 const rawSql = neon(DATABASE_URL);
@@ -228,16 +438,31 @@ const sql = Object.assign(
 ) as typeof rawSql;
 
 const db = drizzle(sql, {
-  schema: { users, levels, trophies, courses, courseEnrollments, userTrophies, studyMaterials, studyFlashcards, quizAttempts, knowledgeChunks, bountyClaims, userDailyActivity, communityPosts, communityPostReactions, communityPostComments },
+  schema: { users, levels, trophies, courses, courseEnrollments, userTrophies, studyMaterials, studyFlashcards, quizAttempts, knowledgeChunks, noteChats, notes, bountyClaims, spinClaims, userDailyActivity, communityPosts, communityPostReactions, communityPostComments },
 });
 
 app.get("/api/health", async (_req, res) => {
+  const startedAt = Date.now();
   try {
     await sql`select 1 from courses limit 1`;
-    res.json({ status: "ok", database: "ok" });
+    res.json({
+      status: "ok",
+      database: "ok",
+      dbLatencyMs: Date.now() - startedAt,
+      ai: providerKeyStatus(),
+      uptimeSeconds: Math.round(process.uptime()),
+      version: process.env.APP_VERSION ?? "dev",
+      checkedAt: new Date().toISOString(),
+    });
   } catch (err: any) {
     console.error("[Server] GET /api/health failed:", err);
-    res.status(503).json({ error: "Service unavailable", detail: `${err?.message ?? ""} ${err?.cause?.message ?? ""}`.trim() });
+    res.status(503).json({
+      status: "degraded",
+      database: "down",
+      ai: providerKeyStatus(),
+      error: "Service unavailable",
+      detail: `${err?.message ?? ""} ${err?.cause?.message ?? ""}`.trim(),
+    });
   }
 });
 
@@ -432,6 +657,65 @@ app.get("/api/ai/providers", async (req, res) => {
 });
 
 // --- User Routes ---
+
+app.get("/api/users/me", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const [row] = await db.select().from(users).where(eq(users.id, claims.sub)).limit(1);
+
+    if (!row) {
+      res.status(404).json({ error: "Profile not found", code: "not_found" });
+      return;
+    }
+
+    const [materials, flashcards, quiz, noteRows, bounties, enrollments, trophyRows] =
+      await Promise.all([
+        db.select({ value: count() }).from(studyMaterials).where(eq(studyMaterials.userId, claims.sub)),
+        db.select({ value: count() }).from(studyFlashcards).where(eq(studyFlashcards.userId, claims.sub)),
+        db
+          .select({
+            attempts: count(),
+            averageScore: drizzleSql<number>`coalesce(avg(${quizAttempts.scorePct}), 0)`,
+            xpEarned: drizzleSql<number>`coalesce(sum(${quizAttempts.awardedXp}), 0)`,
+          })
+          .from(quizAttempts)
+          .where(eq(quizAttempts.userId, claims.sub)),
+        db
+          .select({ value: count() })
+          .from(notes)
+          .where(and(eq(notes.userId, claims.sub), isNull(notes.deletedAt))),
+        db.select({ value: count() }).from(bountyClaims).where(eq(bountyClaims.userId, claims.sub)),
+        db
+          .select({ value: count() })
+          .from(courseEnrollments)
+          .where(eq(courseEnrollments.userId, claims.sub)),
+        db.select().from(userTrophies).where(eq(userTrophies.userId, claims.sub)),
+      ]);
+
+    const quizRow = quiz[0];
+    res.json({
+      profile: mapUser(row as unknown as UserRow),
+      stats: {
+        materials: Number(materials[0]?.value ?? 0),
+        flashcards: Number(flashcards[0]?.value ?? 0),
+        notes: Number(noteRows[0]?.value ?? 0),
+        bountiesClaimed: Number(bounties[0]?.value ?? 0),
+        enrollments: Number(enrollments[0]?.value ?? 0),
+        quizAttempts: Number(quizRow?.attempts ?? 0),
+        quizAverageScore: Math.round(Number(quizRow?.averageScore ?? 0)),
+        quizXpEarned: Number(quizRow?.xpEarned ?? 0),
+      },
+      trophies: trophyRows,
+      refreshedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] GET /api/users/me failed");
+  }
+});
 
 app.get("/api/users/:id", async (req, res) => {
   try {
@@ -1483,6 +1767,7 @@ app.post("/api/bounties/generate", async (req, res) => {
 });
 
 app.post("/api/bounties/claim", async (req, res) => {
+  let idemKey: string | null = null;
   try {
     const claims = await verifyClerkToken(req.headers.authorization);
     const body = req.body ?? {};
@@ -1494,6 +1779,17 @@ app.post("/api/bounties/claim", async (req, res) => {
       res.status(400).json({ error: "Missing userId or bounty id" });
       return;
     }
+
+    const idem = beginIdempotent(req, claims.sub);
+    if (idem.state === "replay") {
+      res.status(idem.status).json(idem.body);
+      return;
+    }
+    if (idem.state === "pending") {
+      res.status(409).json({ error: "Claim already in progress", code: "idempotency_in_progress" });
+      return;
+    }
+    if (idem.state === "new") idemKey = idem.key;
 
     const today = new Date().toISOString().slice(0, 10);
     const inserted = await db
@@ -1512,18 +1808,192 @@ app.post("/api/bounties/claim", async (req, res) => {
       .returning({ id: bountyClaims.id });
 
     if (inserted.length === 0) {
-      res.json({ claimed: false, alreadyClaimed: true });
+      const payload = { claimed: false, alreadyClaimed: true };
+      if (idemKey) finishIdempotent(idemKey, 200, payload);
+      res.json(payload);
       return;
     }
 
     console.debug(`[Server] POST /api/bounties/claim — ${userId} claimed ${bounty.id}`);
-    res.status(201).json({ claimed: true, alreadyClaimed: false, date: today });
+    const payload = { claimed: true, alreadyClaimed: false, date: today };
+    if (idemKey) finishIdempotent(idemKey, 201, payload);
+    res.status(201).json(payload);
   } catch (err: any) {
+    if (idemKey) abortIdempotent(idemKey);
     if (isTokenError(err)) {
       res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/bounties/claim failed");
+  }
+});
+
+// --- Daily Spin ---
+
+const SPIN_DAILY_LIMIT = 3;
+const SPIN_PRIZES = [
+  { id: "continue_learning", label: "Continue Learning", type: "navigate", rewardXp: 0, rewardCoins: 0 },
+  { id: "course_plan", label: "Course Plan", type: "navigate", rewardXp: 0, rewardCoins: 0 },
+  { id: "review_time", label: "Review Time", type: "navigate", rewardXp: 0, rewardCoins: 0 },
+  { id: "bounty_hunt", label: "Bounty Hunt", type: "navigate", rewardXp: 0, rewardCoins: 0 },
+  { id: "xp_10", label: "+10 XP", type: "reward", rewardXp: 10, rewardCoins: 0 },
+  { id: "xp_25", label: "+25 XP", type: "reward", rewardXp: 25, rewardCoins: 0 },
+  { id: "coins_5", label: "+5 Coins", type: "reward", rewardXp: 0, rewardCoins: 5 },
+  { id: "free_spin", label: "Free Spin", type: "free_spin", rewardXp: 0, rewardCoins: 0 },
+] as const;
+
+function nextUtcMidnight(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString();
+}
+
+async function readSpinStatus(userId: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [todayRow, lifetimeRow] = await Promise.all([
+    db
+      .select({
+        total: count(),
+        used: drizzleSql<number>`count(*) filter (where ${spinClaims.consumesSpin})`,
+        lastSpinAt: drizzleSql<string | null>`max(${spinClaims.claimedAt})`,
+      })
+      .from(spinClaims)
+      .where(and(eq(spinClaims.userId, userId), eq(spinClaims.date, today))),
+    db.select({ value: count() }).from(spinClaims).where(eq(spinClaims.userId, userId)),
+  ]);
+
+  const used = Number(todayRow?.used ?? 0);
+  const spinsRemaining = Math.max(0, SPIN_DAILY_LIMIT - used);
+  return {
+    date: today,
+    dailyLimit: SPIN_DAILY_LIMIT,
+    spinsUsed: used,
+    spinsToday: Number(todayRow?.total ?? 0),
+    spinsRemaining,
+    canSpin: spinsRemaining > 0,
+    totalSpins: Number(lifetimeRow[0]?.value ?? 0),
+    lastSpinAt: todayRow?.lastSpinAt ? new Date(todayRow.lastSpinAt).toISOString() : null,
+    nextResetAt: nextUtcMidnight(),
+  };
+}
+
+app.get("/api/spin/status", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    res.json(await readSpinStatus(claims.sub));
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] GET /api/spin/status failed");
+  }
+});
+
+app.post("/api/spin", async (req, res) => {
+  let idemKey: string | null = null;
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const userId = claims.sub;
+
+    const idem = beginIdempotent(req, userId);
+    if (idem.state === "replay") {
+      res.status(idem.status).json(idem.body);
+      return;
+    }
+    if (idem.state === "pending") {
+      res.status(409).json({ error: "Spin already in progress", code: "idempotency_in_progress" });
+      return;
+    }
+    if (idem.state === "new") idemKey = idem.key;
+
+    const [user] = await db
+      .select({ xp: users.xp, coins: users.coins })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!user) {
+      if (idemKey) abortIdempotent(idemKey);
+      res.status(404).json({ error: "Profile not found", code: "not_found" });
+      return;
+    }
+
+    const before = await readSpinStatus(userId);
+    if (!before.canSpin) {
+      const payload = { ...before, spun: false, reason: "daily_limit" as const };
+      if (idemKey) finishIdempotent(idemKey, 200, payload);
+      res.json(payload);
+      return;
+    }
+
+    const prize = SPIN_PRIZES[crypto.randomInt(SPIN_PRIZES.length)];
+    const consumesSpin = prize.type !== "free_spin";
+    const today = new Date().toISOString().slice(0, 10);
+    const spinIndex = before.spinsToday + 1;
+
+    const [claim] = await db
+      .insert(spinClaims)
+      .values({
+        userId,
+        date: today,
+        spinIndex,
+        prizeId: prize.id,
+        prizeType: prize.type,
+        label: prize.label,
+        rewardXp: prize.rewardXp,
+        rewardCoins: prize.rewardCoins,
+        consumesSpin,
+      })
+      .onConflictDoNothing()
+      .returning({ id: spinClaims.id, claimedAt: spinClaims.claimedAt });
+
+    if (!claim) {
+      if (idemKey) abortIdempotent(idemKey);
+      res.status(409).json({ error: "Spin already recorded", code: "spin_conflict" });
+      return;
+    }
+
+    let balances = user;
+    if (prize.rewardXp > 0 || prize.rewardCoins > 0) {
+      const [updated] = await db
+        .update(users)
+        .set({
+          xp: drizzleSql`${users.xp} + ${prize.rewardXp}`,
+          coins: drizzleSql`${users.coins} + ${prize.rewardCoins}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId))
+        .returning({ xp: users.xp, coins: users.coins });
+      if (updated) balances = updated;
+    }
+
+    const after = await readSpinStatus(userId);
+    const payload = {
+      spun: true,
+      id: claim.id,
+      prizeId: prize.id,
+      segmentIndex: SPIN_PRIZES.indexOf(prize),
+      label: prize.label,
+      type: prize.type,
+      rewardXp: prize.rewardXp,
+      rewardCoins: prize.rewardCoins,
+      claimedAt: claim.claimedAt,
+      xp: balances.xp,
+      coins: balances.coins,
+      ...after,
+    };
+
+    console.debug(
+      `[Server] POST /api/spin — ${userId} won ${prize.id} (+${prize.rewardXp}xp, +${prize.rewardCoins}coins)`,
+    );
+    if (idemKey) finishIdempotent(idemKey, 201, payload);
+    res.status(201).json(payload);
+  } catch (err: any) {
+    if (idemKey) abortIdempotent(idemKey);
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/spin failed");
   }
 });
 
@@ -2834,13 +3304,56 @@ const UPLOADS_DIR = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
+
+const UPLOAD_SIGNING_SECRET =
+  process.env.UPLOAD_SIGNING_SECRET || CLERK_SECRET_KEY || "yuinx-upload-signing";
+const UPLOAD_URL_TTL_SECONDS = Number(process.env.UPLOAD_URL_TTL_SECONDS ?? 60 * 60);
+
+function uploadSignature(filename: string, expires: number): string {
+  return crypto
+    .createHmac("sha256", UPLOAD_SIGNING_SECRET)
+    .update(`${filename}:${expires}`)
+    .digest("base64url");
+}
+
+function buildSignedUploadUrl(filename: string): { url: string; expiresAt: number } {
+  const expiresAt = Math.floor(Date.now() / 1000) + UPLOAD_URL_TTL_SECONDS;
+  const token = uploadSignature(filename, expiresAt);
+  return {
+    url: `/uploads/${encodeURIComponent(filename)}?expires=${expiresAt}&token=${token}`,
+    expiresAt,
+  };
+}
+
+function uploadTokenValid(filename: string, expiresRaw: string, token: string): boolean {
+  const expires = Number(expiresRaw);
+  if (!Number.isFinite(expires) || expires < Math.floor(Date.now() / 1000)) return false;
+  const expected = uploadSignature(filename, expires);
+  const a = Buffer.from(expected);
+  const b = Buffer.from(token);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 app.use(
   "/uploads",
-  requireAuth,
+  (req: Request, res: Response, next: NextFunction) => {
+    const token = req.query.token;
+    const expires = req.query.expires;
+    const filename = path.basename(decodeURIComponent(req.path));
+    if (
+      typeof token === "string" &&
+      typeof expires === "string" &&
+      uploadTokenValid(filename, expires, token)
+    ) {
+      next();
+      return;
+    }
+    void requireAuth(req, res, next);
+  },
   express.static(UPLOADS_DIR, {
     setHeaders: (res) => {
       res.setHeader("X-Content-Type-Options", "nosniff");
-      res.setHeader("Content-Disposition", "attachment");
+      res.setHeader("Content-Disposition", "inline");
     },
   }),
 );
@@ -2863,6 +3376,63 @@ const ALLOWED_UPLOAD_EXTS = new Set([
   ".json",
 ]);
 
+function failUpload(message: string, statusCode: number): never {
+  const err = new Error(message);
+  (err as any).statusCode = statusCode;
+  (err as any).expose = true;
+  throw err;
+}
+
+function decodeBase64Payload(value: string): Buffer {
+  const bare = value.replace(/^data:[^;]+;base64,/, "");
+  return Buffer.from(bare, "base64");
+}
+
+async function saveUploadBuffer(
+  base64: string,
+  filename: string,
+): Promise<{ filename: string; path: string; size: number }> {
+  const ext = path.extname(filename).toLowerCase();
+  if (!ext || !ALLOWED_UPLOAD_EXTS.has(ext)) {
+    failUpload("File type not allowed", 400);
+  }
+
+  const buffer = decodeBase64Payload(base64);
+  if (buffer.length === 0) failUpload("Empty file", 400);
+  if (buffer.length > MAX_FILE_BYTES) failUpload("File too large (max 25 MB)", 413);
+
+  const safeName = `${crypto.randomUUID()}${ext}`;
+  await fs.promises.writeFile(path.join(UPLOADS_DIR, safeName), buffer);
+  return { filename: safeName, path: `/uploads/${safeName}`, size: buffer.length };
+}
+
+app.post("/api/uploads", async (req, res) => {
+  try {
+    await verifyClerkToken(req.headers.authorization);
+    const { base64, filename } = req.body ?? {};
+    if (typeof base64 !== "string" || !base64 || typeof filename !== "string" || !filename) {
+      res.status(400).json({ error: "Missing required fields: base64, filename", code: "invalid_request" });
+      return;
+    }
+
+    const saved = await saveUploadBuffer(base64, filename);
+    const signed = buildSignedUploadUrl(saved.filename);
+    console.debug(`[Server] POST /api/uploads — saved ${saved.filename} (${saved.size} bytes)`);
+    res.status(201).json({
+      path: saved.path,
+      size: saved.size,
+      signedUrl: signed.url,
+      expiresAt: signed.expiresAt,
+    });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/uploads failed");
+  }
+});
+
 app.post("/api/study/upload", async (req, res) => {
   try {
     await verifyClerkToken(req.headers.authorization);
@@ -2873,26 +3443,14 @@ app.post("/api/study/upload", async (req, res) => {
       return;
     }
 
-    const ext = path.extname(filename).toLowerCase();
-    if (!ext || !ALLOWED_UPLOAD_EXTS.has(ext)) {
-      res.status(400).json({ error: "File type not allowed" });
-      return;
-    }
-
-    const buffer = Buffer.from(base64, "base64");
-    if (buffer.length > MAX_FILE_BYTES) {
-      res.status(400).json({ error: "File too large (max 25 MB)" });
-      return;
-    }
-
-    const safeName = `${crypto.randomUUID()}${ext}`;
-    const filePath = path.join(UPLOADS_DIR, safeName);
-    fs.writeFileSync(filePath, buffer);
-
-    const url = `/uploads/${safeName}`;
-    console.debug(`[Server] POST /api/study/upload — saved ${safeName}`);
-    res.json({ url });
+    const saved = await saveUploadBuffer(base64, filename);
+    console.debug(`[Server] POST /api/study/upload — saved ${saved.filename}`);
+    res.json({ url: saved.path });
   } catch (err: any) {
+    if (err?.statusCode) {
+      res.status(err.statusCode).json({ error: err.message });
+      return;
+    }
     console.error("[Server] POST /api/study/upload failed:", err);
     res.status(500).json({ error: "Failed to upload file" });
   }
@@ -3539,6 +4097,7 @@ app.delete("/api/flashcards/:id", async (req, res) => {
 // --- Quiz completion + XP rewards ---
 
 app.post("/api/study/:id/quiz/complete", async (req, res) => {
+  let idemKey: string | null = null;
   try {
     const claims = await verifyClerkToken(req.headers.authorization);
     const { correct, total } = req.body;
@@ -3547,6 +4106,17 @@ app.post("/api/study/:id/quiz/complete", async (req, res) => {
       res.status(400).json({ error: "Invalid correct/total values" });
       return;
     }
+
+    const idem = beginIdempotent(req, claims.sub);
+    if (idem.state === "replay") {
+      res.status(idem.status).json(idem.body);
+      return;
+    }
+    if (idem.state === "pending") {
+      res.status(409).json({ error: "Quiz result already in progress", code: "idempotency_in_progress" });
+      return;
+    }
+    if (idem.state === "new") idemKey = idem.key;
 
     await requireMaterial(req.params.id, claims.sub);
 
@@ -3586,8 +4156,11 @@ app.post("/api/study/:id/quiz/complete", async (req, res) => {
       createdAt: new Date(),
     });
 
-    res.json({ scorePct, awardedXp, isFirstDailyAttempt });
+    const payload = { scorePct, awardedXp, isFirstDailyAttempt };
+    if (idemKey) finishIdempotent(idemKey, 200, payload);
+    res.json(payload);
   } catch (err: any) {
+    if (idemKey) abortIdempotent(idemKey);
     if (err?.statusCode) {
       res.status(err.statusCode).json({ error: err.message });
       return;
@@ -3710,6 +4283,435 @@ app.post("/api/audio/transcribe", async (req, res) => {
     }
     console.error("[Server] POST /api/audio/transcribe failed:", err);
     res.status(500).json({ error: "Failed to transcribe audio" });
+  }
+});
+
+// --- Notes CRUD (web client; mobile keeps AsyncStorage) ---
+
+const NOTE_TITLE_MAX = 300;
+const NOTE_BODY_MAX = 500_000;
+const NOTE_TAGS_MAX = 50;
+const NOTE_IMAGES_MAX = 50;
+const NOTE_AUDIO_MAX = 50;
+const NOTE_IMPORT_MAX = 1000;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type NoteRow = typeof notes.$inferSelect;
+
+function cleanText(value: unknown, max: number): string {
+  return typeof value === "string" ? value.slice(0, max) : "";
+}
+
+function cleanNullableText(value: unknown, max: number): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, max) : null;
+}
+
+function sanitizeNoteTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((t): t is string => typeof t === "string" && !!t.trim()))]
+    .map((t) => t.trim().slice(0, 64))
+    .slice(0, NOTE_TAGS_MAX);
+}
+
+function normalizeNoteImages(value: unknown): NoteImage[] {
+  if (!Array.isArray(value)) return [];
+  const out: NoteImage[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Record<string, unknown>;
+    const uri = typeof raw.uri === "string" ? raw.uri.slice(0, 2048) : "";
+    if (!uri) continue;
+    out.push({
+      id: typeof raw.id === "string" && raw.id ? raw.id.slice(0, 128) : `img_${crypto.randomUUID()}`,
+      uri,
+      createdAt:
+        typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt)
+          ? raw.createdAt
+          : Date.now(),
+    });
+    if (out.length >= NOTE_IMAGES_MAX) break;
+  }
+  return out;
+}
+
+function normalizeNoteAudio(value: unknown): AudioClip[] {
+  if (!Array.isArray(value)) return [];
+  const out: AudioClip[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Record<string, unknown>;
+    const uri = typeof raw.uri === "string" ? raw.uri.slice(0, 2048) : "";
+    if (!uri) continue;
+    const waveform = Array.isArray(raw.waveform)
+      ? raw.waveform
+          .filter((n): n is number => typeof n === "number" && Number.isFinite(n))
+          .slice(0, 200)
+      : [];
+    out.push({
+      id: typeof raw.id === "string" && raw.id ? raw.id.slice(0, 128) : `aud_${crypto.randomUUID()}`,
+      uri,
+      duration:
+        typeof raw.duration === "number" && Number.isFinite(raw.duration)
+          ? Math.max(0, raw.duration)
+          : 0,
+      createdAt:
+        typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt)
+          ? raw.createdAt
+          : Date.now(),
+      waveform,
+      ...(typeof raw.transcript === "string"
+        ? { transcript: raw.transcript.slice(0, 5000) }
+        : {}),
+    });
+    if (out.length >= NOTE_AUDIO_MAX) break;
+  }
+  return out;
+}
+
+function parseNoteDate(value: unknown): Date | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const ms = value < 1e12 ? value * 1000 : value;
+    const date = new Date(ms);
+    if (date.getFullYear() >= 2000 && date.getFullYear() <= 2100) return date;
+  }
+  if (typeof value === "string" && value) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  return undefined;
+}
+
+function signUploadUri(uri: string): string {
+  if (!uri.startsWith("/uploads/")) return uri;
+  const filename = path.basename(uri.split("?")[0]);
+  return buildSignedUploadUrl(filename).url;
+}
+
+function mapNote(row: NoteRow, signUrls = true) {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    tags: row.tags ?? [],
+    images: (row.images ?? []).map((img) => ({
+      ...img,
+      uri: signUrls ? signUploadUri(img.uri) : img.uri,
+    })),
+    audio: (row.audio ?? []).map((clip) => ({
+      ...clip,
+      uri: signUrls ? signUploadUri(clip.uri) : clip.uri,
+    })),
+    pinned: row.pinned,
+    color: row.color,
+    sourceNoteId: row.sourceNoteId,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+  };
+}
+
+function noteValuesFromInput(
+  raw: Record<string, unknown>,
+  userId: string,
+  forImport: boolean,
+): typeof notes.$inferInsert {
+  const requestedId = typeof raw.id === "string" && UUID_PATTERN.test(raw.id) ? raw.id : undefined;
+  const createdAt = parseNoteDate(raw.createdAt) ?? new Date();
+  const updatedAt = parseNoteDate(raw.updatedAt) ?? createdAt;
+  return {
+    ...(requestedId ? { id: requestedId } : {}),
+    userId,
+    title: cleanText(raw.title, NOTE_TITLE_MAX),
+    body: cleanText(raw.body ?? raw.content, NOTE_BODY_MAX),
+    tags: sanitizeNoteTags(raw.tags),
+    images: normalizeNoteImages(raw.images),
+    audio: normalizeNoteAudio(raw.audio ?? raw.audioClips),
+    pinned: raw.pinned === true,
+    color: cleanNullableText(raw.color, 32),
+    sourceNoteId: forImport
+      ? cleanNullableText(raw.id, 128)
+      : cleanNullableText(raw.sourceNoteId, 128),
+    createdAt,
+    updatedAt,
+    deletedAt: parseNoteDate(raw.deletedAt) ?? null,
+  };
+}
+
+app.get("/api/notes", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 500) : 100;
+    const offsetRaw = Number(req.query.offset);
+    const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
+    const includeDeleted = req.query.includeDeleted === "1" || req.query.includeDeleted === "true";
+
+    const conditions = [eq(notes.userId, claims.sub)];
+    if (!includeDeleted) conditions.push(isNull(notes.deletedAt));
+    const since = parseNoteDate(req.query.since);
+    if (since) conditions.push(gte(notes.updatedAt, since));
+    const query = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 100) : "";
+    if (query) {
+      const pattern = `%${query}%`;
+      conditions.push(or(ilike(notes.title, pattern), ilike(notes.body, pattern))!);
+    }
+
+    const rows = await db
+      .select()
+      .from(notes)
+      .where(and(...conditions))
+      .orderBy(desc(notes.pinned), desc(notes.updatedAt))
+      .limit(limit)
+      .offset(offset);
+
+    res.json({ notes: rows.map(mapNote), limit, offset });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] GET /api/notes failed");
+  }
+});
+
+app.post("/api/notes", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const values = noteValuesFromInput(req.body ?? {}, claims.sub, false);
+    const [row] = await db.insert(notes).values(values).returning();
+    res.status(201).json(mapNote(row, false));
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/notes failed");
+  }
+});
+
+app.post("/api/notes/import", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const incoming = req.body?.notes;
+    if (!Array.isArray(incoming) || incoming.length === 0) {
+      res.status(400).json({ error: "Missing notes array", code: "invalid_request" });
+      return;
+    }
+    if (incoming.length > NOTE_IMPORT_MAX) {
+      res.status(413).json({
+        error: `Too many notes in one import (max ${NOTE_IMPORT_MAX})`,
+        code: "too_many_notes",
+      });
+      return;
+    }
+
+    const seenSources = new Set<string>();
+    const values: (typeof notes.$inferInsert)[] = [];
+    for (const item of incoming) {
+      if (!item || typeof item !== "object") continue;
+      const raw = item as Record<string, unknown>;
+      const sourceId = typeof raw.id === "string" ? raw.id : "";
+      if (sourceId) {
+        if (seenSources.has(sourceId)) continue;
+        seenSources.add(sourceId);
+      }
+      values.push(noteValuesFromInput(raw, claims.sub, true));
+    }
+
+    if (values.length === 0) {
+      res.status(400).json({ error: "No valid notes found", code: "invalid_request" });
+      return;
+    }
+
+    let imported = 0;
+    for (let i = 0; i < values.length; i += 100) {
+      const chunk = values.slice(i, i + 100);
+      const rows = await db
+        .insert(notes)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [notes.userId, notes.sourceNoteId],
+          set: {
+            title: drizzleSql`excluded.title`,
+            body: drizzleSql`excluded.body`,
+            tags: drizzleSql`excluded.tags`,
+            images: drizzleSql`excluded.images`,
+            audio: drizzleSql`excluded.audio`,
+            pinned: drizzleSql`excluded.pinned`,
+            color: drizzleSql`excluded.color`,
+            updatedAt: drizzleSql`excluded.updated_at`,
+            deletedAt: drizzleSql`excluded.deleted_at`,
+          },
+        })
+        .returning({ id: notes.id });
+      imported += rows.length;
+    }
+
+    console.debug(`[Server] POST /api/notes/import — ${imported} notes for ${claims.sub}`);
+    res.status(201).json({ imported, received: incoming.length });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/notes/import failed");
+  }
+});
+
+app.get("/api/notes/:id", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    if (!UUID_PATTERN.test(req.params.id)) {
+      res.status(404).json({ error: "Note not found", code: "not_found" });
+      return;
+    }
+    const [row] = await db
+      .select()
+      .from(notes)
+      .where(and(eq(notes.id, req.params.id), eq(notes.userId, claims.sub), isNull(notes.deletedAt)))
+      .limit(1);
+    if (!row) {
+      res.status(404).json({ error: "Note not found", code: "not_found" });
+      return;
+    }
+    res.json(mapNote(row));
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] GET /api/notes/:id failed");
+  }
+});
+
+app.patch("/api/notes/:id", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    if (!UUID_PATTERN.test(req.params.id)) {
+      res.status(404).json({ error: "Note not found", code: "not_found" });
+      return;
+    }
+
+    const raw = (req.body ?? {}) as Record<string, unknown>;
+    const updates: Partial<typeof notes.$inferInsert> = { updatedAt: new Date() };
+    if (raw.title !== undefined) updates.title = cleanText(raw.title, NOTE_TITLE_MAX);
+    if (raw.body !== undefined || raw.content !== undefined) {
+      updates.body = cleanText(raw.body ?? raw.content, NOTE_BODY_MAX);
+    }
+    if (raw.tags !== undefined) updates.tags = sanitizeNoteTags(raw.tags);
+    if (raw.images !== undefined) updates.images = normalizeNoteImages(raw.images);
+    if (raw.audio !== undefined || raw.audioClips !== undefined) {
+      updates.audio = normalizeNoteAudio(raw.audio ?? raw.audioClips);
+    }
+    if (raw.pinned !== undefined) updates.pinned = raw.pinned === true;
+    if (raw.color !== undefined) updates.color = cleanNullableText(raw.color, 32);
+    if (raw.sourceNoteId !== undefined) updates.sourceNoteId = cleanNullableText(raw.sourceNoteId, 128);
+
+    const [row] = await db
+      .update(notes)
+      .set(updates)
+      .where(and(eq(notes.id, req.params.id), eq(notes.userId, claims.sub), isNull(notes.deletedAt)))
+      .returning();
+
+    if (!row) {
+      res.status(404).json({ error: "Note not found", code: "not_found" });
+      return;
+    }
+    res.json(mapNote(row, false));
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] PATCH /api/notes/:id failed");
+  }
+});
+
+app.delete("/api/notes/:id", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    if (!UUID_PATTERN.test(req.params.id)) {
+      res.status(404).json({ error: "Note not found", code: "not_found" });
+      return;
+    }
+    const [row] = await db
+      .update(notes)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(notes.id, req.params.id), eq(notes.userId, claims.sub), isNull(notes.deletedAt)))
+      .returning({ id: notes.id });
+    if (!row) {
+      res.status(404).json({ error: "Note not found", code: "not_found" });
+      return;
+    }
+    res.status(204).end();
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] DELETE /api/notes/:id failed");
+  }
+});
+
+app.post("/api/notes/:id/flashcards", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    if (!UUID_PATTERN.test(req.params.id)) {
+      res.status(404).json({ error: "Note not found", code: "not_found" });
+      return;
+    }
+    const [note] = await db
+      .select({ id: notes.id, title: notes.title })
+      .from(notes)
+      .where(and(eq(notes.id, req.params.id), eq(notes.userId, claims.sub), isNull(notes.deletedAt)))
+      .limit(1);
+    if (!note) {
+      res.status(404).json({ error: "Note not found", code: "not_found" });
+      return;
+    }
+
+    const rawCards = Array.isArray(req.body?.cards) ? req.body.cards : [];
+    const cards = rawCards
+      .filter(
+        (c: any) =>
+          c &&
+          typeof c.front === "string" &&
+          c.front.trim() &&
+          typeof c.back === "string" &&
+          c.back.trim(),
+      )
+      .slice(0, 100)
+      .map((c: any) => ({
+        id: `fc_${crypto.randomUUID()}`,
+        userId: claims.sub,
+        sourceType: "note",
+        sourceId: note.id,
+        sourceTitle: note.title || "Note",
+        front: c.front.trim().slice(0, 2000),
+        back: c.back.trim().slice(0, 4000),
+        intervalDays: 0,
+        ease: 2.5,
+        repetitions: 0,
+        lapses: 0,
+        dueAt: new Date(),
+        createdAt: new Date(),
+      }));
+
+    if (cards.length === 0) {
+      res.status(400).json({ error: "Missing cards", code: "invalid_request" });
+      return;
+    }
+
+    const rows = await db.insert(studyFlashcards).values(cards).returning();
+    res.status(201).json({ cards: rows });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/notes/:id/flashcards failed");
   }
 });
 
@@ -4380,7 +5382,12 @@ app.post("/api/schedule/suggest", async (req, res) => {
 });
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
-app.listen(PORT, () => {
-  console.log(`[Server] Running on http://localhost:${PORT}`);
-  console.log(`[Server] DB host: ${DB_HOST}`);
-});
+
+export { app };
+
+if (process.env.NODE_ENV !== "test" && process.env.NO_LISTEN !== "1") {
+  app.listen(PORT, () => {
+    console.log(`[Server] Running on http://localhost:${PORT}`);
+    console.log(`[Server] DB host: ${DB_HOST}`);
+  });
+}

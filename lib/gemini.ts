@@ -6,6 +6,14 @@ const TEXT_MODEL = "gemini-2.5-flash";
 const IMAGE_MODEL = "gemini-2.0-flash-exp-image-generation";
 const EMBEDDING_MODEL = "text-embedding-004";
 
+// Marks an error as user-safe with a 4xx status so the API layer surfaces the
+// message instead of masking it as a generic "Internal server error".
+function aiOutputError(message: string): Error {
+  const err = new Error(message);
+  (err as { statusCode?: number }).statusCode = 422;
+  return err;
+}
+
 export function initGemini(apiKey: string): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
@@ -75,7 +83,7 @@ export async function generateJsonContent<T>(
     try {
       return parseJsonish<T>(retryText);
     } catch {
-      throw new Error(
+      throw aiOutputError(
         `AI returned no parseable JSON (${modelRef}). Please try again or switch to a more reliable model.`,
       );
     }
@@ -95,7 +103,7 @@ export async function generateCourseContent(
   }>(modelRef, prompt, apiKey);
 
   if (!parsed.courseTitle || !parsed.courseDescription) {
-    throw new Error("AI returned invalid course title or description");
+    throw aiOutputError("AI returned an invalid course title or description. Please try again.");
   }
 
   if (
@@ -103,7 +111,7 @@ export async function generateCourseContent(
     !Array.isArray(parsed.chapters) ||
     parsed.chapters.length < 8
   ) {
-    throw new Error("AI returned invalid chapter structure");
+    throw aiOutputError("AI returned an invalid chapter structure. Please try again or switch models.");
   }
 
   return {
@@ -130,7 +138,7 @@ export async function generateQuizQuestions(
     !Array.isArray(parsed.questions) ||
     parsed.questions.length === 0
   ) {
-    throw new Error("AI returned invalid quiz structure");
+    throw aiOutputError("AI returned an invalid quiz structure. Please try again or switch models.");
   }
 
   return parsed.questions.slice(0, 5);
