@@ -12,6 +12,7 @@ import { useCourseStore } from "../../../store/courseStore";
 import { useProgressStore } from "../../../store/courseProgressStore";
 import { useEnrollmentStore } from "../../../store/courseEnrollmentStore";
 import { useThemeColors } from "../../../hooks/useTheme";
+import { useResponsive } from "../../../hooks/useResponsive";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useNavLock } from "../../../lib/guard";
 import { api } from "../../../lib/api";
@@ -56,7 +57,15 @@ function BackButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-function ScreenHeader({ title, onBack }: { title?: string; onBack: () => void }) {
+function ScreenHeader({
+  title,
+  onBack,
+  wide,
+}: {
+  title?: string;
+  onBack: () => void;
+  wide?: boolean;
+}) {
   const theme = useThemeColors();
   return (
     <View
@@ -65,12 +74,14 @@ function ScreenHeader({ title, onBack }: { title?: string; onBack: () => void })
         { backgroundColor: theme.surface, borderColor: theme.border },
       ]}
     >
-      <BackButton onPress={onBack} />
-      {title ? (
-        <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-          {title}
-        </Text>
-      ) : null}
+      <View style={[styles.headerInner, wide && styles.headerInnerWide]}>
+        <BackButton onPress={onBack} />
+        {title ? (
+          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
+            {title}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -104,6 +115,9 @@ export default function CourseChaptersScreen() {
   const { courseId } = useLocalSearchParams<{ courseId: string }>();
   const theme = useThemeColors();
   const router = useRouter();
+  const { isWebWide, isWeb, breakpoint } = useResponsive();
+  const tabletWeb = isWeb && breakpoint === "tablet";
+  const showWideHeader = isWeb && breakpoint !== "phone";
   const { profile, getToken } = useAuth();
   const { navigate } = useNavLock();
   const course = useCourseStore((s) => s.getCourseById(courseId ?? ""));
@@ -397,7 +411,7 @@ export default function CourseChaptersScreen() {
   if (!courseId) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        <ScreenHeader title="Chapters" onBack={handleBack} />
+        <ScreenHeader title="Chapters" onBack={handleBack} wide={showWideHeader} />
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: theme.textSecondary }]}>Course not found</Text>
         </View>
@@ -408,15 +422,17 @@ export default function CourseChaptersScreen() {
   if (loading && !loaded) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        <ScreenHeader title="Chapters" onBack={handleBack} />
+        <ScreenHeader title="Chapters" onBack={handleBack} wide={showWideHeader} />
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.summarySkeleton, { backgroundColor: theme.border }]} />
-          {Array.from({ length: 5 }).map((_, i) => (
-            <ShimmerRow key={i} pattern={i % 4} />
-          ))}
+          <View style={[styles.loadingColumn, isWeb && styles.loadingColumnWeb]}>
+            <View style={[styles.summarySkeleton, { backgroundColor: theme.border }]} />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <ShimmerRow key={i} pattern={i % 4} />
+            ))}
+          </View>
         </ScrollView>
       </SafeAreaView>
     );
@@ -425,7 +441,7 @@ export default function CourseChaptersScreen() {
   if (!course) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        <ScreenHeader title="Chapters" onBack={handleBack} />
+        <ScreenHeader title="Chapters" onBack={handleBack} wide={showWideHeader} />
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: theme.textSecondary }]}>Course not found</Text>
         </View>
@@ -436,7 +452,7 @@ export default function CourseChaptersScreen() {
   if (chapters.length === 0) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        <ScreenHeader title="Chapters" onBack={handleBack} />
+        <ScreenHeader title="Chapters" onBack={handleBack} wide={showWideHeader} />
         <View style={styles.center}>
           <Ionicons name="book-outline" size={48} color={theme.textMuted} />
           <Text style={[styles.errorText, { color: theme.textSecondary }]}>No chapters available yet</Text>
@@ -450,6 +466,280 @@ export default function CourseChaptersScreen() {
   const xpPerChapter = Math.round(course.rewardXp / totalCh);
   const progressFraction = totalCh > 0 ? completedCount / totalCh : 0;
 
+  const summaryCard = (
+    <View
+      style={[
+        styles.summaryCard,
+        { backgroundColor: theme.surface },
+        isWebWide && styles.summaryCardWide,
+        tabletWeb && styles.summaryCardTablet,
+      ]}
+    >
+      {course.thumbnailUrl ? (
+        <Image source={{ uri: course.thumbnailUrl }} style={styles.summaryThumb} />
+      ) : null}
+      <View style={styles.summaryBody}>
+        <Text style={[styles.summaryTitle, { color: theme.text }]}>{course.title}</Text>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => setExpanded((p) => !p)}>
+          <Text
+            style={[styles.summaryDesc, { color: theme.textSecondary }]}
+            numberOfLines={expanded ? undefined : 2}
+          >
+            {course.description}
+          </Text>
+          {course.description.length > 100 && (
+            <Text style={[styles.readMoreText, { color: theme.primary }]}>
+              {expanded ? "Show less" : "Read more"}
+            </Text>
+          )}
+        </TouchableOpacity>
+        <View style={styles.summaryMeta}>
+          <View
+            style={[
+              styles.diffBadge,
+              { backgroundColor: (DIFFICULTY_COLORS[course.difficulty] || "#888") + "20" },
+            ]}
+          >
+            <Text
+              style={{
+                color: DIFFICULTY_COLORS[course.difficulty] || "#888",
+                fontSize: 11,
+                fontWeight: "700",
+              }}
+            >
+              {course.difficulty}
+            </Text>
+          </View>
+          <Text style={[styles.summaryMetaText, { color: theme.textMuted }]}>
+            {totalCh} chapters · {course.rewardXp} XP
+          </Text>
+        </View>
+        {canTrack && (
+          <View style={styles.summaryActions}>
+            <TouchableOpacity
+              style={[styles.summaryAction, { backgroundColor: theme.surfaceAlt }]}
+              onPress={handleToggleLike}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={courseStats?.likedByMe ? "heart" : "heart-outline"}
+                size={16}
+                color={courseStats?.likedByMe ? "#FB7185" : theme.textSecondary}
+              />
+              <Text style={[styles.summaryActionText, { color: theme.textSecondary }]}>
+                {courseStats ? courseStats.likeCount : "…"}
+              </Text>
+            </TouchableOpacity>
+            <View style={[styles.summaryAction, { backgroundColor: theme.surfaceAlt }]}>
+              <Ionicons name="eye-outline" size={16} color={theme.textSecondary} />
+              <Text style={[styles.summaryActionText, { color: theme.textSecondary }]}>
+                {courseStats?.viewCount ?? "…"}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {profile?.uid === course.creatorId && (
+          <TouchableOpacity
+            style={[styles.shareRow, { backgroundColor: theme.surfaceAlt }]}
+            onPress={handleToggleShare}
+            disabled={isSharing}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.shareIconWrap, { backgroundColor: theme.primary + "18" }]}>
+              <MaterialCommunityIcons name="earth" size={18} color={theme.primary} />
+            </View>
+            <View style={styles.shareBody}>
+              <Text style={[styles.shareTitle, { color: theme.text }]}>
+                Share to the Camp
+              </Text>
+              <Text style={[styles.shareSub, { color: theme.textMuted }]}>
+                {course.isPublic
+                  ? "Visible in Explore — others can learn from it"
+                  : "Only you can see this course"}
+              </Text>
+            </View>
+            {isSharing ? (
+              <ActivityIndicator size="small" color={theme.primary} />
+            ) : (
+              <View
+                style={[
+                  styles.shareToggle,
+                  {
+                    backgroundColor: course.isPublic
+                      ? theme.success
+                      : theme.border,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={course.isPublic ? "check" : "lock"}
+                  size={13}
+                  color={course.isPublic ? "#FFFFFF" : theme.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.shareToggleText,
+                    { color: course.isPublic ? "#FFFFFF" : theme.textSecondary },
+                  ]}
+                >
+                  {course.isPublic ? "PUBLIC" : "PRIVATE"}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
+  const progressBlock = (
+    <View
+      style={[
+        styles.progressHeader,
+        isWebWide && styles.progressHeaderWide,
+        tabletWeb && styles.progressHeaderTablet,
+      ]}
+    >
+      <View style={styles.ringContainer}>
+        <Svg width={RING_SIZE} height={RING_SIZE}>
+          <Circle
+            cx={RING_SIZE / 2}
+            cy={RING_SIZE / 2}
+            r={RING_RADIUS}
+            stroke={theme.border}
+            strokeWidth={RING_STROKE}
+            fill="none"
+          />
+          <Circle
+            cx={RING_SIZE / 2}
+            cy={RING_SIZE / 2}
+            r={RING_RADIUS}
+            stroke={theme.primary}
+            strokeWidth={RING_STROKE}
+            fill="none"
+            strokeDasharray={RING_CIRCUMFERENCE}
+            strokeDashoffset={RING_CIRCUMFERENCE * (1 - progressFraction)}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+          />
+        </Svg>
+        <Text style={[styles.ringPercent, { color: theme.primary }]}>
+          {Math.round(progressFraction * 100)}%
+        </Text>
+      </View>
+      <View style={styles.progressTextBlock}>
+        <Text style={[styles.progressTitle, { color: theme.text }]}>Course Progress</Text>
+        <Text style={[styles.progressSub, { color: theme.textSecondary }]}>
+          {completedCount}/{totalCh} chapters complete
+        </Text>
+      </View>
+    </View>
+  );
+
+  const chapterNodes = progressionMap.map((chapter, revIndex) => {
+    const originalIndex = totalCh - 1 - revIndex;
+    const allDone = chapter.subtopics?.every((_, si) =>
+      isQuizPassed(courseId ?? "", originalIndex, si),
+    ) ?? false;
+    const isCurrent = originalIndex === firstIncompleteIndex;
+    const isLocked = !allDone && !isCurrent && originalIndex > firstIncompleteIndex;
+
+    const passedCount = chapter.subtopics?.filter((_, si) =>
+      isQuizPassed(courseId ?? "", originalIndex, si),
+    ).length ?? 0;
+    const totalSubtopics = chapter.subtopics?.length ?? 0;
+
+    const pattern = revIndex % 4;
+    const offset = isWebWide ? 80 : 60;
+    let translateX = 0;
+    if (pattern === 1) translateX = -offset;
+    if (pattern === 3) translateX = offset;
+
+    const scaleAnim = getScaleAnim(originalIndex);
+
+    return (
+      <View key={originalIndex} style={[styles.row, { height: ROW_HEIGHT }]}>
+        <Animated.View
+          style={[styles.nodeWrap, { transform: [{ translateX }, { scale: scaleAnim }] }]}
+        >
+          {allDone && (
+            <Ionicons name="star" size={18} color="#FFD700" style={styles.crownBadge} />
+          )}
+
+          <TouchableOpacity
+            style={[
+              styles.circularButton,
+              {
+                width: NODE_SIZE,
+                height: NODE_SIZE,
+                borderRadius: NODE_SIZE / 2,
+              },
+              allDone && { backgroundColor: theme.success },
+              !allDone && !isLocked && !isCurrent && { backgroundColor: theme.primary },
+              isCurrent && {
+                backgroundColor: theme.primary,
+                borderWidth: 4,
+                borderColor: "#FFFFFF",
+              },
+              isLocked && { backgroundColor: "#334155", opacity: 0.5 },
+            ]}
+            onPressIn={() => handlePressIn(originalIndex)}
+            onPressOut={() => handlePressOut(originalIndex)}
+            onPress={() => handleChapterPress(originalIndex)}
+            onLongPress={() => handleLongPress(chapter, originalIndex)}
+            delayLongPress={500}
+            disabled={isLocked}
+            activeOpacity={0.85}
+          >
+            {allDone ? (
+              <Ionicons name="checkmark" size={34} color="#FFF" />
+            ) : isLocked ? (
+              <Ionicons name="lock-closed" size={26} color={theme.textMuted} />
+            ) : (
+              <>
+                <Text style={styles.nodeText}>{originalIndex + 1}</Text>
+                {totalSubtopics > 0 && (
+                  <View style={styles.subtopicDots}>
+                    {Array.from({ length: Math.min(totalSubtopics, MAX_SHOWN_SUBTOPICS) }).map((_, di) => (
+                      <View
+                        key={di}
+                        style={[
+                          styles.subtopicDot,
+                          {
+                            backgroundColor:
+                              di < passedCount ? theme.primary : "rgba(255,255,255,0.3)",
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </TouchableOpacity>
+
+          <Text
+            style={[
+              styles.chapterName,
+              isWebWide && styles.chapterNameWide,
+              { color: allDone ? theme.success : isLocked ? theme.textMuted : theme.text },
+            ]}
+            numberOfLines={2}
+          >
+            {chapter.title}
+          </Text>
+
+          {allDone ? (
+            <Text style={styles.xpLabel}>+{xpPerChapter} XP</Text>
+          ) : isCurrent ? (
+            <Text style={[styles.statusLabel, { color: theme.primary }]}>Continue</Text>
+          ) : null}
+        </Animated.View>
+      </View>
+    );
+  });
+
   return (
     <ErrorBoundary>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -458,7 +748,31 @@ export default function CourseChaptersScreen() {
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        <ScreenHeader title={course.title} onBack={handleBack} />
+        <ScreenHeader title={course.title} onBack={handleBack} wide={showWideHeader} />
+        {isWebWide ? (
+          <View style={styles.wideBody}>
+            <ScrollView
+              style={styles.sideRail}
+              contentContainerStyle={styles.sideRailContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {summaryCard}
+              {progressBlock}
+            </ScrollView>
+            <ScrollView
+              ref={scrollRef}
+              style={styles.pathPane}
+              contentContainerStyle={styles.pathContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+              }
+            >
+              {chapterNodes}
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </View>
+        ) : (
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={styles.scroll}
@@ -468,7 +782,13 @@ export default function CourseChaptersScreen() {
           }
         >
           {/* Feature 9: Course Summary Card */}
-          <View style={[styles.summaryCard, { backgroundColor: theme.surface }]}>
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: theme.surface },
+              tabletWeb && styles.summaryCardTablet,
+            ]}
+          >
             {course.thumbnailUrl ? (
               <Image source={{ uri: course.thumbnailUrl }} style={styles.summaryThumb} />
             ) : null}
@@ -587,7 +907,7 @@ export default function CourseChaptersScreen() {
           </View>
 
           {/* Feature 10: Progress Ring */}
-          <View style={styles.progressHeader}>
+          <View style={[styles.progressHeader, tabletWeb && styles.progressHeaderTablet]}>
             <View style={styles.ringContainer}>
               <Svg width={RING_SIZE} height={RING_SIZE}>
                 <Circle
@@ -728,6 +1048,7 @@ export default function CourseChaptersScreen() {
           })}
           <View style={{ height: 40 }} />
         </ScrollView>
+        )}
 
 
         {/* Feature 5: Chapter Bottom Sheet */}
@@ -787,6 +1108,9 @@ const styles = StyleSheet.create({
     maxWidth: 140,
     lineHeight: 18,
   },
+  chapterNameWide: {
+    maxWidth: 180,
+  },
   statusLabel: {
     fontSize: 11,
     fontWeight: "700",
@@ -811,6 +1135,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     width: "100%",
     maxWidth: 360,
+  },
+  summaryCardTablet: {
+    maxWidth: 520,
+  },
+  summaryCardWide: {
+    maxWidth: 360,
+    marginHorizontal: 0,
+    marginBottom: 16,
   },
   summaryThumb: {
     width: "100%",
@@ -920,6 +1252,14 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
   },
+  progressHeaderTablet: {
+    maxWidth: 520,
+  },
+  progressHeaderWide: {
+    maxWidth: 360,
+    paddingHorizontal: 0,
+    marginBottom: 0,
+  },
   ringContainer: {
     width: RING_SIZE,
     height: RING_SIZE,
@@ -974,11 +1314,62 @@ const styles = StyleSheet.create({
   },
 
   header: {
+    height: 48,
+    justifyContent: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+
+  headerInner: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    height: 48,
     paddingHorizontal: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+
+  headerInnerWide: {
+    width: "100%",
+    maxWidth: 1200,
+    alignSelf: "center",
+    paddingHorizontal: 24,
+  },
+
+  wideBody: {
+    flex: 1,
+    flexDirection: "row",
+    width: "100%",
+    maxWidth: 1200,
+    alignSelf: "center",
+    gap: 24,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+  },
+
+  sideRail: {
+    width: 360,
+  },
+
+  sideRailContent: {
+    paddingBottom: 24,
+  },
+
+  pathPane: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  pathContent: {
+    paddingTop: 8,
+    paddingBottom: 40,
+    alignItems: "center",
+  },
+
+  loadingColumn: {
+    width: "100%",
+  },
+
+  loadingColumnWeb: {
+    maxWidth: 560,
+    alignSelf: "center",
   },
 
   headerTitle: {

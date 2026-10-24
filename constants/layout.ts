@@ -33,3 +33,11 @@ export const NAV = {
 } as const;
 
 export const TOAST_MAX_WIDTH = 420;
+
+export const DIALOG_WIDTHS = {
+  compact: 400,
+  picker: 520,
+  form: 560,
+} as const;
+
+export const QUEST_CARD_MIN_WIDTH = 320;

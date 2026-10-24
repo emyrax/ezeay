@@ -25,7 +25,14 @@ import DropdownSelect, { DropdownOption } from "../../component/DropdownSelect";
 import GradientOutlineContainer from "../../component/GradientOutlineContainer";
 import ProgressBar from "../../component/ProgressBar";
 import ErrorBoundary from "../../component/ErrorBoundary";
+import ConfirmDialog from "../../component/ConfirmDialog";
+import QuestOverviewCard from "../../component/QuestOverviewCard";
 import { images } from "../../constants/images";
+import {
+  CONTENT_WIDTHS,
+  DIALOG_WIDTHS,
+  QUEST_CARD_MIN_WIDTH,
+} from "../../constants/layout";
 import { useThemeColors } from "../../hooks/useTheme";
 import { useResponsive, useTabBarInset } from "../../hooks/useResponsive";
 import { useAuth } from "../../contexts/AuthContext";
@@ -34,6 +41,8 @@ import { useCourseStore } from "../../store/courseStore";
 import { useEnrollmentStore } from "../../store/courseEnrollmentStore";
 import { useModelStore } from "../../store/modelStore";
 import { api } from "../../lib/api";
+import { getGridColumns } from "../../lib/responsive";
+import { eventBus } from "../../lib/eventBus";
 import {
   AI_MODELS,
   AI_PROVIDER_LABELS,
@@ -59,8 +68,9 @@ function normalizeCategory(value: string): string {
 export default function QuestsScreen() {
   const { profile, getToken, updateProfile } = useAuth();
   const theme = useThemeColors();
-  const { isWebWide } = useResponsive();
+  const { isWeb, isWebWide, isDesktop, breakpoint } = useResponsive();
   const tabBarInset = useTabBarInset(80);
+  const showWebDialog = isWeb && breakpoint !== "phone";
   const router = useRouter();
   const { navigate } = useNavLock();
   const [refreshing, setRefreshing] = useState(false);
@@ -97,6 +107,10 @@ export default function QuestsScreen() {
   const [difficulty, setDifficulty] = useState("Beginner");
   const [personalised, setPersonalised] = useState(true);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<null | { id: string; title: string }>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [gridWidth, setGridWidth] = useState(0);
 
   const [searchText, setSearchText] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -214,6 +228,32 @@ export default function QuestsScreen() {
     [enrollments],
   );
 
+  const questStats = useMemo(() => {
+    const owned = userCourses.filter((c) => !c.id.startsWith("generating_"));
+    const all = [...owned, ...enrolledCourses];
+    let inProgress = 0;
+    let completed = 0;
+
+    all.forEach((course) => {
+      const enrollment = getEnrollmentForCourse(course.id);
+      if (enrollment?.isCompleted) {
+        completed += 1;
+        return;
+      }
+      const progress = enrollment?.progress ?? course.progress ?? 0;
+      if (progress > 0) inProgress += 1;
+    });
+
+    return { total: all.length, inProgress, completed, gems: profile?.coins ?? 0 };
+  }, [userCourses, enrolledCourses, getEnrollmentForCourse, profile?.coins]);
+
+  const useWebGrid = isWeb;
+  const gridColumnsCount = getGridColumns(gridWidth, QUEST_CARD_MIN_WIDTH, 16, 3);
+  const gridCardWidth =
+    gridWidth > 0
+      ? (gridWidth - 16 * (gridColumnsCount - 1)) / gridColumnsCount
+      : undefined;
+
   const filterOptions = useMemo<DropdownOption[]>(
     () => [
       { label: "All Interests", value: "all" },
@@ -263,15 +303,24 @@ export default function QuestsScreen() {
     [visibleCount, filteredCourses.length],
   );
 
+  const reportFormError = (title: string, message: string) => {
+    if (isWeb) {
+      setFormError(message);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const handleGenerate = async () => {
     if (generating) return;
     if (generateLockRef.current) return;
+    setFormError(null);
     if (!description.trim()) {
-      Alert.alert("Missing Description", "Please describe what you want to learn.");
+      reportFormError("Missing Description", "Please describe what you want to learn.");
       return;
     }
     if (!profile) {
-      Alert.alert("Not Signed In", "Please sign in to generate a course.");
+      reportFormError("Not Signed In", "Please sign in to generate a course.");
       return;
     }
 
@@ -279,14 +328,14 @@ export default function QuestsScreen() {
     const typedCategory = customCategory.trim();
     if (showCategoryInput) {
       if (!typedCategory) {
-        Alert.alert("Missing Category", "Please enter a category or interest name.");
+        reportFormError("Missing Category", "Please enter a category or interest name.");
         return;
       }
       resolvedCategory = typedCategory;
     } else {
       resolvedCategory = activeCategory;
       if (!resolvedCategory) {
-        Alert.alert("Missing Category", "Please choose a category.");
+        reportFormError("Missing Category", "Please choose a category.");
         return;
       }
     }
@@ -419,10 +468,30 @@ export default function QuestsScreen() {
     }
   };
 
+  const deleteCourseById = useCallback(
+    async (id: string) => {
+      try {
+        await deleteCourse(id, getToken);
+      } catch (err: any) {
+        const message = err?.message ?? "Couldn't delete the course. Try again.";
+        if (isWeb) {
+          eventBus.emit("toast:error", { title: message });
+        } else {
+          Alert.alert("Delete failed", message);
+        }
+      }
+    },
+    [deleteCourse, getToken, isWeb],
+  );
+
   const handleDeleteCourse = () => {
     if (!menuCourse) return;
     const course = menuCourse;
     setMenuCourse(null);
+    if (isWeb) {
+      setConfirmDelete({ id: course.id, title: course.title });
+      return;
+    }
     Alert.alert(
       "Delete course?",
       `"${course.title}" will be removed from your quests and can't be undone.`,
@@ -431,17 +500,21 @@ export default function QuestsScreen() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteCourse(course.id, getToken);
-            } catch (err: any) {
-              Alert.alert("Delete failed", err?.message ?? "Couldn't delete the course. Try again.");
-            }
+          onPress: () => {
+            deleteCourseById(course.id);
           },
         },
       ],
     );
   };
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    await deleteCourseById(confirmDelete.id);
+    setDeleting(false);
+    setConfirmDelete(null);
+  }, [confirmDelete, deleteCourseById]);
 
   const onRefresh = useCallback(async () => {
     if (!profile) return;
@@ -456,6 +529,67 @@ export default function QuestsScreen() {
     }
   }, [profile, getToken, fetchCourses, fetchEnrollments]);
 
+  const generateOptionCard = (
+    <TouchableOpacity
+      style={[
+        styles.optionCard,
+        { backgroundColor: theme.surface },
+        isWebWide && styles.optionCardWide,
+        isWebWide && isDesktop && styles.optionCardRow,
+        generating && styles.optionCardDisabled,
+      ]}
+      onPress={() => {
+        setFormError(null);
+        setShowCreateModal(true);
+      }}
+      disabled={generating}
+      activeOpacity={0.7}
+    >
+      <View style={styles.optionIconWrap}>
+        <Ionicons name="sparkles" size={28} color={theme.accent} />
+      </View>
+      <View style={styles.optionTextWrap}>
+        <Text style={styles.optionTitle}>Generate AI Course</Text>
+        <Text style={[styles.optionSubtitle, { color: theme.textSecondary }]}>
+          {generating ? "Generating your course…" : "Create a personalized learning quest"}
+        </Text>
+      </View>
+      {generating ? (
+        <ActivityIndicator size="small" color={theme.accent} />
+      ) : (
+        <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
+      )}
+    </TouchableOpacity>
+  );
+
+  const joinOptionCard = (
+    <TouchableOpacity
+      style={[
+        styles.optionCard,
+        { backgroundColor: theme.surface },
+        isWebWide && styles.optionCardWide,
+        isWebWide && isDesktop && styles.optionCardRow,
+      ]}
+      activeOpacity={0.7}
+    >
+      <View style={styles.optionIconWrap}>
+        <Ionicons name="people" size={28} color={theme.primary} />
+      </View>
+      <View style={styles.optionTextWrap}>
+        <View style={styles.optionTitleRow}>
+          <Text style={styles.optionTitle}>Join a Class</Text>
+          <View style={[styles.soonBadge, { backgroundColor: theme.accent + "1F", borderColor: theme.accent + "33" }]}>
+            <Text style={[styles.soonBadgeText, { color: theme.accent }]}>Coming Soon</Text>
+          </View>
+        </View>
+        <Text style={[styles.optionSubtitle, { color: theme.textSecondary }]}>
+          Group quests & live sessions — coming soon
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
+    </TouchableOpacity>
+  );
+
   return (
     <ErrorBoundary>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -468,6 +602,7 @@ export default function QuestsScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
           }
         >
+          <View style={[styles.page, isWeb && styles.pageWeb]}>
           <View style={styles.headerRow}>
           <View style={styles.brandBlock}>
             <Image source={images.brandYuinxTrans} style={styles.brandLogo} />
@@ -486,62 +621,62 @@ export default function QuestsScreen() {
           </View>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>My AI Quests</Text>
-
-        <TouchableOpacity
-          style={[styles.optionCard, { backgroundColor: theme.surface }, generating && styles.optionCardDisabled]}
-          onPress={() => setShowCreateModal(true)}
-          disabled={generating}
-          activeOpacity={0.7}
-        >
-          <View style={styles.optionIconWrap}>
-            <Ionicons name="sparkles" size={28} color={theme.accent} />
-          </View>
-          <View style={styles.optionTextWrap}>
-            <Text style={styles.optionTitle}>Generate AI Course</Text>
-            <Text style={[styles.optionSubtitle, { color: theme.textSecondary }]}>
-              {generating ? "Generating your course…" : "Create a personalized learning quest"}
-            </Text>
-          </View>
-          {generating ? (
-            <ActivityIndicator size="small" color={theme.accent} />
-          ) : (
-            <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.optionCard, { backgroundColor: theme.surface }]}
-          activeOpacity={0.7}
-        >
-          <View style={styles.optionIconWrap}>
-            <Ionicons name="people" size={28} color={theme.primary} />
-          </View>
-          <View style={styles.optionTextWrap}>
-            <View style={styles.optionTitleRow}>
-              <Text style={styles.optionTitle}>Join a Class</Text>
-              <View style={[styles.soonBadge, { backgroundColor: theme.accent + "1F", borderColor: theme.accent + "33" }]}>
-                <Text style={[styles.soonBadgeText, { color: theme.accent }]}>Coming Soon</Text>
+        {isWebWide ? (
+          <View style={styles.heroRow}>
+            <View style={styles.heroMain}>
+              <Text style={[styles.sectionTitle, styles.sectionTitleWide, { color: theme.text }]}>
+                My AI Quests
+              </Text>
+              <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
+                Build a learning path around what you're curious about.
+              </Text>
+              <View style={[styles.heroActions, isDesktop && styles.heroActionsRow]}>
+                {generateOptionCard}
+                {joinOptionCard}
               </View>
             </View>
-            <Text style={[styles.optionSubtitle, { color: theme.textSecondary }]}>
-              Group quests & live sessions — coming soon
-            </Text>
+            <View style={styles.heroSide}>
+              <QuestOverviewCard
+                total={questStats.total}
+                inProgress={questStats.inProgress}
+                completed={questStats.completed}
+                gems={questStats.gems}
+              />
+            </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
-        </TouchableOpacity>
+        ) : (
+          <>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>My AI Quests</Text>
+            {generateOptionCard}
+            {joinOptionCard}
+          </>
+        )}
 
         <Modal
           visible={showCreateModal}
           animationType="slide"
           transparent
-          onRequestClose={() => setShowCreateModal(false)}
+          onRequestClose={() => {
+            setShowCreateModal(false);
+            setFormError(null);
+          }}
         >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, { backgroundColor: theme.bg }]}>
+          <View style={[styles.modalOverlay, showWebDialog && styles.modalOverlayDialog]}>
+            <View
+              style={[
+                styles.modalContainer,
+                { backgroundColor: theme.bg },
+                showWebDialog && styles.modalContainerDialog,
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Create Your AI Quest</Text>
-                <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowCreateModal(false);
+                    setFormError(null);
+                  }}
+                >
                   <Ionicons name="close-circle" size={28} color={theme.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -557,6 +692,10 @@ export default function QuestsScreen() {
                     style={[styles.textInput, styles.textArea]}
                   />
                 </View>
+
+                {formError ? (
+                  <Text style={[styles.formError, { color: theme.danger }]}>{formError}</Text>
+                ) : null}
 
                 <View style={styles.configRow}>
                   <View style={styles.configCol}>
@@ -649,8 +788,15 @@ export default function QuestsScreen() {
           transparent
           onRequestClose={() => setShowModelPicker(false)}
         >
-          <View style={styles.pickerOverlay}>
-            <View style={[styles.pickerContainer, { backgroundColor: theme.bg }]}>
+          <View style={[styles.pickerOverlay, showWebDialog && styles.modalOverlayDialog]}>
+            <View
+              style={[
+                styles.pickerContainer,
+                { backgroundColor: theme.bg },
+                showWebDialog && styles.modalContainerDialog,
+                showWebDialog && styles.pickerContainerDialog,
+              ]}
+            >
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select AI Model</Text>
                 <TouchableOpacity onPress={() => setShowModelPicker(false)}>
@@ -797,7 +943,14 @@ export default function QuestsScreen() {
 
         {!isEnrolledFilter && (
           <>
-          <View style={isWebWide ? styles.courseGrid : undefined}>
+          <View
+            style={useWebGrid ? styles.courseGrid : undefined}
+            onLayout={
+              useWebGrid
+                ? (e) => setGridWidth(e.nativeEvent.layout.width)
+                : undefined
+            }
+          >
           {paginatedCourses.map((course) => {
           const isGenerating = course.id.startsWith("generating_");
           const enrollment = getEnrollmentForCourse(course.id);
@@ -812,7 +965,7 @@ export default function QuestsScreen() {
                 style={[
                   styles.courseCard,
                   styles.skeletonCard,
-                  isWebWide && styles.courseCardFull,
+                  useWebGrid && styles.courseCardFull,
                   { backgroundColor: theme.surface },
                 ]}
               >
@@ -847,7 +1000,11 @@ export default function QuestsScreen() {
                     ? ["rgba(255, 152, 0, 0.2)", "rgba(139, 92, 246, 0.2)"]
                     : ["rgba(244, 67, 54, 0.2)", "rgba(236, 72, 153, 0.2)"]
               }
-              style={[styles.courseCard, isWebWide && styles.courseCardGrid]}
+              style={[
+                styles.courseCard,
+                useWebGrid && styles.courseCardGrid,
+                useWebGrid && gridCardWidth ? { width: gridCardWidth } : null,
+              ]}
             >
               <Pressable onPress={() => handleCardPress(course.id)} onLongPress={() => handleCardLongPress(course.id)}>
                 <View style={styles.courseCardContent}>
@@ -955,6 +1112,14 @@ export default function QuestsScreen() {
                   </Text>
                 </View>
               )}
+              <View
+                style={useWebGrid ? styles.courseGrid : undefined}
+                onLayout={
+                  useWebGrid
+                    ? (e) => setGridWidth(e.nativeEvent.layout.width)
+                    : undefined
+                }
+              >
               {enrolledCourses.map((course) => {
                 const enrollment = getEnrollmentForCourse(course.id);
                 const progress = enrollment?.progress ?? 0;
@@ -969,7 +1134,11 @@ export default function QuestsScreen() {
                           ? ["rgba(255, 152, 0, 0.2)", "rgba(139, 92, 246, 0.2)"]
                           : ["rgba(244, 67, 54, 0.2)", "rgba(236, 72, 153, 0.2)"]
                     }
-                    style={styles.courseCard}
+                    style={[
+                      styles.courseCard,
+                      useWebGrid && styles.courseCardGrid,
+                      useWebGrid && gridCardWidth ? { width: gridCardWidth } : null,
+                    ]}
                   >
                     <Pressable onPress={() => handleCoursePress(course.id)}>
                       <View style={styles.courseCardContent}>
@@ -1050,11 +1219,12 @@ export default function QuestsScreen() {
                   </GradientOutlineContainer>
                 );
               })}
+              </View>
             </>
           )}
 
           <View style={{ height: tabBarInset }} />
-
+          </View>
         </ScrollView>
       <Modal
           visible={!!menuCourse}
@@ -1062,9 +1232,15 @@ export default function QuestsScreen() {
           animationType="fade"
           onRequestClose={() => setMenuCourse(null)}
         >
-          <View style={styles.sheetOverlay}>
+          <View style={[styles.sheetOverlay, showWebDialog && styles.sheetOverlayDialog]}>
             <Pressable style={StyleSheet.absoluteFill} onPress={() => setMenuCourse(null)} />
-            <View style={[styles.sheetCard, { backgroundColor: theme.surface }]}>
+            <View
+              style={[
+                styles.sheetCard,
+                { backgroundColor: theme.surface },
+                showWebDialog && styles.sheetCardDialog,
+              ]}
+            >
               <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1}>
                 {menuCourse?.title}
               </Text>
@@ -1107,6 +1283,23 @@ export default function QuestsScreen() {
             </View>
           </View>
         </Modal>
+
+        <ConfirmDialog
+          visible={!!confirmDelete}
+          title="Delete course?"
+          message={
+            confirmDelete
+              ? `"${confirmDelete.title}" will be removed from your quests. This can't be undone.`
+              : undefined
+          }
+          confirmLabel="Delete"
+          destructive
+          loading={deleting}
+          onCancel={() => {
+            if (!deleting) setConfirmDelete(null);
+          }}
+          onConfirm={handleConfirmDelete}
+        />
       </SafeAreaView>
     </ErrorBoundary>
   );
@@ -1147,6 +1340,12 @@ function formatCourseAge(createdAt?: string | null): string {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
+  page: {},
+  pageWeb: {
+    width: "100%",
+    maxWidth: CONTENT_WIDTHS.wide,
+    alignSelf: "center",
+  },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1190,6 +1389,39 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 24,
   },
+  sectionTitleWide: {
+    fontSize: 32,
+    letterSpacing: -0.5,
+    marginHorizontal: 0,
+    marginTop: 0,
+  },
+  heroRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 20,
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  heroMain: {
+    flex: 1,
+    minWidth: 0,
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 6,
+  },
+  heroActions: {
+    gap: 14,
+    marginTop: 18,
+  },
+  heroActionsRow: {
+    flexDirection: "row",
+  },
+  heroSide: {
+    width: 320,
+    maxWidth: 340,
+  },
   optionCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -1200,6 +1432,14 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   optionCardDisabled: { opacity: 0.6 },
+  optionCardWide: {
+    marginHorizontal: 0,
+    marginTop: 0,
+  },
+  optionCardRow: {
+    flex: 1,
+    minWidth: 0,
+  },
   optionIconWrap: {
     width: 48,
     height: 48,
@@ -1237,6 +1477,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
+  modalOverlayDialog: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
   modalContainer: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -1244,6 +1489,15 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 40,
     maxHeight: "90%",
+  },
+  modalContainerDialog: {
+    width: "100%",
+    maxWidth: DIALOG_WIDTHS.form,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 24,
+    maxHeight: "85%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1262,6 +1516,7 @@ const styles = StyleSheet.create({
   },
   textInput: { color: "#FFFFFF", fontSize: 14 },
   textArea: { flex: 1, padding: 0, textAlignVertical: "top" },
+  formError: { fontSize: 12, fontWeight: "600", marginTop: 8 },
   categoryInput: { height: 36, padding: 8, borderRadius: 8, fontSize: 13 },
   configRow: {
     flexDirection: "row",
@@ -1302,6 +1557,11 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 40,
     maxHeight: "85%",
+  },
+  pickerContainerDialog: {
+    maxWidth: DIALOG_WIDTHS.picker,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
   },
   pickerGroupTitle: {
     fontSize: 12,
@@ -1398,7 +1658,6 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   courseCardGrid: {
-    width: "48.5%",
     marginHorizontal: 0,
     marginTop: 0,
   },
@@ -1498,12 +1757,23 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
   },
+  sheetOverlayDialog: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
   sheetCard: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 32,
+  },
+  sheetCardDialog: {
+    width: "100%",
+    maxWidth: DIALOG_WIDTHS.compact,
+    borderRadius: 20,
+    paddingBottom: 20,
   },
   sheetTitle: {
     fontSize: 16,

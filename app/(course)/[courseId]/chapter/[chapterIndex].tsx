@@ -24,6 +24,7 @@ import QuizRewardOverlay from "../../../../component/QuizRewardOverlay";
 import { useSpinStore } from "../../../../store/spinStore";
 import { useStatsStore } from "../../../../store/statsStore";
 import { useThemeColors } from "../../../../hooks/useTheme";
+import { useResponsive } from "../../../../hooks/useResponsive";
 import ErrorBoundary from "../../../../component/ErrorBoundary";
 import SpinWheel from "../../../../component/SpinWheel";
 import type { Chapter, Quiz } from "../../../../types/chapter";
