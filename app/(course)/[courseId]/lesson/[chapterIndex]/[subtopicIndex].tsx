@@ -268,6 +268,14 @@ export default function LessonScreen() {
     load()
       .catch((err) => {
         if (!active) return;
+        console.warn("[Lesson] load failed", {
+          courseId,
+          chapterIndex: chapterIdx,
+          subtopicIndex: subtopicIdx,
+          status: err instanceof ApiError ? err.status : undefined,
+          code: err instanceof ApiError ? err.code : undefined,
+          message: err instanceof Error ? err.message : String(err),
+        });
         setLoadError(
           friendlyError(err, "We couldn't open this lesson. Please try again."),
         );

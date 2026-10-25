@@ -19,6 +19,14 @@ test("unknown requests still carry a request id", async () => {
   assert.match(res.headers["x-request-id"] ?? "", /^[A-Za-z0-9-]+$/);
 });
 
+test("unmatched routes return a JSON route_not_found error", async () => {
+  const res = await request(app).get("/api/definitely-not-a-route");
+  assert.equal(res.status, 404);
+  assert.equal(res.body.code, "route_not_found");
+  assert.equal(res.body.error, "Route not found");
+  assert.match(res.body.requestId ?? "", /^[A-Za-z0-9-]+$/);
+});
+
 test("CORS allows the web app origin", async () => {
   const res = await request(app)
     .options("/api/notes")

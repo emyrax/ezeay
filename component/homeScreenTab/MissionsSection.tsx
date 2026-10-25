@@ -316,11 +316,11 @@ export default function MissionsSection() {
           >
             Tiny quests, daily momentum
           </Text>
-          {cycleLabel && resetLabel && (
+          {cycleLabel && resetLabel ? (
             <Text style={[styles.cycleLabel, { color: theme.textMuted }]}>
               {cycleLabel} set · {resetLabel}
             </Text>
-          )}
+          ) : null}
         </View>
         <View
           style={[

@@ -2755,7 +2755,12 @@ app.get(
 
       const access = await getCourseAccess(req.params.id, claims.sub);
       if (access.status === "not_found") {
-        res.status(404).json({ error: "Course not found" });
+        console.warn(
+          `[Server] GET lesson: course not found (${req.params.id}, ${chapterIndex}/${subtopicIndex})`,
+        );
+        res
+          .status(404)
+          .json({ error: "Course not found", code: "course_not_found" });
         return;
       }
       if (access.status === "forbidden") {
@@ -2769,7 +2774,13 @@ app.get(
         subtopicIndex,
       );
       if (!source) {
-        res.status(404).json({ error: "Chapter or subtopic not found" });
+        console.warn(
+          `[Server] GET lesson: source not found (${req.params.id}, ${chapterIndex}/${subtopicIndex})`,
+        );
+        res.status(404).json({
+          error: "Chapter or subtopic not found",
+          code: "lesson_source_not_found",
+        });
         return;
       }
 
@@ -2827,7 +2838,12 @@ app.post(
 
       const access = await getCourseAccess(req.params.id, claims.sub);
       if (access.status === "not_found") {
-        res.status(404).json({ error: "Course not found" });
+        console.warn(
+          `[Server] POST lesson generate: course not found (${req.params.id}, ${chapterIndex}/${subtopicIndex})`,
+        );
+        res
+          .status(404)
+          .json({ error: "Course not found", code: "course_not_found" });
         return;
       }
       if (access.status === "forbidden") {
@@ -2841,7 +2857,13 @@ app.post(
         subtopicIndex,
       );
       if (!source) {
-        res.status(404).json({ error: "Chapter or subtopic not found" });
+        console.warn(
+          `[Server] POST lesson generate: source not found (${req.params.id}, ${chapterIndex}/${subtopicIndex})`,
+        );
+        res.status(404).json({
+          error: "Chapter or subtopic not found",
+          code: "lesson_source_not_found",
+        });
         return;
       }
 
@@ -6086,6 +6108,18 @@ app.post("/api/schedule/suggest", async (req, res) => {
   }
 });
 
+app.use((req: Request, res: Response) => {
+  const requestId = (req as any).requestId as string | undefined;
+  console.warn(
+    `[Server] 404 ${req.method} ${req.originalUrl} [${requestId ?? "no-request-id"}]`,
+  );
+  res.status(404).json({
+    error: "Route not found",
+    code: "route_not_found",
+    requestId,
+  });
+});
+
 const PORT = parseInt(process.env.PORT || "3001", 10);
 
 export { app };
@@ -6094,5 +6128,6 @@ if (process.env.NODE_ENV !== "test" && process.env.NO_LISTEN !== "1") {
   app.listen(PORT, () => {
     console.log(`[Server] Running on http://localhost:${PORT}`);
     console.log(`[Server] DB host: ${DB_HOST}`);
+    console.log(`[Server] Animated lesson routes ready`);
   });
 }
