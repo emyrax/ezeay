@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Pressable 
 import { Ionicons } from "@expo/vector-icons";
 import { useProgressStore } from "../store/courseProgressStore";
 import { useThemeColors } from "../hooks/useTheme";
+import { useResponsive } from "../hooks/useResponsive";
 import type { Chapter } from "../types/chapter";
 
 interface Props {
@@ -16,15 +17,25 @@ interface Props {
 
 export default function ChapterBottomSheet({ visible, chapter, chapterIndex, courseId, onClose, onStart }: Props) {
   const theme = useThemeColors();
+  const { isWeb, breakpoint } = useResponsive();
   const isQuizPassed = useProgressStore((s) => s.isQuizPassed);
+  const isDialog = isWeb && breakpoint !== "phone";
 
   if (!chapter) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: theme.surface }]} onPress={() => {}}>
-          <View style={styles.handle} />
+    <Modal
+      visible={visible}
+      animationType={isDialog ? "fade" : "slide"}
+      transparent
+      onRequestClose={onClose}
+    >
+      <Pressable style={[styles.backdrop, isDialog && styles.backdropDialog]} onPress={onClose}>
+        <Pressable
+          style={[styles.sheet, { backgroundColor: theme.surface }, isDialog && styles.sheetDialog]}
+          onPress={() => {}}
+        >
+          {!isDialog && <View style={styles.handle} />}
           <View style={styles.header}>
             <Text style={[styles.chapterNumber, { color: theme.primary }]}>
               Chapter {chapter.order || chapterIndex + 1}
@@ -79,12 +90,25 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
+  backdropDialog: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
   sheet: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 8,
     maxHeight: "80%",
+  },
+  sheetDialog: {
+    width: "100%",
+    maxWidth: 480,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    maxHeight: "85%",
   },
   handle: {
     width: 40,

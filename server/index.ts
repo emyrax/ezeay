@@ -15,7 +15,7 @@ import { neon, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq, and, or, inArray, gte, desc, asc, isNull, isNotNull, ne, ilike, sql as drizzleSql, count, sum, gt } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import { initGemini, generateCourseContent, generateJsonContent, generateQuizQuestions, generateDailyBounties, generateThumbnailImage, generateTextWithFile, generateEmbedding } from "../lib/gemini";
+import { initGemini, generateCourseContent, generateJsonContent, generateQuizQuestions, generateDailyBounties, generateThumbnailImage, generateTextWithFile, generateEmbedding, generateLessonScript, generateSpeech, TTS_MODEL, TTS_VOICE } from "../lib/gemini";
 import type { GeminiBounty } from "../lib/gemini";
 import { AI_MODEL_DEFAULT, getModelOption, isModelAllowed, parseModelRef } from "../lib/providers/modelRegistry";
 import { providerKeyStatus, initAiEngine, getGemini } from "./ai/text";
@@ -40,6 +40,7 @@ import {
   communityPostReactions,
   communityPostComments,
   courseFeedLikes,
+  lessonScripts,
 } from "../db/schema";
 import { generateFallbackBounties } from "./bountyTemplates";
 import { buildCourseGenerationPrompt, buildThumbnailGenerationPrompt } from "./prompts/courseGeneration";
@@ -49,8 +50,22 @@ import { buildStudyCheatsheetPrompt, buildFlashcardsPrompt, buildStudySuggestPro
 import { buildNotesAiPrompt, buildNotesChatPrompt } from "./prompts/notesPrompts";
 import type { NotesAiAction, NotesChatMode } from "./prompts/notesPrompts";
 import { buildScheduleSuggestPrompt } from "./prompts/scheduleSuggest";
+import { buildLessonScriptPrompt } from "./prompts/lessonScript";
+import { buildLessonExplainPrompt } from "./prompts/lessonExplain";
+import { latexToSvg } from "./math/mathjax";
+import { pcmRateFromMime, pcmToWav } from "./audio/pcmToWav";
+import { lessonAudioDeliveryUrl } from "./audio/deliveryUrl";
+import { lessonSourceHash } from "../lib/lesson/validateLessonScript";
 import type { Course } from "../types/course";
 import type { AudioClip, NoteImage } from "../types/note";
+import type { Chapter, Subtopic } from "../types/chapter";
+import type {
+  LessonAudioClip,
+  LessonExplainAction,
+  LessonScript,
+  LessonScriptDraft,
+  LessonStatus,
+} from "../types/lesson";
 
 const SERVER_LOG_FILE = process.env.SERVER_LOG_FILE ?? path.join(process.cwd(), "server.log");
 
@@ -145,12 +160,22 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS ?? 60_000);
 const TIMEOUT_EXEMPT_PREFIXES = ["/api/notes/ai/chat"];
+const LESSON_GENERATE_PATH =
+  /^\/api\/courses\/[^/]+\/lessons\/\d+\/\d+\/generate$/;
+
+function isLongRunningRoute(pathname: string): boolean {
+  return (
+    TIMEOUT_EXEMPT_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+    pathname.startsWith("/api/lessons/") ||
+    LESSON_GENERATE_PATH.test(pathname)
+  );
+}
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (
     req.method === "OPTIONS" ||
     !req.path.startsWith("/api/") ||
-    TIMEOUT_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))
+    isLongRunningRoute(req.path)
   ) {
     next();
     return;
@@ -189,6 +214,9 @@ const AI_ROUTES = [
   "/api/bounties/generate",
   "/api/courses/generate",
   "/api/courses/:id/thumbnail",
+  "/api/courses/:id/lessons/:chapterIndex/:subtopicIndex/generate",
+  "/api/lessons/:id/audio",
+  "/api/lessons/:id/explain",
   "/api/subtopics/quiz",
   "/api/study/process",
   "/api/study/upload",
@@ -1849,18 +1877,21 @@ function nextUtcMidnight(): string {
 
 async function readSpinStatus(userId: string) {
   const today = new Date().toISOString().slice(0, 10);
-  const [todayRow, lifetimeRow] = await Promise.all([
-    db
-      .select({
-        total: count(),
-        used: drizzleSql<number>`count(*) filter (where ${spinClaims.consumesSpin})`,
-        lastSpinAt: drizzleSql<string | null>`max(${spinClaims.claimedAt})`,
-      })
-      .from(spinClaims)
-      .where(and(eq(spinClaims.userId, userId), eq(spinClaims.date, today))),
-    db.select({ value: count() }).from(spinClaims).where(eq(spinClaims.userId, userId)),
-  ]);
+  const todayRows = await db
+    .select({
+      total: count(),
+      used: drizzleSql<number>`count(*) filter (where ${spinClaims.consumesSpin})`,
+      lastSpinAt: drizzleSql<string | null>`max(${spinClaims.claimedAt})`,
+    })
+    .from(spinClaims)
+    .where(and(eq(spinClaims.userId, userId), eq(spinClaims.date, today)));
+  const lifetimeRows = await db
+    .select({ value: count() })
+    .from(spinClaims)
+    .where(eq(spinClaims.userId, userId));
 
+  const todayRow = todayRows[0];
+  const lifetimeRow = lifetimeRows[0];
   const used = Number(todayRow?.used ?? 0);
   const spinsRemaining = Math.max(0, SPIN_DAILY_LIMIT - used);
   return {
@@ -1870,7 +1901,7 @@ async function readSpinStatus(userId: string) {
     spinsToday: Number(todayRow?.total ?? 0),
     spinsRemaining,
     canSpin: spinsRemaining > 0,
-    totalSpins: Number(lifetimeRow[0]?.value ?? 0),
+    totalSpins: Number(lifetimeRow?.value ?? 0),
     lastSpinAt: todayRow?.lastSpinAt ? new Date(todayRow.lastSpinAt).toISOString() : null,
     nextResetAt: nextUtcMidnight(),
   };
@@ -2419,27 +2450,77 @@ app.delete("/api/courses/:id", async (req, res) => {
   }
 });
 
+type CloudinaryResourceType = "image" | "video";
+
+interface CloudinaryUploadOptions {
+  resourceType?: CloudinaryResourceType;
+}
+
 async function uploadToCloudinary(
   base64: string,
   mimeType = "image/png",
+  options: CloudinaryUploadOptions = {},
 ): Promise<string> {
   const cloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+  const resourceType = options.resourceType ?? "image";
+  const imagePreset = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
-  if (!cloudName || !uploadPreset) {
-    throw new Error("Cloudinary not configured");
+  if (!cloudName) {
+    throw new Error("Cloudinary cloud name is not configured");
+  }
+
+  let uploadPreset =
+    resourceType === "video"
+      ? process.env.CLOUDINARY_AUDIO_UPLOAD_PRESET || ""
+      : imagePreset || "";
+
+  if (!uploadPreset && !(apiKey && apiSecret) && resourceType === "video") {
+    uploadPreset = imagePreset || "";
   }
 
   const formData = new URLSearchParams();
   formData.append("file", `data:${mimeType};base64,${base64}`);
-  formData.append("upload_preset", uploadPreset);
 
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-    { method: "POST", body: formData.toString() },
+  if (uploadPreset) {
+    formData.append("upload_preset", uploadPreset);
+  } else if (apiKey && apiSecret) {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const signature = crypto
+      .createHash("sha1")
+      .update(`timestamp=${timestamp}${apiSecret}`)
+      .digest("hex");
+    formData.append("api_key", apiKey);
+    formData.append("timestamp", timestamp);
+    formData.append("signature", signature);
+  } else {
+    throw new Error("Cloudinary upload is not configured");
+  }
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData.toString(),
+    },
   );
 
-  const data = await res.json();
+  const data = (await response.json().catch(() => null)) as {
+    secure_url?: string;
+    error?: { message?: string };
+  } | null;
+
+  if (!response.ok || !data?.secure_url) {
+    const err = new Error(
+      data?.error?.message || `Cloudinary upload failed (${response.status})`,
+    );
+    (err as { statusCode?: number }).statusCode = 502;
+    (err as { expose?: boolean }).expose = true;
+    throw err;
+  }
+
   return data.secure_url;
 }
 
@@ -2469,6 +2550,630 @@ app.post("/api/uploads/cloudinary", async (req, res) => {
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/uploads/cloudinary failed");
+  }
+});
+
+// --- Animated Lesson Routes ---
+
+const LESSON_ID_RE = /^lsn_[A-Za-z0-9-]{8,64}$/;
+const LESSON_EXPLAIN_ACTIONS: LessonExplainAction[] = [
+  "simplify",
+  "example",
+  "why",
+];
+
+type CourseRow = typeof courses.$inferSelect;
+
+type CourseAccess =
+  | { status: "ok"; course: CourseRow }
+  | { status: "not_found" }
+  | { status: "forbidden" };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseLessonIndex(value: string): number | null {
+  if (!/^\d{1,3}$/.test(value)) return null;
+  return Number(value);
+}
+
+function readCourseChapters(raw: string): Chapter[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const entries: unknown[] = parsed;
+    return entries.filter(
+      (entry): entry is Chapter =>
+        isRecord(entry) &&
+        typeof entry.title === "string" &&
+        Array.isArray(entry.subtopics),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function resolveLessonSource(
+  course: CourseRow,
+  chapterIndex: number,
+  subtopicIndex: number,
+): { chapter: Chapter; subtopic: Subtopic } | null {
+  const chapter = readCourseChapters(course.chapters)[chapterIndex];
+  if (!chapter) return null;
+  const subtopic = chapter.subtopics[subtopicIndex];
+  if (
+    !subtopic ||
+    typeof subtopic.title !== "string" ||
+    typeof subtopic.content !== "string" ||
+    !subtopic.title.trim() ||
+    !subtopic.content.trim()
+  ) {
+    return null;
+  }
+  return { chapter, subtopic };
+}
+
+function lessonHash(
+  course: CourseRow,
+  chapter: Chapter,
+  subtopic: Subtopic,
+): string {
+  return lessonSourceHash(
+    subtopic.title,
+    subtopic.content,
+    `${course.title}\n${course.difficulty}\n${chapter.title}\n${chapter.description}`,
+  );
+}
+
+async function getCourseAccess(
+  courseId: string,
+  userId: string,
+): Promise<CourseAccess> {
+  const [course] = await db
+    .select()
+    .from(courses)
+    .where(and(eq(courses.id, courseId), isNull(courses.deletedAt)))
+    .limit(1);
+
+  if (!course) return { status: "not_found" };
+  if (course.creatorId === userId || !!course.isPublic) {
+    return { status: "ok", course };
+  }
+
+  const [enrollment] = await db
+    .select({ id: courseEnrollments.id })
+    .from(courseEnrollments)
+    .where(
+      and(
+        eq(courseEnrollments.courseId, course.id),
+        eq(courseEnrollments.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!enrollment) return { status: "forbidden" };
+  return { status: "ok", course };
+}
+
+function readLessonScript(
+  row: typeof lessonScripts.$inferSelect,
+): LessonScriptDraft {
+  const raw = row.script as unknown;
+  if (isRecord(raw) && Array.isArray(raw.slides)) {
+    return {
+      title: typeof raw.title === "string" ? raw.title : row.title,
+      slides: raw.slides as LessonScriptDraft["slides"],
+    };
+  }
+  return { title: row.title, slides: [] };
+}
+
+function readLessonStatus(value: string): LessonStatus {
+  return value === "audio_ready" || value === "failed" ? value : "script_ready";
+}
+
+function mapLessonRow(row: typeof lessonScripts.$inferSelect): LessonScript {
+  const script = readLessonScript(row);
+  return {
+    id: row.id,
+    courseId: row.courseId,
+    chapterIndex: row.chapterIndex,
+    subtopicIndex: row.subtopicIndex,
+    title: script.title,
+    slides: script.slides,
+    audio: Array.isArray(row.audio) ? row.audio : [],
+    voice: row.voice,
+    ttsModel: row.ttsModel,
+    sourceHash: row.sourceHash,
+    status: readLessonStatus(row.status),
+    version: row.version,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+  };
+}
+
+function speechErrorStatus(err: unknown): number {
+  const value = err as {
+    status?: unknown;
+    statusCode?: unknown;
+    code?: unknown;
+  };
+  for (const candidate of [value?.status, value?.statusCode, value?.code]) {
+    const numeric =
+      typeof candidate === "number" ? candidate : Number(candidate);
+    if (Number.isInteger(numeric) && numeric > 0) return numeric;
+  }
+  return 0;
+}
+
+async function generateSpeechWithRetry(
+  ai: ReturnType<typeof getGemini>,
+  text: string,
+  voice: string,
+): Promise<Awaited<ReturnType<typeof generateSpeech>>> {
+  try {
+    return await generateSpeech(ai, text, voice);
+  } catch (err) {
+    const status = speechErrorStatus(err);
+    if (status !== 429 && status !== 500 && status !== 503) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return generateSpeech(ai, text, voice);
+  }
+}
+
+function attachEquationSvgs(draft: LessonScriptDraft): LessonScriptDraft {
+  const slides = draft.slides.map((slide) => {
+    if (slide.visual.kind !== "equation") return slide;
+    try {
+      return {
+        ...slide,
+        visual: { ...slide.visual, svg: latexToSvg(slide.visual.latex) },
+      };
+    } catch (err) {
+      console.warn(
+        `[Server] MathJax could not render ${slide.id} (${draft.title}):`,
+        err instanceof Error ? err.message : err,
+      );
+      return slide;
+    }
+  });
+  return { ...draft, slides };
+}
+
+app.get(
+  "/api/courses/:id/lessons/:chapterIndex/:subtopicIndex",
+  async (req, res) => {
+    try {
+      const claims = await verifyClerkToken(req.headers.authorization);
+      const chapterIndex = parseLessonIndex(req.params.chapterIndex);
+      const subtopicIndex = parseLessonIndex(req.params.subtopicIndex);
+      if (chapterIndex === null || subtopicIndex === null) {
+        res.status(400).json({ error: "Invalid chapter or subtopic index" });
+        return;
+      }
+
+      const access = await getCourseAccess(req.params.id, claims.sub);
+      if (access.status === "not_found") {
+        res.status(404).json({ error: "Course not found" });
+        return;
+      }
+      if (access.status === "forbidden") {
+        res.status(403).json({ error: "This course is private" });
+        return;
+      }
+
+      const source = resolveLessonSource(
+        access.course,
+        chapterIndex,
+        subtopicIndex,
+      );
+      if (!source) {
+        res.status(404).json({ error: "Chapter or subtopic not found" });
+        return;
+      }
+
+      const [row] = await db
+        .select()
+        .from(lessonScripts)
+        .where(
+          and(
+            eq(lessonScripts.courseId, access.course.id),
+            eq(lessonScripts.chapterIndex, chapterIndex),
+            eq(lessonScripts.subtopicIndex, subtopicIndex),
+          ),
+        )
+        .limit(1);
+
+      if (!row) {
+        res
+          .status(404)
+          .json({ error: "Lesson not generated", code: "lesson_missing" });
+        return;
+      }
+
+      if (
+        row.sourceHash !==
+        lessonHash(access.course, source.chapter, source.subtopic)
+      ) {
+        res
+          .status(404)
+          .json({ error: "Lesson needs regeneration", code: "lesson_stale" });
+        return;
+      }
+
+      res.json(mapLessonRow(row));
+    } catch (err) {
+      if (isTokenError(err)) {
+        res.status(401).json({ error: "Invalid token" });
+        return;
+      }
+      sendRouteError(res, err, "[Server] GET lesson failed");
+    }
+  },
+);
+
+app.post(
+  "/api/courses/:id/lessons/:chapterIndex/:subtopicIndex/generate",
+  async (req, res) => {
+    try {
+      const claims = await verifyClerkToken(req.headers.authorization);
+      const chapterIndex = parseLessonIndex(req.params.chapterIndex);
+      const subtopicIndex = parseLessonIndex(req.params.subtopicIndex);
+      if (chapterIndex === null || subtopicIndex === null) {
+        res.status(400).json({ error: "Invalid chapter or subtopic index" });
+        return;
+      }
+
+      const access = await getCourseAccess(req.params.id, claims.sub);
+      if (access.status === "not_found") {
+        res.status(404).json({ error: "Course not found" });
+        return;
+      }
+      if (access.status === "forbidden") {
+        res.status(403).json({ error: "This course is private" });
+        return;
+      }
+
+      const source = resolveLessonSource(
+        access.course,
+        chapterIndex,
+        subtopicIndex,
+      );
+      if (!source) {
+        res.status(404).json({ error: "Chapter or subtopic not found" });
+        return;
+      }
+
+      const sourceHash = lessonHash(
+        access.course,
+        source.chapter,
+        source.subtopic,
+      );
+
+      const [existing] = await db
+        .select()
+        .from(lessonScripts)
+        .where(
+          and(
+            eq(lessonScripts.courseId, access.course.id),
+            eq(lessonScripts.chapterIndex, chapterIndex),
+            eq(lessonScripts.subtopicIndex, subtopicIndex),
+          ),
+        )
+        .limit(1);
+
+      if (existing && existing.sourceHash === sourceHash) {
+        res.json(mapLessonRow(existing));
+        return;
+      }
+
+      const { modelRef, apiKey } = aiRequestOptions(req);
+      const prompt = buildLessonScriptPrompt({
+        courseTitle: access.course.title,
+        chapterTitle: source.chapter.title,
+        chapterDescription: source.chapter.description,
+        difficulty: access.course.difficulty,
+        subtopicTitle: source.subtopic.title,
+        subtopicContent: source.subtopic.content,
+        slideCount: 6,
+      });
+
+      const draft = await generateLessonScript(modelRef, prompt, apiKey);
+      const script = attachEquationSvgs(draft);
+
+      const [row] = await db
+        .insert(lessonScripts)
+        .values({
+          id: `lsn_${crypto.randomUUID()}`,
+          courseId: access.course.id,
+          chapterIndex,
+          subtopicIndex,
+          title: script.title,
+          script,
+          audio: [],
+          voice: TTS_VOICE,
+          ttsModel: TTS_MODEL,
+          sourceHash,
+          status: "script_ready",
+          version: 1,
+        })
+        .onConflictDoUpdate({
+          target: [
+            lessonScripts.courseId,
+            lessonScripts.chapterIndex,
+            lessonScripts.subtopicIndex,
+          ],
+          set: {
+            title: script.title,
+            script,
+            audio: [],
+            voice: TTS_VOICE,
+            ttsModel: TTS_MODEL,
+            sourceHash,
+            status: "script_ready",
+            version: drizzleSql`${lessonScripts.version} + 1`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      res.status(existing ? 200 : 201).json(mapLessonRow(row));
+    } catch (err) {
+      if (isTokenError(err)) {
+        res.status(401).json({ error: "Invalid token" });
+        return;
+      }
+      sendRouteError(res, err, "[Server] POST lesson generate failed");
+    }
+  },
+);
+
+app.post("/api/lessons/:id/audio", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const lessonId = req.params.id;
+    if (!LESSON_ID_RE.test(lessonId)) {
+      res.status(400).json({ error: "Invalid lesson id" });
+      return;
+    }
+
+    const [row] = await db
+      .select()
+      .from(lessonScripts)
+      .where(eq(lessonScripts.id, lessonId))
+      .limit(1);
+
+    if (!row) {
+      res.status(404).json({ error: "Lesson not found" });
+      return;
+    }
+
+    const access = await getCourseAccess(row.courseId, claims.sub);
+    if (access.status === "not_found") {
+      res.status(404).json({ error: "Course not found" });
+      return;
+    }
+    if (access.status === "forbidden") {
+      res.status(403).json({ error: "This course is private" });
+      return;
+    }
+
+    const source = resolveLessonSource(
+      access.course,
+      row.chapterIndex,
+      row.subtopicIndex,
+    );
+    if (
+      !source ||
+      row.sourceHash !==
+        lessonHash(access.course, source.chapter, source.subtopic)
+    ) {
+      res
+        .status(409)
+        .json({ error: "Lesson needs regeneration", code: "lesson_stale" });
+      return;
+    }
+
+    const script = readLessonScript(row);
+    if (script.slides.length === 0) {
+      res.status(422).json({ error: "Lesson script is empty" });
+      return;
+    }
+
+    const cachedAudio = new Map(
+      (Array.isArray(row.audio) ? row.audio : []).map((clip) => [
+        clip.slideId,
+        clip,
+      ]),
+    );
+    const complete = script.slides.every(
+      (slide) => !!cachedAudio.get(slide.id)?.url,
+    );
+
+    if (complete) {
+      if (row.status !== "audio_ready") {
+        await db
+          .update(lessonScripts)
+          .set({ status: "audio_ready", updatedAt: new Date() })
+          .where(eq(lessonScripts.id, row.id));
+      }
+      res.json(mapLessonRow({ ...row, status: "audio_ready" }));
+      return;
+    }
+
+    const { modelRef, apiKey } = aiRequestOptions(req);
+    const geminiKey = modelRef.startsWith("gemini::") ? apiKey : undefined;
+    const ai = getGemini(geminiKey);
+    const voice = row.voice || TTS_VOICE;
+    const clips: (LessonAudioClip | undefined)[] = script.slides.map(
+      (slide) => {
+        const cached = cachedAudio.get(slide.id);
+        return cached?.url ? cached : undefined;
+      },
+    );
+    const pending = script.slides
+      .map((slide, index) => ({ slide, index }))
+      .filter(({ index }) => !clips[index]);
+    let cursor = 0;
+    let failed = 0;
+
+    const worker = async () => {
+      while (cursor < pending.length) {
+        const current = pending[cursor];
+        cursor += 1;
+        if (!current) return;
+        const { slide, index } = current;
+
+        try {
+          const speech = await generateSpeechWithRetry(
+            ai,
+            slide.narration,
+            voice,
+          );
+          const wav = pcmToWav(speech.base64, {
+            sampleRate: pcmRateFromMime(speech.mimeType),
+          });
+          const uploadedUrl = await uploadToCloudinary(
+            wav.base64,
+            "audio/wav",
+            { resourceType: "video" },
+          );
+          clips[index] = {
+            slideId: slide.id,
+            url: lessonAudioDeliveryUrl(uploadedUrl),
+            durationMs: wav.durationMs,
+            mimeType: "audio/mpeg",
+          };
+        } catch (err) {
+          failed += 1;
+          console.warn(
+            `[Server] Lesson audio failed for ${row.id}/${slide.id}:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(3, pending.length) }, () => worker()),
+    );
+
+    const audio = clips.filter(
+      (clip): clip is LessonAudioClip => clip !== undefined,
+    );
+    const status: LessonStatus = failed === 0 ? "audio_ready" : "script_ready";
+    await db
+      .update(lessonScripts)
+      .set({ audio, status, updatedAt: new Date() })
+      .where(eq(lessonScripts.id, row.id));
+
+    const payload = mapLessonRow({ ...row, audio, status });
+    if (failed > 0) {
+      payload.audioError =
+        failed === script.slides.length
+          ? "Narration is unavailable right now. You can still read every slide."
+          : `Narration is unavailable for ${failed} of ${script.slides.length} slides.`;
+    }
+    res.json(payload);
+  } catch (err) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST lesson audio failed");
+  }
+});
+
+app.post("/api/lessons/:id/explain", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const lessonId = req.params.id;
+    if (!LESSON_ID_RE.test(lessonId)) {
+      res.status(400).json({ error: "Invalid lesson id" });
+      return;
+    }
+
+    const { slideId, action } = req.body ?? {};
+    if (typeof slideId !== "string" || !slideId || slideId.length > 32) {
+      res.status(400).json({ error: "Missing required field: slideId" });
+      return;
+    }
+    if (
+      typeof action !== "string" ||
+      !LESSON_EXPLAIN_ACTIONS.includes(action as LessonExplainAction)
+    ) {
+      res.status(400).json({
+        error: "Invalid action. Use simplify, example, or why.",
+      });
+      return;
+    }
+
+    const [row] = await db
+      .select()
+      .from(lessonScripts)
+      .where(eq(lessonScripts.id, lessonId))
+      .limit(1);
+
+    if (!row) {
+      res.status(404).json({ error: "Lesson not found" });
+      return;
+    }
+
+    const access = await getCourseAccess(row.courseId, claims.sub);
+    if (access.status === "not_found") {
+      res.status(404).json({ error: "Course not found" });
+      return;
+    }
+    if (access.status === "forbidden") {
+      res.status(403).json({ error: "This course is private" });
+      return;
+    }
+
+    const source = resolveLessonSource(
+      access.course,
+      row.chapterIndex,
+      row.subtopicIndex,
+    );
+    if (
+      !source ||
+      row.sourceHash !==
+        lessonHash(access.course, source.chapter, source.subtopic)
+    ) {
+      res
+        .status(409)
+        .json({ error: "Lesson needs regeneration", code: "lesson_stale" });
+      return;
+    }
+
+    const script = readLessonScript(row);
+    const slide = script.slides.find((entry) => entry.id === slideId);
+    if (!slide) {
+      res.status(404).json({ error: "Slide not found" });
+      return;
+    }
+
+    const { modelRef, apiKey } = aiRequestOptions(req);
+    const prompt = buildLessonExplainPrompt({
+      lessonTitle: script.title,
+      slide,
+      action: action as LessonExplainAction,
+    });
+    const text = (
+      await generateText({ modelRef, prompt, apiKey, json: false })
+    ).trim();
+    if (!text) {
+      res.status(422).json({ error: "AI returned an empty explanation" });
+      return;
+    }
+
+    res.json({ text: text.slice(0, 1600) });
+  } catch (err) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST lesson explain failed");
   }
 });
 
@@ -4466,7 +5171,7 @@ app.get("/api/notes", async (req, res) => {
       .limit(limit)
       .offset(offset);
 
-    res.json({ notes: rows.map(mapNote), limit, offset });
+    res.json({ notes: rows.map((row) => mapNote(row)), limit, offset });
   } catch (err: any) {
     if (isTokenError(err)) {
       res.status(401).json({ error: "Invalid token", code: "unauthorized" });

@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../../../contexts/AuthContext";
@@ -26,7 +26,6 @@ import { useStatsStore } from "../../../../store/statsStore";
 import { useThemeColors } from "../../../../hooks/useTheme";
 import { useResponsive } from "../../../../hooks/useResponsive";
 import ErrorBoundary from "../../../../component/ErrorBoundary";
-import SpinWheel from "../../../../component/SpinWheel";
 import type { Chapter, Quiz } from "../../../../types/chapter";
 import type { ChapterPerformance } from "../../../../store/courseProgressStore";
 
@@ -40,6 +39,8 @@ export default function ChapterScreen() {
   }>();
   const theme = useThemeColors();
   const router = useRouter();
+  const { isWeb, isWebWide, breakpoint } = useResponsive();
+  const isTabletWeb = isWeb && breakpoint === "tablet";
   const { getToken } = useAuth();
   const profile = useUserStore((s) => s.profile);
   const course = useCourseStore((s) => s.getCourseById(courseId ?? ""));
@@ -162,6 +163,20 @@ export default function ChapterScreen() {
     setSelectedAnswers({});
     setResults({});
   }, []);
+
+  const handleOpenLesson = useCallback(() => {
+    if (!courseId || activeSubtopic === null) return;
+    router.push(
+      {
+        pathname: "/(course)/[courseId]/lesson/[chapterIndex]/[subtopicIndex]",
+        params: {
+          courseId,
+          chapterIndex: String(chapterIdx),
+          subtopicIndex: String(activeSubtopic),
+        },
+      } as unknown as Href,
+    );
+  }, [router, courseId, chapterIdx, activeSubtopic]);
 
   const handleEnroll = useCallback(async () => {
     if (!profile || !courseId) return;
@@ -415,6 +430,210 @@ export default function ChapterScreen() {
     );
   }
 
+  const lessonButton =
+    activeSubtopic !== null ? (
+      <TouchableOpacity
+        style={[
+          styles.lessonButton,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+        ]}
+        onPress={handleOpenLesson}
+        accessibilityRole="button"
+      >
+        <View
+          style={[
+            styles.lessonButtonIcon,
+            { backgroundColor: theme.primary + "16" },
+          ]}
+        >
+          <Ionicons name="play" size={17} color={theme.primary} />
+        </View>
+        <View style={styles.lessonButtonCopy}>
+          <Text style={[styles.lessonButtonTitle, { color: theme.text }]}>
+            Watch animated lesson
+          </Text>
+          <Text style={[styles.lessonButtonSubtitle, { color: theme.textMuted }]}>
+            Visuals, narration, and a quick checkpoint
+          </Text>
+        </View>
+        <Ionicons name="arrow-forward" size={18} color={theme.primary} />
+      </TouchableOpacity>
+    ) : null;
+
+  const contentSection = showContent && activeSubtopic !== null && (
+    <View style={styles.contentSection}>
+      <View style={styles.contentHeader}>
+        <View style={styles.contentTitleWrap}>
+          <Text style={[styles.contentLabel, { color: theme.textMuted }]}>
+            Subtopic {activeSubtopic + 1} of {subtopics.length}
+          </Text>
+          <Text style={[styles.contentTitle, { color: theme.text }]}>
+            {subtopics[activeSubtopic]?.title}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={handleContinue}>
+          <Text style={[styles.backLink, { color: theme.primary }]}>Back</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.navRow}>
+        {activeSubtopic > 0 ? (
+          <TouchableOpacity
+            style={[styles.navPill, { backgroundColor: theme.surfaceAlt }]}
+            onPress={handlePrevSubtopic}
+          >
+            <Ionicons name="chevron-back" size={16} color={theme.textSecondary} />
+            <Text style={[styles.navPillText, { color: theme.textSecondary }]}>Prev</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ flex: 1 }} />
+        )}
+        <View style={{ flex: 1 }} />
+        {activeSubtopic < subtopics.length - 1 ? (
+          <TouchableOpacity
+            style={[styles.navPill, { backgroundColor: theme.surfaceAlt }]}
+            onPress={handleNextSubtopic}
+          >
+            <Text style={[styles.navPillText, { color: theme.textSecondary }]}>Next</Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      <View style={[styles.contentCard, { backgroundColor: theme.surface }]}>
+        <Text style={[styles.contentText, { color: theme.textSecondary }]}>
+          {subtopics[activeSubtopic]?.content}
+        </Text>
+      </View>
+
+      {lessonButton}
+
+      {(() => {
+        const alreadyPassed = isQuizPassed(courseId ?? "", chapterIdx, activeSubtopic);
+        if (quizState === "idle" && alreadyPassed) {
+          return (
+            <View style={[styles.quizAlreadyPassed, { backgroundColor: theme.success + "12" }]}>
+              <Ionicons name="checkmark-circle" size={22} color={theme.success} />
+              <Text style={[styles.quizAlreadyPassedText, { color: theme.success }]}>
+                Quiz already completed
+              </Text>
+            </View>
+          );
+        }
+        if (quizState === "idle" && !alreadyPassed) {
+          return (
+            <TouchableOpacity
+              style={[styles.quizButton, { backgroundColor: theme.primary }]}
+              onPress={handleTakeQuiz}
+            >
+              <Ionicons name="help-circle" size={20} color="#FFF" />
+              <Text style={styles.quizButtonText}>Complete & Take Quiz</Text>
+            </TouchableOpacity>
+          );
+        }
+        return null;
+      })()}
+
+      {quizState === "loading" && (
+        <View style={styles.quizLoading}>
+          <ActivityIndicator color={theme.primary} size="large" />
+          <Text style={[styles.quizLoadingText, { color: theme.textSecondary }]}>
+            Generating quiz questions...
+          </Text>
+        </View>
+      )}
+
+      {quizState === "active" && quiz && (
+        <View style={styles.quizSection}>
+          <Text style={[styles.quizTitle, { color: theme.text }]}>Quiz</Text>
+          {quiz.questions.map((q, qIdx) => (
+            <View key={qIdx} style={styles.questionCard}>
+              <Text style={[styles.questionText, { color: theme.text }]}>
+                {qIdx + 1}. {q.text}
+              </Text>
+              {q.options.map((opt, oIdx) => (
+                <TouchableOpacity
+                  key={oIdx}
+                  style={[
+                    styles.optionButton,
+                    { backgroundColor: theme.surfaceAlt },
+                    selectedAnswers[qIdx] === oIdx && {
+                      backgroundColor: theme.primary + "15",
+                      borderColor: theme.primary,
+                      borderWidth: 1,
+                    },
+                  ]}
+                  onPress={() => handleSelectAnswer(qIdx, oIdx)}
+                >
+                  <View
+                    style={[
+                      styles.radio,
+                      { borderColor: theme.textMuted },
+                      selectedAnswers[qIdx] === oIdx && { borderColor: theme.primary },
+                    ]}
+                  >
+                    {selectedAnswers[qIdx] === oIdx && (
+                      <View style={[styles.radioInner, { backgroundColor: theme.primary }]} />
+                    )}
+                  </View>
+                  <Text style={[styles.optionText, { color: theme.text }]}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ))}
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              { backgroundColor: theme.success },
+              Object.keys(selectedAnswers).length < quiz.questions.length &&
+                styles.submitButtonDisabled,
+            ]}
+            onPress={handleSubmitQuiz}
+            disabled={Object.keys(selectedAnswers).length < quiz.questions.length}
+          >
+            <Text style={styles.submitButtonText}>Submit Answers</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {quizState === "submitted" && (
+        <View style={styles.resultsSection}>
+          {quiz?.questions.map((q, qIdx) => (
+            <View key={qIdx} style={styles.resultRow}>
+              <Ionicons
+                name={results[qIdx] ? "checkmark-circle" : "close-circle"}
+                size={20}
+                color={results[qIdx] ? theme.success : theme.danger}
+              />
+              <Text
+                style={[
+                  styles.resultText,
+                  { color: results[qIdx] ? theme.success : theme.danger },
+                ]}
+              >
+                {results[qIdx] ? "Correct" : "Wrong"}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {quizState === "failed" && (
+        <View style={[styles.failedBanner, { backgroundColor: theme.surfaceAlt }]}>
+          <Ionicons name="refresh" size={28} color={theme.textSecondary} />
+          <Text style={[styles.failedText, { color: theme.textSecondary }]}>
+            Not quite right. Review and try again.
+          </Text>
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: theme.primary }]}
+            onPress={handleRetry}
+          >
+            <Text style={styles.retryButtonText}>Retry Quiz</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <ErrorBoundary>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -427,7 +646,16 @@ export default function ChapterScreen() {
             headerBackTitle: "Course",
           }}
         />
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={[styles.body, isWebWide && styles.bodyWide]}>
+          <ScrollView
+            style={isWebWide ? styles.outlineRail : undefined}
+            contentContainerStyle={
+              isWebWide
+                ? styles.outlineRailContent
+                : [styles.scroll, isTabletWeb && styles.scrollTablet]
+            }
+            showsVerticalScrollIndicator={false}
+          >
           <View style={styles.progressSection}>
             <View style={styles.progressHeader}>
               <Text style={[styles.progressTitle, { color: theme.textSecondary }]}>
@@ -446,7 +674,7 @@ export default function ChapterScreen() {
             />
           </View>
 
-          {!showContent && (
+          {(!showContent || isWebWide) && (
             <>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Subtopics</Text>
               {subtopics.map((subtopic, index) => {
@@ -510,7 +738,7 @@ export default function ChapterScreen() {
             </>
           )}
 
-          {showContent && activeSubtopic !== null && (
+          {!isWebWide && showContent && activeSubtopic !== null && (
             <View style={styles.contentSection}>
               <View style={styles.contentHeader}>
                 <View style={styles.contentTitleWrap}>
@@ -554,6 +782,8 @@ export default function ChapterScreen() {
                   {subtopics[activeSubtopic]?.content}
                 </Text>
               </View>
+
+              {lessonButton}
 
               {(() => {
                 const alreadyPassed = isQuizPassed(courseId ?? "", chapterIdx, activeSubtopic);
@@ -692,7 +922,26 @@ export default function ChapterScreen() {
           )}
 
           <View style={{ height: 60 }} />
-        </ScrollView>
+          </ScrollView>
+          {isWebWide && (
+            <ScrollView
+              style={styles.readingPane}
+              contentContainerStyle={styles.readingContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {contentSection}
+              {!contentSection && (
+                <View style={styles.readingEmpty}>
+                  <Ionicons name="book-outline" size={40} color={theme.textMuted} />
+                  <Text style={[styles.readingEmptyText, { color: theme.textMuted }]}>
+                    Select a subtopic to start learning
+                  </Text>
+                </View>
+              )}
+              <View style={{ height: 60 }} />
+            </ScrollView>
+          )}
+        </View>
 
         <GlassmorphismToast
           visible={toast.visible}
@@ -773,6 +1022,50 @@ const styles = StyleSheet.create({
   errorBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
   errorBtnText: { fontSize: 14, fontWeight: "700" },
   scroll: { padding: 16 },
+  scrollTablet: {
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
+  },
+  body: {
+    flex: 1,
+  },
+  bodyWide: {
+    flexDirection: "row",
+    width: "100%",
+    maxWidth: 1200,
+    alignSelf: "center",
+    gap: 24,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+  },
+  outlineRail: {
+    width: 320,
+  },
+  outlineRailContent: {
+    paddingBottom: 24,
+  },
+  readingPane: {
+    flex: 1,
+    minWidth: 0,
+  },
+  readingContent: {
+    paddingTop: 4,
+    paddingBottom: 24,
+    maxWidth: 760,
+    width: "100%",
+  },
+  readingEmpty: {
+    flex: 1,
+    minHeight: 320,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  readingEmptyText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
   progressSection: {
     marginBottom: 20,
   },
@@ -849,6 +1142,36 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   contentText: { fontSize: 14, lineHeight: 22 },
+  lessonButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 16,
+  },
+  lessonButtonIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingLeft: 2,
+  },
+  lessonButtonCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  lessonButtonTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  lessonButtonSubtitle: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "500",
+  },
   quizButton: {
     flexDirection: "row",
     alignItems: "center",

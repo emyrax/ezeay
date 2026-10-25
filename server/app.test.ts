@@ -80,3 +80,33 @@ test("spin validates auth before touching the database", async () => {
   assert.equal(res.status, 401);
   assert.equal(res.body.code, "unauthorized");
 });
+
+test("animated lesson reads are auth-gated", async () => {
+  const res = await request(app).get("/api/courses/course-1/lessons/0/0");
+  assert.equal(res.status, 401);
+  assert.equal(res.body.error, "Invalid token");
+});
+
+test("animated lesson generation is auth-gated", async () => {
+  const res = await request(app)
+    .post("/api/courses/course-1/lessons/0/0/generate")
+    .send({});
+  assert.equal(res.status, 401);
+  assert.equal(res.body.error, "Invalid token");
+});
+
+test("lesson audio generation is auth-gated", async () => {
+  const res = await request(app)
+    .post("/api/lessons/lsn_00000000/audio")
+    .send({});
+  assert.equal(res.status, 401);
+  assert.equal(res.body.error, "Invalid token");
+});
+
+test("lesson explanations are auth-gated", async () => {
+  const res = await request(app)
+    .post("/api/lessons/lsn_00000000/explain")
+    .send({ slideId: "s1", action: "simplify" });
+  assert.equal(res.status, 401);
+  assert.equal(res.body.error, "Invalid token");
+});

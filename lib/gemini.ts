@@ -1,10 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import type { Chapter, Question } from "../types/chapter";
+import type { LessonScriptDraft } from "../types/lesson";
+import { normalizeLessonScript } from "./lesson/validateLessonScript";
 import { generateText } from "./providers/generateText";
 
 const TEXT_MODEL = "gemini-2.5-flash";
 const IMAGE_MODEL = "gemini-2.0-flash-exp-image-generation";
 const EMBEDDING_MODEL = "text-embedding-004";
+
+export const TTS_MODEL =
+  process.env.TTS_MODEL?.trim() || "gemini-2.5-flash-preview-tts";
+export const TTS_VOICE = process.env.TTS_VOICE?.trim() || "Kore";
 
 // Marks an error as user-safe with a 4xx status so the API layer surfaces the
 // message instead of masking it as a generic "Internal server error".
@@ -120,6 +126,71 @@ export async function generateCourseContent(
     chapters: parsed.chapters.slice(0, 10) as Chapter[],
     thumbnailPrompt: parsed.thumbnailPrompt || "",
   };
+}
+
+export interface SpeechResult {
+  base64: string;
+  mimeType: string;
+}
+
+export async function generateSpeech(
+  ai: GoogleGenAI,
+  text: string,
+  voice = TTS_VOICE,
+): Promise<SpeechResult> {
+  const input = typeof text === "string" ? text.trim() : "";
+  if (!input) {
+    throw aiOutputError("Cannot generate narration for an empty slide.");
+  }
+  if (input.length > 6000) {
+    throw aiOutputError("Narration is too long to voice.");
+  }
+
+  const response = await ai.models.generateContent({
+    model: TTS_MODEL,
+    contents: [{ role: "user", parts: [{ text: input }] }],
+    config: {
+      responseModalities: ["AUDIO"],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName: voice },
+        },
+      },
+    },
+  });
+
+  const audio = response.candidates?.[0]?.content?.parts?.find(
+    (part) => part.inlineData?.data,
+  )?.inlineData;
+
+  if (!audio?.data) {
+    const reason = response.candidates?.[0]?.finishReason ?? "unknown";
+    throw aiOutputError(
+      `Narration engine returned no audio (finishReason: ${reason}).`,
+    );
+  }
+
+  return {
+    base64: audio.data,
+    mimeType: audio.mimeType ?? "audio/L16;codec=pcm;rate=24000",
+  };
+}
+
+export async function generateLessonScript(
+  modelRef: string,
+  prompt: string,
+  apiKey?: string,
+): Promise<LessonScriptDraft> {
+  const parsed = await generateJsonContent<unknown>(modelRef, prompt, apiKey);
+  try {
+    return normalizeLessonScript(parsed);
+  } catch (err) {
+    throw aiOutputError(
+      err instanceof Error
+        ? err.message
+        : "AI returned an invalid lesson script. Please try again or switch models.",
+    );
+  }
 }
 
 export async function generateQuizQuestions(

@@ -4,6 +4,7 @@ import {
   getBreakpoint,
   getCarouselTranslate,
   getContentWidth,
+  getExploreLayout,
   getGridColumns,
   getGutter,
 } from "./responsive";
@@ -31,6 +32,40 @@ test("getGridColumns clamps between 1 and max", () => {
   assert.equal(getGridColumns(768, 220), 3);
   assert.equal(getGridColumns(1200, 220), 4);
   assert.equal(getGridColumns(1920, 220, 12, 6), 6);
+});
+
+test("quests grid resolves columns for measured widths", () => {
+  assert.equal(getGridColumns(390, 320, 16, 3), 1);
+  assert.equal(getGridColumns(768, 320, 16, 3), 2);
+  assert.equal(getGridColumns(1024, 320, 16, 3), 3);
+  assert.equal(getGridColumns(1440, 320, 16, 3), 3);
+  assert.equal(getGridColumns(1920, 320, 16, 3), 3);
+});
+
+test("getExploreLayout enables the panel only on laptop and desktop", () => {
+  assert.deepEqual(getExploreLayout("phone"), {
+    showPanel: false,
+    stageMaxWidth: 0,
+    panelWidth: 0,
+    gap: 0,
+    contentMaxWidth: 0,
+  });
+  assert.equal(getExploreLayout("tablet").showPanel, false);
+  assert.equal(getExploreLayout("tablet").stageMaxWidth, 600);
+  assert.deepEqual(getExploreLayout("laptop"), {
+    showPanel: true,
+    stageMaxWidth: 520,
+    panelWidth: 300,
+    gap: 20,
+    contentMaxWidth: 960,
+  });
+  assert.deepEqual(getExploreLayout("desktop"), {
+    showPanel: true,
+    stageMaxWidth: 600,
+    panelWidth: 360,
+    gap: 28,
+    contentMaxWidth: 1200,
+  });
 });
 
 test("getGutter scales with the breakpoint", () => {

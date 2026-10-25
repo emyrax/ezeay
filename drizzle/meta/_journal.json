@@ -71,6 +71,13 @@
       "when": 1789894149000,
       "tag": "0009_majestic_grey_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792933654957,
+      "tag": "0010_sweet_moira_mactaggert",
+      "breakpoints": true
     }
   ]
 }

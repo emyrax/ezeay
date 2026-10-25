@@ -17,6 +17,7 @@
     "../db/**/*.ts",
     "../types/**/*.ts",
     "../lib/gemini.ts",
+    "../lib/lesson/**/*.ts",
     "../lib/providers/**/*.ts"
   ]
 }

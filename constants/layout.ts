@@ -41,3 +41,17 @@ export const DIALOG_WIDTHS = {
 } as const;
 
 export const QUEST_CARD_MIN_WIDTH = 320;
+
+export const EXPLORE = {
+  contentMaxWidth: 1200,
+  topBarMaxWidth: 960,
+  stageMaxWidth: 600,
+  stageMaxWidthLaptop: 520,
+  panelWidth: 300,
+  panelWidthDesktop: 360,
+  gap: 20,
+  gapDesktop: 28,
+  cardRadius: 28,
+  cardRadiusDesktop: 30,
+  webTabBarInset: NAV.tabBarHeight + NAV.tabBarBottomInset + 12,
+} as const;

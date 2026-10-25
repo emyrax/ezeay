@@ -14,6 +14,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { AudioClip, NoteImage } from "../types/note";
+import type { LessonAudioClip, LessonScriptDraft } from "../types/lesson";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -146,6 +147,36 @@ export const courseEnrollments = pgTable(
       table.userId,
       table.updatedAt,
     ),
+  }),
+);
+
+export const lessonScripts = pgTable(
+  "lesson_scripts",
+  {
+    id: text("id").primaryKey(),
+    courseId: text("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    chapterIndex: integer("chapter_index").notNull(),
+    subtopicIndex: integer("subtopic_index").notNull(),
+    title: text("title").notNull(),
+    script: jsonb("script").$type<LessonScriptDraft>().notNull(),
+    audio: jsonb("audio").$type<LessonAudioClip[]>().notNull().default([]),
+    voice: text("voice").notNull().default("Kore"),
+    ttsModel: text("tts_model").notNull().default(""),
+    sourceHash: text("source_hash").notNull().default(""),
+    status: text("status").notNull().default("script_ready"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+  },
+  (table) => ({
+    uniqueLesson: unique().on(
+      table.courseId,
+      table.chapterIndex,
+      table.subtopicIndex,
+    ),
+    lessonCourseIdx: index("lesson_scripts_course_idx").on(table.courseId),
   }),
 );
 

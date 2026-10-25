@@ -2,6 +2,11 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import type { Course } from "../types/course";
 import type { CourseEnrollment } from "../types/courseEnrollment";
+import type {
+  LessonExplainAction,
+  LessonExplainResponse,
+  LessonScript,
+} from "../types/lesson";
 import type { UserTrophy } from "../types/userTrophy";
 import type {
   GenerateCourseInput,
@@ -475,6 +480,62 @@ export const api = {
         method: "DELETE",
         token,
       }),
+  },
+
+  lessons: {
+    get: (
+      courseId: string,
+      chapterIndex: number,
+      subtopicIndex: number,
+      token: string,
+    ) =>
+      apiFetch<LessonScript>(
+        `/api/courses/${encodeURIComponent(courseId)}/lessons/${chapterIndex}/${subtopicIndex}`,
+        { token },
+      ),
+
+    generate: (
+      courseId: string,
+      chapterIndex: number,
+      subtopicIndex: number,
+      token: string,
+    ) =>
+      apiFetch<LessonScript>(
+        `/api/courses/${encodeURIComponent(courseId)}/lessons/${chapterIndex}/${subtopicIndex}/generate`,
+        {
+          method: "POST",
+          token,
+          headers: aiModelHeaders(),
+          timeoutMs: 90_000,
+        },
+      ),
+
+    generateAudio: (lessonId: string, token: string) =>
+      apiFetch<LessonScript>(
+        `/api/lessons/${encodeURIComponent(lessonId)}/audio`,
+        {
+          method: "POST",
+          token,
+          timeoutMs: 180_000,
+        },
+      ),
+
+    explain: (
+      lessonId: string,
+      slideId: string,
+      action: LessonExplainAction,
+      token: string,
+    ) =>
+      apiFetch<LessonExplainResponse>(
+        `/api/lessons/${encodeURIComponent(lessonId)}/explain`,
+        {
+          method: "POST",
+          body: JSON.stringify({ slideId, action }),
+          token,
+          headers: aiModelHeaders(),
+          timeoutMs: 60_000,
+        },
+      ),
   },
 
   enrollments: {

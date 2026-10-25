@@ -138,6 +138,7 @@ export default function QuizRewardOverlay({
       <Animated.View style={[styles.backdropWrap, { opacity: backdropOpacity }]}>
         <ConfettiLayer />
 
+        <View style={styles.content}>
         <View style={styles.stage}>
           {rings.map((ring, i) => (
             <Animated.View
@@ -229,6 +230,7 @@ export default function QuizRewardOverlay({
             </TouchableOpacity>
           )}
         </View>
+        </View>
       </Animated.View>
     </Modal>
   );
@@ -241,6 +243,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
+  },
+  content: {
+    width: "100%",
+    maxWidth: 460,
+    alignItems: "center",
   },
   stage: {
     width: 168,

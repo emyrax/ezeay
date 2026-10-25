@@ -628,7 +628,7 @@ export default function QuestsScreen() {
                 My AI Quests
               </Text>
               <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
-                Build a learning path around what you're curious about.
+                Build a learning path around what you&apos;re curious about.
               </Text>
               <View style={[styles.heroActions, isDesktop && styles.heroActionsRow]}>
                 {generateOptionCard}
