@@ -181,7 +181,6 @@ export default function LessonScreen() {
   );
 
   const handleClose = useCallback(() => {
-    player.pause();
     if (router.canGoBack()) {
       router.back();
       return;
@@ -191,15 +190,14 @@ export default function LessonScreen() {
       return;
     }
     router.replace("/(tabs)");
-  }, [player, router, courseId, chapterIdx, chapterHref]);
+  }, [router, courseId, chapterIdx, chapterHref]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      player.pause();
     };
-  }, [player]);
+  }, []);
 
   useEffect(() => {
     void setAudioModeAsync({
