@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useThemeColors } from "../../hooks/useTheme";
 import type { LessonMotionPreset } from "../../lib/lesson/motion";
 
@@ -41,8 +42,28 @@ export default function LessonProgress({ index, total, preset }: Props) {
           style={[
             styles.fill,
             {
-              backgroundColor: theme.primary,
               width: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["0%", "100%"],
+              }),
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[theme.primary, theme.accent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.head,
+            {
+              backgroundColor: theme.primary,
+              shadowColor: theme.primary,
+              left: progress.interpolate({
                 inputRange: [0, 1],
                 outputRange: ["0%", "100%"],
               }),
@@ -74,6 +95,19 @@ const styles = StyleSheet.create({
   fill: {
     height: "100%",
     borderRadius: 3,
+    overflow: "hidden",
+  },
+  head: {
+    position: "absolute",
+    top: -2,
+    bottom: -2,
+    width: 7,
+    marginLeft: -3.5,
+    borderRadius: 4,
+    opacity: 0.9,
+    shadowOpacity: 0.45,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
   },
   text: {
     fontSize: 10,

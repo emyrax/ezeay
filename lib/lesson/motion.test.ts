@@ -3,7 +3,9 @@ import { test } from "node:test";
 import {
   LESSON_MOTION_DEFAULT,
   getLessonMotionPreset,
+  getWordRevealDelay,
   isLessonMotionStyle,
+  splitMotionWords,
 } from "./motion";
 
 test("isLessonMotionStyle accepts only supported styles", () => {
@@ -22,8 +24,12 @@ test("getLessonMotionPreset returns stable style presets", () => {
 
   assert.equal(calm.style, "calm");
   assert.equal(calm.drawDiagram, false);
+  assert.equal(calm.ambient, false);
+  assert.equal(calm.wordReveal, false);
   assert.equal(kinetic.style, LESSON_MOTION_DEFAULT);
   assert.equal(kinetic.drawDiagram, true);
+  assert.equal(kinetic.ambient, true);
+  assert.equal(kinetic.wordReveal, true);
   assert.equal(playful.confetti, true);
   assert.ok(playful.duration > kinetic.duration);
 });
@@ -40,4 +46,22 @@ test("reduced motion disables non-essential effects", () => {
   assert.equal(reduced.sweep, false);
   assert.equal(reduced.equalizer, false);
   assert.equal(reduced.confetti, false);
+  assert.equal(reduced.ambient, false);
+  assert.equal(reduced.wordReveal, false);
+});
+
+test("splitMotionWords keeps punctuation and drops extra whitespace", () => {
+  assert.deepEqual(splitMotionWords("  Learn   faster,  together. "), [
+    "Learn",
+    "faster,",
+    "together.",
+  ]);
+  assert.deepEqual(splitMotionWords("   "), []);
+});
+
+test("getWordRevealDelay staggers words with a readable floor", () => {
+  assert.equal(getWordRevealDelay(0, 75), 0);
+  assert.equal(getWordRevealDelay(2, 75), 68);
+  assert.equal(getWordRevealDelay(5, 0), 90);
+  assert.equal(getWordRevealDelay(-2, 75), 0);
 });

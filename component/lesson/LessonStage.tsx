@@ -7,6 +7,7 @@ import { useThemeColors } from "../../hooks/useTheme";
 import type { LessonMotionPreset } from "../../lib/lesson/motion";
 import type { LessonSlide } from "../../types/lesson";
 import LessonVisual from "./LessonVisual";
+import MotionBackdrop from "./MotionBackdrop";
 import MotionReveal from "./MotionReveal";
 
 interface Props {
@@ -105,6 +106,26 @@ export default function LessonStage({ slide, index, total }: Props) {
       shouldAnimate && slide.reveal === "draw" ? motion.scaleFrom : 1,
     ),
   ).current;
+  const entrance = useRef(new Animated.Value(shouldAnimate ? 0 : 1)).current;
+
+  useEffect(() => {
+    entrance.stopAnimation();
+
+    if (!shouldAnimate || motion.duration <= 0) {
+      entrance.setValue(1);
+      return;
+    }
+
+    entrance.setValue(0);
+    const animation = Animated.timing(entrance, {
+      toValue: 1,
+      duration: Math.max(260, motion.duration * 0.9),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [entrance, motion.duration, shouldAnimate, slide.id]);
 
   useEffect(() => {
     const reveal = slide.reveal;
@@ -169,12 +190,36 @@ export default function LessonStage({ slide, index, total }: Props) {
   ]);
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.stage,
-        { backgroundColor: theme.surface, borderColor: theme.border },
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          opacity: entrance,
+          transform: [
+            {
+              translateY: entrance.interpolate({
+                inputRange: [0, 1],
+                outputRange: [motion.distance * 0.7, 0],
+              }),
+            },
+            {
+              scale: entrance.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.985, 1],
+              }),
+            },
+          ],
+        },
       ]}
     >
+      <MotionBackdrop
+        preset={motion}
+        color={theme.primary}
+        accent={theme.accent}
+      />
+
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         {Array.from({ length: 5 }, (_, line) => (
           <View
@@ -266,7 +311,7 @@ export default function LessonStage({ slide, index, total }: Props) {
           reveal={slide.reveal}
         />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 

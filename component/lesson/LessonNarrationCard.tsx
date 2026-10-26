@@ -18,6 +18,59 @@ interface Props {
   replayKey?: string;
 }
 
+function NarrationSentence({
+  text,
+  active,
+  animate,
+  activeColor,
+  idleColor,
+  highlightColor,
+}: {
+  text: string;
+  active: boolean;
+  animate: boolean;
+  activeColor: string;
+  idleColor: string;
+  highlightColor: string;
+}) {
+  const highlight = useRef(new Animated.Value(active ? 1 : 0)).current;
+
+  useEffect(() => {
+    highlight.stopAnimation();
+
+    if (!animate) {
+      highlight.setValue(active ? 1 : 0);
+      return;
+    }
+
+    const animation = Animated.timing(highlight, {
+      toValue: active ? 1 : 0,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [active, animate, highlight]);
+
+  return (
+    <Animated.Text
+      style={{
+        color: highlight.interpolate({
+          inputRange: [0, 1],
+          outputRange: [idleColor, activeColor],
+        }),
+        backgroundColor: highlight.interpolate({
+          inputRange: [0, 1],
+          outputRange: [highlightColor + "00", highlightColor + "14"],
+        }),
+      }}
+    >
+      {text}
+    </Animated.Text>
+  );
+}
+
 function Equalizer({
   playing,
   enabled,
@@ -131,25 +184,19 @@ export default function LessonNarrationCard({
         style={[styles.text, { color: theme.textSecondary }]}
         accessibilityLabel={text}
       >
-        {sentences.map((sentence, index) => {
-          const active = index === activeIndex;
-          return (
-            <Text
-              key={`${index}-${sentence.slice(0, 12)}`}
-              style={
-                active
-                  ? {
-                      color: theme.text,
-                      backgroundColor: theme.primary + "14",
-                    }
-                  : undefined
-              }
-            >
-              {sentence}
-              {index < sentences.length - 1 ? " " : ""}
-            </Text>
-          );
-        })}
+        {sentences.map((sentence, index) => (
+          <React.Fragment key={`${index}-${sentence.slice(0, 12)}`}>
+            <NarrationSentence
+              text={sentence}
+              active={index === activeIndex}
+              animate={preset.enabled}
+              activeColor={theme.text}
+              idleColor={theme.textSecondary}
+              highlightColor={theme.primary}
+            />
+            {index < sentences.length - 1 ? " " : ""}
+          </React.Fragment>
+        ))}
       </Text>
     </MotionReveal>
   );

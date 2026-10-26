@@ -44,19 +44,25 @@ export default function MotionReveal({
     }
 
     progress.setValue(0);
-    const animation = Animated.sequence([
-      Animated.delay(delay),
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: preset.duration,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]);
+    const reveal =
+      preset.style === "playful"
+        ? Animated.spring(progress, {
+            toValue: 1,
+            friction: 7,
+            tension: 80,
+            useNativeDriver: true,
+          })
+        : Animated.timing(progress, {
+            toValue: 1,
+            duration: preset.duration,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          });
+    const animation = Animated.sequence([Animated.delay(delay), reveal]);
 
     animation.start();
     return () => animation.stop();
-  }, [active, delay, preset.duration, progress, replayKey]);
+  }, [active, delay, preset.duration, preset.style, progress, replayKey]);
 
   const offset = distance ?? preset.distance;
   const startX =
@@ -70,7 +76,11 @@ export default function MotionReveal({
       style={[
         style,
         {
-          opacity: progress,
+          opacity: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 1],
+            extrapolate: "clamp",
+          }),
           transform: [
             {
               translateX: progress.interpolate({

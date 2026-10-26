@@ -11,6 +11,8 @@ export interface LessonMotionPreset {
   sweep: boolean;
   equalizer: boolean;
   confetti: boolean;
+  ambient: boolean;
+  wordReveal: boolean;
 }
 
 export const LESSON_MOTION_DEFAULT: LessonMotionStyle = "kinetic";
@@ -28,12 +30,13 @@ export const LESSON_MOTION_OPTIONS: {
   {
     id: "kinetic",
     label: "Kinetic",
-    description: "Staggered text, drawn visuals, and smooth highlights.",
+    description: "Kinetic text, flowing diagrams, and ambient motion graphics.",
   },
   {
     id: "playful",
     label: "Playful",
-    description: "Springy motion, bigger reveals, and completion confetti.",
+    description:
+      "Springy word reveals, flowing diagrams, and completion confetti.",
   },
 ];
 
@@ -49,6 +52,8 @@ const STYLE_PRESETS: Record<LessonMotionStyle, LessonMotionPreset> = {
     sweep: false,
     equalizer: false,
     confetti: false,
+    ambient: false,
+    wordReveal: false,
   },
   kinetic: {
     style: "kinetic",
@@ -61,6 +66,8 @@ const STYLE_PRESETS: Record<LessonMotionStyle, LessonMotionPreset> = {
     sweep: true,
     equalizer: true,
     confetti: false,
+    ambient: true,
+    wordReveal: true,
   },
   playful: {
     style: "playful",
@@ -73,6 +80,8 @@ const STYLE_PRESETS: Record<LessonMotionStyle, LessonMotionPreset> = {
     sweep: true,
     equalizer: true,
     confetti: true,
+    ambient: true,
+    wordReveal: true,
   },
 };
 
@@ -87,7 +96,17 @@ const REDUCED_MOTION_PRESET: LessonMotionPreset = {
   sweep: false,
   equalizer: false,
   confetti: false,
+  ambient: false,
+  wordReveal: false,
 };
+
+export function splitMotionWords(text: string): string[] {
+  return text.trim().split(/\s+/).filter(Boolean);
+}
+
+export function getWordRevealDelay(index: number, stagger: number): number {
+  return Math.round(Math.max(0, index) * Math.max(18, stagger * 0.45));
+}
 
 export function isLessonMotionStyle(
   value: unknown,
