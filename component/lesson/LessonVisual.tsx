@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle, G, Line, SvgXml, Text as SvgText } from "react-native-svg";
-import { useThemeColors } from "../../hooks/useTheme";
 import {
   equationAspectRatio,
   prepareEquationSvg,
@@ -14,6 +13,7 @@ import type {
   LessonVisual as LessonVisualType,
 } from "../../types/lesson";
 import AnimatedWords from "./AnimatedWords";
+import { useLessonTheme } from "./LessonThemeContext";
 import MotionReveal from "./MotionReveal";
 
 interface Props {
@@ -56,7 +56,7 @@ function TitleVisual({
   preset,
   enabled,
 }: MotionProps & { text: string; subtitle?: string }) {
-  const theme = useThemeColors();
+  const theme = useLessonTheme();
   const ruleWidth = useRef(new Animated.Value(enabled ? 0 : 38)).current;
 
   useEffect(() => {
@@ -127,7 +127,7 @@ function BulletsVisual({
   preset,
   enabled,
 }: MotionProps & { items: string[] }) {
-  const theme = useThemeColors();
+  const theme = useLessonTheme();
 
   return (
     <View style={styles.bulletList}>
@@ -187,7 +187,7 @@ function EquationVisual({
   preset,
   enabled,
 }: MotionProps & { svg?: string; latex: string; caption?: string }) {
-  const theme = useThemeColors();
+  const theme = useLessonTheme();
   const prepared = useMemo(
     () => (svg ? prepareEquationSvg(svg, theme.text) : null),
     [svg, theme.text],
@@ -361,7 +361,7 @@ function AnimatedNode({
   enabled: boolean;
   delay: number;
 }) {
-  const theme = useThemeColors();
+  const theme = useLessonTheme();
   const progress = useRef(new Animated.Value(enabled ? 0 : 1)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const activePulse = enabled && preset.sweep;
@@ -562,7 +562,7 @@ function Diagram({
   edges: [string, string][];
   caption?: string;
 }) {
-  const theme = useThemeColors();
+  const theme = useLessonTheme();
   const positions = useMemo(() => {
     const map = new Map<string, { x: number; y: number }>();
     for (const node of nodes) {
@@ -654,7 +654,7 @@ function CalloutVisual({
   preset,
   enabled,
 }: MotionProps & { tone: "key" | "tip" | "warn"; text: string }) {
-  const theme = useThemeColors();
+  const theme = useLessonTheme();
   const iconScale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const config = CALLOUT_CONFIG[tone];

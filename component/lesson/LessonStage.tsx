@@ -3,10 +3,10 @@ import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLessonMotion } from "../../hooks/useLessonMotion";
-import { useThemeColors } from "../../hooks/useTheme";
 import type { LessonMotionPreset } from "../../lib/lesson/motion";
 import type { LessonSlide } from "../../types/lesson";
 import LessonVisual from "./LessonVisual";
+import { useLessonTheme } from "./LessonThemeContext";
 import MotionBackdrop from "./MotionBackdrop";
 import MotionReveal from "./MotionReveal";
 
@@ -14,6 +14,7 @@ interface Props {
   slide: LessonSlide;
   index: number;
   total: number;
+  presentation?: boolean;
 }
 
 const REVEAL_LABEL = {
@@ -86,8 +87,13 @@ function StageSweep({
   );
 }
 
-export default function LessonStage({ slide, index, total }: Props) {
-  const theme = useThemeColors();
+export default function LessonStage({
+  slide,
+  index,
+  total,
+  presentation = false,
+}: Props) {
+  const theme = useLessonTheme();
   const motion = useLessonMotion();
   const shouldAnimate = slide.reveal !== "none" && motion.enabled;
   const opacity = useRef(new Animated.Value(shouldAnimate ? 0 : 1)).current;
@@ -193,8 +199,9 @@ export default function LessonStage({ slide, index, total }: Props) {
     <Animated.View
       style={[
         styles.stage,
+        presentation && styles.stagePresentation,
         {
-          backgroundColor: theme.surface,
+          backgroundColor: presentation ? "transparent" : theme.surface,
           borderColor: theme.border,
           opacity: entrance,
           transform: [
@@ -254,46 +261,48 @@ export default function LessonStage({ slide, index, total }: Props) {
         replayKey={slide.id}
       />
 
-      <View style={styles.stageHeader}>
-        <MotionReveal
-          preset={motion}
-          replayKey={slide.id}
-          direction="left"
-          distance={6}
-        >
-          <View style={styles.stageLabelWrap}>
+      {presentation ? null : (
+        <View style={styles.stageHeader}>
+          <MotionReveal
+            preset={motion}
+            replayKey={slide.id}
+            direction="left"
+            distance={6}
+          >
+            <View style={styles.stageLabelWrap}>
+              <View
+                style={[
+                  styles.stageIcon,
+                  { backgroundColor: theme.primary + "16" },
+                ]}
+              >
+                <Ionicons name="easel-outline" size={14} color={theme.primary} />
+              </View>
+              <Text style={[styles.stageLabel, { color: theme.textMuted }]}>
+                Slide {index + 1} of {total}
+              </Text>
+            </View>
+          </MotionReveal>
+          <MotionReveal
+            preset={motion}
+            replayKey={slide.id}
+            direction="right"
+            distance={6}
+            delay={motion.stagger}
+          >
             <View
               style={[
-                styles.stageIcon,
-                { backgroundColor: theme.primary + "16" },
+                styles.revealPill,
+                { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
               ]}
             >
-              <Ionicons name="easel-outline" size={14} color={theme.primary} />
+              <Text style={[styles.revealText, { color: theme.textMuted }]}>
+                {REVEAL_LABEL[slide.reveal]}
+              </Text>
             </View>
-            <Text style={[styles.stageLabel, { color: theme.textMuted }]}>
-              Slide {index + 1} of {total}
-            </Text>
-          </View>
-        </MotionReveal>
-        <MotionReveal
-          preset={motion}
-          replayKey={slide.id}
-          direction="right"
-          distance={6}
-          delay={motion.stagger}
-        >
-          <View
-            style={[
-              styles.revealPill,
-              { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
-            ]}
-          >
-            <Text style={[styles.revealText, { color: theme.textMuted }]}>
-              {REVEAL_LABEL[slide.reveal]}
-            </Text>
-          </View>
-        </MotionReveal>
-      </View>
+          </MotionReveal>
+        </View>
+      )}
 
       <Animated.View
         style={[
@@ -322,6 +331,13 @@ const styles = StyleSheet.create({
     padding: 18,
     minHeight: 330,
     overflow: "hidden",
+  },
+  stagePresentation: {
+    borderWidth: 0,
+    borderRadius: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 0,
+    minHeight: 300,
   },
   sweep: {
     position: "absolute",

@@ -24,6 +24,7 @@ import {
 } from "expo-audio";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "../../../../../contexts/AuthContext";
+import { useFullscreen } from "../../../../../hooks/useFullscreen";
 import { useLessonMotion } from "../../../../../hooks/useLessonMotion";
 import { useThemeColors } from "../../../../../hooks/useTheme";
 import {
@@ -44,6 +45,7 @@ import LessonCompleteCard from "../../../../../component/lesson/LessonCompleteCa
 import LessonExplainSheet from "../../../../../component/lesson/LessonExplainSheet";
 import LessonNarrationCard from "../../../../../component/lesson/LessonNarrationCard";
 import LessonProgress from "../../../../../component/lesson/LessonProgress";
+import LessonTheater from "../../../../../component/lesson/LessonTheater";
 import type {
   LessonExplainAction,
   LessonScript,
@@ -67,9 +69,11 @@ function parseIndex(value: string | undefined): number {
 function LessonHeader({
   title,
   onBack,
+  onPresent,
 }: {
   title: string;
   onBack: () => void;
+  onPresent: () => void;
 }) {
   const theme = useThemeColors();
   return (
@@ -93,9 +97,14 @@ function LessonHeader({
           {title}
         </Text>
       </View>
-      <View style={[styles.headerBadge, { backgroundColor: theme.primary + "14" }]}>
-        <Ionicons name="sparkles" size={17} color={theme.primary} />
-      </View>
+      <TouchableOpacity
+        style={[styles.headerButton, { backgroundColor: theme.surface }]}
+        onPress={onPresent}
+        accessibilityRole="button"
+        accessibilityLabel="Present full screen"
+      >
+        <Ionicons name="expand-outline" size={19} color={theme.text} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -141,6 +150,15 @@ export default function LessonScreen() {
     () => new Set(),
   );
   const [finished, setFinished] = useState(false);
+  const [presentVisible, setPresentVisible] = useState(false);
+  const presentVisibleRef = useRef(false);
+  const handlePresentExit = useCallback(() => {
+    presentVisibleRef.current = false;
+    setPresentVisible(false);
+  }, []);
+  const { enter: enterFullscreen, exit: exitFullscreen } = useFullscreen({
+    onExit: handlePresentExit,
+  });
   const [explainVisible, setExplainVisible] = useState(false);
   const [explainAction, setExplainAction] =
     useState<LessonExplainAction | null>(null);
@@ -414,7 +432,9 @@ export default function LessonScreen() {
       const updated = await api.lessons.generateAudio(lesson.id, token);
       if (!mountedRef.current) return;
       const clip = findAudioClip(updated.audio, currentSlide.id);
-      if (clip && Platform.OS !== "web") pendingPlayRef.current = true;
+      if (clip && (Platform.OS !== "web" || presentVisibleRef.current)) {
+        pendingPlayRef.current = true;
+      }
       setLesson(updated);
       setAudioError(updated.audioError ?? null);
       if (!clip) {
@@ -443,6 +463,35 @@ export default function LessonScreen() {
     player,
     getToken,
   ]);
+
+  const handleOpenPresent = useCallback(() => {
+    if (!currentSlide) return;
+
+    presentVisibleRef.current = true;
+    setPresentVisible(true);
+    void enterFullscreen();
+    if (!status.playing && !finished) void handlePlayPause();
+  }, [
+    currentSlide,
+    enterFullscreen,
+    finished,
+    handlePlayPause,
+    status.playing,
+  ]);
+
+  const handleClosePresent = useCallback(() => {
+    const wasVisible = presentVisibleRef.current;
+    presentVisibleRef.current = false;
+    setPresentVisible(false);
+    if (wasVisible) void exitFullscreen();
+  }, [exitFullscreen]);
+
+  const handleAnswerCheckpoint = useCallback(() => {
+    handleClosePresent();
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 260);
+  }, [handleClosePresent]);
 
   const handleReplayAudio = useCallback(() => {
     if (!currentClip) return;
@@ -845,8 +894,39 @@ export default function LessonScreen() {
         edges={["top", "bottom"]}
       >
         <Stack.Screen options={{ headerShown: false }} />
-        <LessonHeader title={lesson?.title ?? "Lesson"} onBack={handleClose} />
+        <LessonHeader
+          title={lesson?.title ?? "Lesson"}
+          onBack={handleClose}
+          onPresent={handleOpenPresent}
+        />
         {body}
+        {lesson && currentSlide ? (
+          <LessonTheater
+            visible={presentVisible}
+            lessonTitle={lesson.title}
+            slide={currentSlide}
+            index={currentIndex}
+            total={total}
+            motion={motion}
+            playing={status.playing}
+            audioLoading={audioLoading}
+            audioError={audioError}
+            clipReady={!!currentClip}
+            clipDurationSec={clipDurationSec}
+            audioProgress={audioProgress}
+            displayedTimeMs={displayedTimeMs}
+            finished={finished}
+            canAdvance={canAdvance}
+            isLast={isLast}
+            onClose={handleClosePresent}
+            onPlayPause={() => void handlePlayPause()}
+            onReplayAudio={handleReplayAudio}
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+            onAnswerCheckpoint={handleAnswerCheckpoint}
+            onReplayLesson={handleReplayLesson}
+          />
+        ) : null}
         <LessonExplainSheet
           visible={explainVisible}
           action={explainAction}
@@ -896,13 +976,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     letterSpacing: -0.1,
-  },
-  headerBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
   },
   center: {
     flex: 1,

@@ -1,0 +1,27 @@
+import { hero, type ThemeColors } from "./themes";
+
+export const lessonTheaterTheme: ThemeColors = {
+  ...hero,
+  bg: "#000000",
+  surface: "#000000",
+  surfaceAlt: "#0B0B0C",
+  cardBg: "#000000",
+  cardBgLight: "#0B0B0C",
+  glass: "rgba(0, 0, 0, 0.82)",
+  text: "#FFFFFF",
+  textSecondary: "#D4D4D8",
+  textMuted: "#8E8E93",
+  primary: "#FFFFFF",
+  primaryLight: "rgba(255, 255, 255, 0.14)",
+  accent: "#A1A1AA",
+  border: "rgba(255, 255, 255, 0.14)",
+  borderLight: "rgba(255, 255, 255, 0.07)",
+  tabBg: "rgba(0, 0, 0, 0.9)",
+  tabBorder: "rgba(255, 255, 255, 0.14)",
+  tabActive: "#FFFFFF",
+  tabInactive: "#8E8E93",
+  gradientStart: "#FFFFFF",
+  gradientMid: "#D4D4D8",
+  gradientEnd: "#A1A1AA",
+  shadow: "#FFFFFF",
+};

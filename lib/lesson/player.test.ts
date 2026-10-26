@@ -3,15 +3,20 @@ import { test } from "node:test";
 import type { LessonAudioClip, LessonSlide } from "../../types/lesson";
 import {
   activeNarrationSentenceIndex,
+  activeNarrationWordIndex,
+  buildNarrationWordTimings,
   clampSlideIndex,
   equationAspectRatio,
+  estimateNarrationDurationMs,
   findAudioClip,
   formatTimecode,
   hasAudioForSlide,
   isAudioComplete,
   narrationEndAction,
+  narrationScrollTarget,
   prepareEquationSvg,
   splitNarrationSentences,
+  splitNarrationWords,
 } from "./player";
 
 const audio: LessonAudioClip[] = [
@@ -90,6 +95,153 @@ test("activeNarrationSentenceIndex maps playback progress to a sentence", () => 
   assert.equal(activeNarrationSentenceIndex(sentences, -1), 0);
   assert.equal(activeNarrationSentenceIndex(sentences, Number.NaN), 0);
   assert.equal(activeNarrationSentenceIndex([], 0.5), -1);
+});
+
+test("splitNarrationWords preserves punctuation and trims whitespace", () => {
+  assert.deepEqual(splitNarrationWords("  Cells divide, then grow.  "), [
+    "Cells",
+    "divide,",
+    "then",
+    "grow.",
+  ]);
+  assert.deepEqual(splitNarrationWords("   "), []);
+});
+
+test("buildNarrationWordTimings normalizes word timings to a full clip", () => {
+  const timings = buildNarrationWordTimings(
+    "A short pause, then a much longer explanation.",
+  );
+
+  assert.equal(timings.length, 8);
+  assert.equal(timings[0].word, "A");
+  assert.equal(timings[0].start, 0);
+  assert.equal(timings[timings.length - 1].end, 1);
+
+  for (let index = 0; index < timings.length; index += 1) {
+    assert.ok(timings[index].start < timings[index].end);
+    if (index > 0) {
+      assert.equal(timings[index].start, timings[index - 1].end);
+    }
+  }
+
+  assert.deepEqual(buildNarrationWordTimings("   "), []);
+});
+
+test("buildNarrationWordTimings gives punctuation extra pause time", () => {
+  const withPause = buildNarrationWordTimings("Wait. Go");
+  const withoutPause = buildNarrationWordTimings("Wait Go");
+  const pauseDuration = withPause[0].end - withPause[0].start;
+  const plainDuration = withoutPause[0].end - withoutPause[0].start;
+
+  assert.ok(pauseDuration > plainDuration);
+});
+
+test("activeNarrationWordIndex maps progress to the active word", () => {
+  const timings = buildNarrationWordTimings("One two three four.");
+
+  assert.equal(activeNarrationWordIndex(timings, -1), 0);
+  assert.equal(activeNarrationWordIndex(timings, Number.NaN), 0);
+  assert.equal(activeNarrationWordIndex(timings, 0), 0);
+  assert.equal(activeNarrationWordIndex(timings, timings[2].start), 2);
+  assert.equal(activeNarrationWordIndex(timings, 1), timings.length - 1);
+  assert.equal(activeNarrationWordIndex(timings, 4), timings.length - 1);
+  assert.equal(activeNarrationWordIndex([], 0.5), -1);
+});
+
+test("estimateNarrationDurationMs scales with words and punctuation", () => {
+  assert.equal(estimateNarrationDurationMs("   "), 0);
+  assert.ok(estimateNarrationDurationMs("One two.") >= 2400);
+  assert.ok(
+    estimateNarrationDurationMs(
+      "One two three four five six seven eight nine ten.",
+    ) > estimateNarrationDurationMs("One two."),
+  );
+});
+
+test("narrationScrollTarget leaves a visible word alone", () => {
+  assert.equal(
+    narrationScrollTarget({
+      wordTop: 300,
+      wordHeight: 40,
+      scrollOffset: 0,
+      viewportHeight: 600,
+      contentHeight: 2000,
+    }),
+    null,
+  );
+});
+
+test("narrationScrollTarget follows a word below the safe area", () => {
+  const target = narrationScrollTarget({
+    wordTop: 1200,
+    wordHeight: 40,
+    scrollOffset: 0,
+    viewportHeight: 600,
+    contentHeight: 2400,
+  });
+
+  assert.equal(typeof target, "number");
+  assert.ok((target ?? 0) > 0);
+  assert.ok((target ?? 0) < 1200);
+});
+
+test("narrationScrollTarget scrolls back up for a word above the safe area", () => {
+  assert.equal(
+    narrationScrollTarget({
+      wordTop: 700,
+      wordHeight: 40,
+      scrollOffset: 1000,
+      viewportHeight: 600,
+      contentHeight: 2400,
+    }),
+    472,
+  );
+});
+
+test("narrationScrollTarget clamps to the available scroll range", () => {
+  assert.equal(
+    narrationScrollTarget({
+      wordTop: 2300,
+      wordHeight: 40,
+      scrollOffset: 0,
+      viewportHeight: 600,
+      contentHeight: 2400,
+    }),
+    1800,
+  );
+  assert.equal(
+    narrationScrollTarget({
+      wordTop: 10,
+      wordHeight: 40,
+      scrollOffset: 1000,
+      viewportHeight: 600,
+      contentHeight: 2400,
+    }),
+    0,
+  );
+});
+
+test("narrationScrollTarget skips short content and invalid metrics", () => {
+  assert.equal(
+    narrationScrollTarget({
+      wordTop: 200,
+      wordHeight: 40,
+      scrollOffset: 0,
+      viewportHeight: 600,
+      contentHeight: 500,
+    }),
+    null,
+  );
+  assert.equal(
+    narrationScrollTarget({
+      wordTop: Number.NaN,
+      wordHeight: 40,
+      scrollOffset: 0,
+      viewportHeight: 600,
+      contentHeight: 2400,
+    }),
+    null,
+  );
 });
 
 test("prepareEquationSvg strips fixed dimensions and theme colors", () => {

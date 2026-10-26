@@ -47,6 +47,115 @@ export function splitNarrationSentences(text: string): string[] {
   return matches.map((sentence) => sentence.trim()).filter(Boolean);
 }
 
+export interface NarrationWordTiming {
+  word: string;
+  start: number;
+  end: number;
+}
+
+export function splitNarrationWords(text: string): string[] {
+  return text.trim().split(/\s+/).filter(Boolean);
+}
+
+function wordWeight(word: string): number {
+  const letters = word.replace(/[^a-zA-Z0-9]/g, "").length;
+  let pause = 0;
+
+  if (/[.!?]$/.test(word)) pause = 2.2;
+  else if (/[;:]$/.test(word)) pause = 1.2;
+  else if (/,$/.test(word)) pause = 0.8;
+
+  return 1 + letters * 0.12 + pause;
+}
+
+export function buildNarrationWordTimings(
+  text: string,
+): NarrationWordTiming[] {
+  const words = splitNarrationWords(text);
+  if (words.length === 0) return [];
+
+  const weights = words.map(wordWeight);
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  if (total <= 0) return [];
+
+  let elapsed = 0;
+  return words.map((word, index) => {
+    const start = elapsed / total;
+    elapsed += weights[index];
+    const end = index === words.length - 1 ? 1 : elapsed / total;
+    return { word, start, end };
+  });
+}
+
+export function activeNarrationWordIndex(
+  timings: readonly NarrationWordTiming[],
+  progress: number,
+): number {
+  if (timings.length === 0) return -1;
+
+  const clamped = Number.isFinite(progress)
+    ? Math.min(1, Math.max(0, progress))
+    : 0;
+  if (clamped >= 1) return timings.length - 1;
+
+  let active = 0;
+  for (let index = 0; index < timings.length; index += 1) {
+    if (clamped >= timings[index].start) active = index;
+    else break;
+  }
+  return active;
+}
+
+export function estimateNarrationDurationMs(text: string): number {
+  const words = splitNarrationWords(text).length;
+  if (words === 0) return 0;
+  const punctuation = (text.match(/[.!?;:,]/g) ?? []).length;
+  return Math.round(Math.max(2400, words * 330 + punctuation * 120));
+}
+
+export interface NarrationScrollMetrics {
+  wordTop: number;
+  wordHeight: number;
+  scrollOffset: number;
+  viewportHeight: number;
+  contentHeight: number;
+}
+
+export function narrationScrollTarget({
+  wordTop,
+  wordHeight,
+  scrollOffset,
+  viewportHeight,
+  contentHeight,
+}: NarrationScrollMetrics): number | null {
+  if (
+    !Number.isFinite(wordTop) ||
+    !Number.isFinite(wordHeight) ||
+    !Number.isFinite(scrollOffset) ||
+    !Number.isFinite(viewportHeight) ||
+    !Number.isFinite(contentHeight) ||
+    wordHeight <= 0 ||
+    viewportHeight <= 0
+  ) {
+    return null;
+  }
+
+  const maxScroll = Math.max(0, contentHeight - viewportHeight);
+  if (maxScroll <= 0) return null;
+
+  const safeTop = scrollOffset + viewportHeight * 0.26;
+  const safeBottom = scrollOffset + viewportHeight * 0.66;
+  const wordBottom = wordTop + wordHeight;
+  if (wordTop >= safeTop && wordBottom <= safeBottom) return null;
+
+  const target = Math.min(
+    maxScroll,
+    Math.max(0, wordTop - viewportHeight * 0.38),
+  );
+  if (Math.abs(target - scrollOffset) < 6) return null;
+  return Math.round(target);
+}
+
 export function activeNarrationSentenceIndex(
   sentences: readonly string[],
   progress: number,
