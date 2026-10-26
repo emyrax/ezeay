@@ -98,7 +98,7 @@ function ShimmerRow({ pattern }: { pattern: number }) {
     );
     anim.start();
     return () => anim.stop();
-  }, []);
+  }, [opacity]);
 
   const translateX = pattern === 1 ? -60 : pattern === 3 ? 60 : 0;
 

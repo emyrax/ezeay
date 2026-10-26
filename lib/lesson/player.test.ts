@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { LessonAudioClip, LessonSlide } from "../../types/lesson";
 import {
+  activeNarrationSentenceIndex,
   clampSlideIndex,
   equationAspectRatio,
   findAudioClip,
@@ -10,6 +11,7 @@ import {
   isAudioComplete,
   narrationEndAction,
   prepareEquationSvg,
+  splitNarrationSentences,
 } from "./player";
 
 const audio: LessonAudioClip[] = [
@@ -65,6 +67,29 @@ test("narrationEndAction prioritizes checkpoints and finishes the deck", () => {
   assert.equal(narrationEndAction(checkpointSlide, false), "checkpoint");
   assert.equal(narrationEndAction({}, false), "advance");
   assert.equal(narrationEndAction({}, true), "finish");
+});
+
+test("splitNarrationSentences keeps punctuation and trims whitespace", () => {
+  assert.deepEqual(
+    splitNarrationSentences("  First idea. Second idea! Third?  "),
+    ["First idea.", "Second idea!", "Third?"],
+  );
+  assert.deepEqual(splitNarrationSentences("A single thought"), [
+    "A single thought",
+  ]);
+  assert.deepEqual(splitNarrationSentences("   "), []);
+});
+
+test("activeNarrationSentenceIndex maps playback progress to a sentence", () => {
+  const sentences = ["First.", "Second sentence.", "Final."];
+
+  assert.equal(activeNarrationSentenceIndex(sentences, 0), 0);
+  assert.equal(activeNarrationSentenceIndex(sentences, 0.3), 1);
+  assert.equal(activeNarrationSentenceIndex(sentences, 1), 2);
+  assert.equal(activeNarrationSentenceIndex(sentences, 2), 2);
+  assert.equal(activeNarrationSentenceIndex(sentences, -1), 0);
+  assert.equal(activeNarrationSentenceIndex(sentences, Number.NaN), 0);
+  assert.equal(activeNarrationSentenceIndex([], 0.5), -1);
 });
 
 test("prepareEquationSvg strips fixed dimensions and theme colors", () => {

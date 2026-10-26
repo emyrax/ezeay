@@ -37,6 +37,45 @@ export function formatTimecode(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+export function splitNarrationSentences(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const matches = trimmed.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g);
+  if (!matches) return [trimmed];
+
+  return matches.map((sentence) => sentence.trim()).filter(Boolean);
+}
+
+export function activeNarrationSentenceIndex(
+  sentences: readonly string[],
+  progress: number,
+): number {
+  if (sentences.length === 0) return -1;
+
+  const clamped = Number.isFinite(progress)
+    ? Math.min(1, Math.max(0, progress))
+    : 0;
+
+  if (clamped >= 1) return sentences.length - 1;
+
+  const totalLength = sentences.reduce(
+    (total, sentence) => total + sentence.length,
+    0,
+  );
+  if (totalLength <= 0) return 0;
+
+  const target = clamped * totalLength;
+  let consumed = 0;
+
+  for (let index = 0; index < sentences.length; index += 1) {
+    consumed += sentences[index].length;
+    if (target < consumed) return index;
+  }
+
+  return sentences.length - 1;
+}
+
 export type NarrationEnd = "checkpoint" | "advance" | "finish";
 
 export function narrationEndAction(

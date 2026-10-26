@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  View, Text, TextInput, StyleSheet, Pressable, ScrollView, Alert, ActivityIndicator, Animated, useWindowDimensions,
+  View, Text, StyleSheet, Pressable, ScrollView, Alert, ActivityIndicator, Animated, useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../contexts/AuthContext";
@@ -116,16 +115,12 @@ function SectionCard({
   );
 }
 
-function TagRow({ items, color }: { items: string[]; color: string }) {
-  return (
-    <View style={pfStyles.tagRow}>
-      {items.map((item) => (
-        <View key={item} style={[pfStyles.tag, { backgroundColor: color + "15", borderColor: color + "30" }]}>
-          <Text style={[pfStyles.tagText, { color }]}>{item}</Text>
-        </View>
-      ))}
-    </View>
-  );
+function getSkillLevel(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  return 2 + (Math.abs(hash) % 4);
 }
 
 function TimelineCard({
@@ -152,34 +147,13 @@ function TimelineCard({
   );
 }
 
-function InfoRow({
-  icon, label, value, theme,
-}: {
-  icon: string; label: string; value?: string | number | null; theme: ReturnType<typeof useThemeColors>;
-}) {
-  const filled = value !== null && value !== undefined && value !== "";
-  return (
-    <View style={pfStyles.infoRow}>
-      <View style={pfStyles.infoLabelRow}>
-        <MaterialCommunityIcons name={icon as any} size={18} color={theme.textMuted} />
-        <Text style={[pfStyles.infoLabel, { color: theme.textMuted }]}>{label}</Text>
-      </View>
-      <Text
-        style={[pfStyles.infoValue, { color: filled ? theme.text : theme.textMuted }]}
-        numberOfLines={1}
-      >
-        {filled ? value : "—"}
-      </Text>
-    </View>
-  );
-}
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const profile = useUserStore((s) => s.profile);
   const { getToken } = useClerkAuth();
   const [uploading, setUploading] = useState(false);
-  const [avatarError, setAvatarError] = useState(false);
+  const [failedAvatarUri, setFailedAvatarUri] = useState<string | null>(null);
   const router = useRouter();
   const theme = useThemeColors();
   const { isWebWide } = useResponsive();
@@ -199,8 +173,7 @@ export default function ProfileScreen() {
   const xpForNext = levelProgress?.xpForNext ?? 100;
 
   const avatarUri = profile?.photoURL || getAvatarUrl(user?.email || "default");
-
-  useEffect(() => { setAvatarError(false); }, [avatarUri]);
+  const avatarError = failedAvatarUri === avatarUri;
 
   useEffect(() => {
     if (profile && levelProgress) {
@@ -211,7 +184,7 @@ export default function ProfileScreen() {
         useNativeDriver: false,
       }).start();
     }
-  }, [profile, levelProgress]);
+  }, [profile, levelProgress, xpAnim]);
 
   const handlePickImage = async () => {
     if (!user) {
@@ -280,8 +253,6 @@ export default function ProfileScreen() {
     }).start();
   }, [slideAnim]);
 
-  const allSkills = profile?.skills?.map((s) => ({ name: s, level: Math.ceil(Math.random() * 3 + 2) })) ?? [];
-
   const checkInStreak = useCheckInStore((s) => s.currentStreak);
   const trophies = useUserTrophyStore((s) => s.trophies);
 
@@ -338,7 +309,7 @@ export default function ProfileScreen() {
                     source={{ uri: avatarUri }}
                     style={[pfStyles.avatar, { backgroundColor: theme.surface }]}
                     contentFit="cover"
-                    onError={() => { console.warn("[Profile] Avatar load failed"); setAvatarError(true); }}
+                    onError={() => { console.warn("[Profile] Avatar load failed"); setFailedAvatarUri(avatarUri); }}
                   />
                 )}
                 <View style={[pfStyles.cameraBadge, { backgroundColor: theme.primary }]}>
@@ -514,7 +485,7 @@ export default function ProfileScreen() {
                       {profile.skills.map((skill) => (
                         <View key={skill} style={[pfStyles.skillCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}>
                           <Text style={[pfStyles.skillName, { color: theme.text }]}>{skill}</Text>
-                          <SkillDots level={Math.ceil(Math.random() * 3 + 2)} color={theme.primary} />
+                          <SkillDots level={getSkillLevel(skill)} color={theme.primary} />
                         </View>
                       ))}
                     </View>
@@ -527,7 +498,7 @@ export default function ProfileScreen() {
                       {profile.tradeSkills.map((skill) => (
                         <View key={skill} style={[pfStyles.skillCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}>
                           <Text style={[pfStyles.skillName, { color: theme.text }]}>{skill}</Text>
-                          <SkillDots level={Math.ceil(Math.random() * 3 + 2)} color={theme.accent} />
+                          <SkillDots level={getSkillLevel(skill)} color={theme.accent} />
                         </View>
                       ))}
                     </View>
@@ -874,10 +845,6 @@ const pfStyles = StyleSheet.create({
   certName: { fontSize: 13, fontWeight: "700", fontFamily },
   certIssuer: { fontSize: 11, fontWeight: "500", marginTop: 1, fontFamily },
 
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  tag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: 1 },
-  tagText: { fontSize: 11, fontWeight: "600", fontFamily },
-
   signOutWrap: { marginHorizontal: 20, marginBottom: 4 },
   signOutRow: {
     flexDirection: "row", alignItems: "center", paddingVertical: 14, gap: 14,
@@ -899,18 +866,6 @@ const pfStyles = StyleSheet.create({
 
   panelOuter: { overflow: "hidden" },
   panelInner: { flexDirection: "row" },
-
-  infoGrid: { gap: 0 },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingVertical: 18,
-    gap: 16,
-  },
-  infoLabelRow: { flexDirection: "row", alignItems: "center", gap: 10, minWidth: 120 },
-  infoLabel: { fontSize: 16, fontWeight: "600", fontFamily },
-  infoValue: { flex: 1, fontSize: 16, fontWeight: "500", textAlign: "right", fontFamily },
 
   completionCard: { marginHorizontal: 20, borderRadius: 20, padding: 16, borderWidth: 1, marginBottom: 16, gap: 10 },
   completionRow: { flexDirection: "row", alignItems: "center", gap: 14 },

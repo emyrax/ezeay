@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from "react-native";
+import type { GestureResponderEvent } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 import { useThemeColors } from "../hooks/useTheme";
 import { useStatsStore } from "../store/statsStore";
@@ -132,22 +133,66 @@ export default function ContributionGraph() {
 
   const dismissTooltip = useCallback(() => setTooltip(null), []);
 
+  const handleGridPress = useCallback(
+    (event: GestureResponderEvent) => {
+      const { offsetX, offsetY } = event.nativeEvent as unknown as {
+        offsetX?: number;
+        offsetY?: number;
+      };
+      if (offsetX == null || offsetY == null) return;
+
+      const step = square + gap;
+      const col = Math.floor(offsetX / step);
+      const row = Math.floor(offsetY / step);
+
+      if (col < 0 || col >= cols || row < 0 || row >= ROWS) {
+        dismissTooltip();
+        return;
+      }
+
+      const localX = offsetX - col * step;
+      const localY = offsetY - row * step;
+      if (localX > square || localY > square) {
+        dismissTooltip();
+        return;
+      }
+
+      const cell = cells[col * ROWS + row];
+      if (cell) {
+        handleCellPress(cell);
+      } else {
+        dismissTooltip();
+      }
+    },
+    [cells, cols, gap, handleCellPress, dismissTooltip, square],
+  );
+
   const renderGrid = () => (
-    <Svg width={width} height={height}>
-      {cells.map((cell, i) => (
-        <Rect
-          key={i}
-          x={cell.x}
-          y={cell.y}
-          width={square}
-          height={square}
-          rx={3}
-          ry={3}
-          fill={cell.color}
-          onPress={() => handleCellPress(cell)}
+    <View style={{ width, height, position: "relative" }}>
+      <Svg width={width} height={height}>
+        {cells.map((cell, i) => (
+          <Rect
+            key={i}
+            x={cell.x}
+            y={cell.y}
+            width={square}
+            height={square}
+            rx={3}
+            ry={3}
+            fill={cell.color}
+            onPress={Platform.OS === "web" ? undefined : () => handleCellPress(cell)}
+          />
+        ))}
+      </Svg>
+      {Platform.OS === "web" && (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handleGridPress}
+          accessibilityRole="button"
+          accessibilityLabel="Activity contribution graph"
         />
-      ))}
-    </Svg>
+      )}
+    </View>
   );
 
   return (

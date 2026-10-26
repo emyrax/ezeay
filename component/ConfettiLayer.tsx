@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 
 const CONFETTI_COLORS = ["#38BDF8", "#F59E0B", "#34D399", "#A78BFA", "#FB7185"];
@@ -13,25 +13,30 @@ interface ConfettiPieceConfig {
   spin: number;
 }
 
-export function ConfettiLayer() {
-  const confetti = useMemo<ConfettiPieceConfig[]>(
-    () =>
-      Array.from({ length: 18 }, (_, i) => ({
-        id: i,
-        x: 3 + Math.random() * 92,
-        size: 5 + Math.random() * 7,
-        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-        delay: Math.random() * 900,
-        duration: 2300 + Math.random() * 1500,
-        spin: (Math.random() * 2 - 1) * 240,
-      })),
-    [],
-  );
+function pseudoRandom(index: number, salt: number): number {
+  const value =
+    Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
 
+const CONFETTI_PIECES: ConfettiPieceConfig[] = Array.from(
+  { length: 18 },
+  (_, index) => ({
+    id: index,
+    x: 3 + pseudoRandom(index, 1) * 92,
+    size: 5 + pseudoRandom(index, 2) * 7,
+    color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
+    delay: pseudoRandom(index, 3) * 900,
+    duration: 2300 + pseudoRandom(index, 4) * 1500,
+    spin: (pseudoRandom(index, 5) * 2 - 1) * 240,
+  }),
+);
+
+export function ConfettiLayer() {
   return (
     <View style={styles.layer} pointerEvents="none">
-      {confetti.map((c) => (
-        <ConfettiPiece key={c.id} {...c} />
+      {CONFETTI_PIECES.map((piece) => (
+        <ConfettiPiece key={piece.id} {...piece} />
       ))}
     </View>
   );
@@ -41,7 +46,7 @@ function ConfettiPiece({ x, size, color, delay, duration, spin }: ConfettiPieceC
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.timing(anim, {
         toValue: 1,
         duration,
@@ -49,7 +54,9 @@ function ConfettiPiece({ x, size, color, delay, duration, spin }: ConfettiPieceC
         easing: Easing.linear,
         useNativeDriver: true,
       }),
-    ).start();
+    );
+    loop.start();
+    return () => loop.stop();
   }, [anim, duration, delay]);
 
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [-60, 560] });

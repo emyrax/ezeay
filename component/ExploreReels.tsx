@@ -21,9 +21,12 @@ import {
   type LayoutChangeEvent,
   type ViewToken,
 } from "react-native";
+import { EXPLORE, type Breakpoint } from "../constants/layout";
 import { useAuth } from "../contexts/AuthContext";
+import { useResponsive, useTabBarInset } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
 import { api } from "../lib/api";
+import { getExploreLayout } from "../lib/responsive";
 import { useCourseStore } from "../store/courseStore";
 import { useEnrollmentStore } from "../store/courseEnrollmentStore";
 import { useProgressStore } from "../store/courseProgressStore";
@@ -31,6 +34,7 @@ import type { Chapter } from "../types/chapter";
 import type { Course } from "../types/course";
 import type { CommunityFeedPost } from "../types/community";
 import CommunityAvatar from "./CommunityAvatar";
+import ExploreUpNextPanel from "./ExploreUpNextPanel";
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Beginner: "#4CAF50",
@@ -128,6 +132,12 @@ function ReelCard({
   onToggleEnroll,
   enrolled,
   completed,
+  variant,
+  compactHeight,
+  veryShort,
+  inset,
+  radius,
+  padding,
 }: {
   item: ReelItem;
   disabled?: boolean;
@@ -137,10 +147,18 @@ function ReelCard({
   onToggleEnroll: (item: ReelItem, enrolled: boolean) => void;
   enrolled: boolean;
   completed: boolean;
+  variant: Breakpoint;
+  compactHeight: boolean;
+  veryShort: boolean;
+  inset: number;
+  radius: number;
+  padding: number;
 }) {
   const theme = useThemeColors();
   const course = useCourseStore((s) => s.getCourseById(item.post.id));
   const liked = item.post.likedByMe;
+  const isWide = variant !== "phone";
+  const isDesktop = variant === "desktop";
 
   const chapters = useMemo(
     () => parseChapters(course?.chapters),
@@ -363,14 +381,19 @@ function ReelCard({
           colors={gradientColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.reel}
+          style={[
+            styles.reel,
+            isWide && styles.reelWide,
+            compactHeight && styles.reelShort,
+            { marginHorizontal: inset, borderRadius: radius, padding },
+          ]}
         >
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.4)"]}
             start={{ x: 0, y: 0.55 }}
             end={{ x: 0, y: 1 }}
             pointerEvents="none"
-            style={styles.scrim}
+            style={[styles.scrim, { borderRadius: radius }]}
           />
           <View style={styles.reelTopRow}>
             <View
@@ -393,60 +416,105 @@ function ReelCard({
             </View>
           </View>
 
-<View style={styles.reelBody}>
-            <View
-              style={[styles.iconWrap, { backgroundColor: theme.surfaceAlt }]}
-            >
-              <MaterialCommunityIcons
-                name={(item.post.icon as any) || "book-open-variant"}
-                size={28}
-                color={theme.primary}
-              />
-            </View>
+          <View
+            style={[
+              styles.reelBody,
+              isWide && styles.reelBodyWide,
+              compactHeight && styles.reelBodyShort,
+              veryShort && styles.reelBodyVeryShort,
+            ]}
+          >
+            {!veryShort && (
+              <View
+                style={[
+                  styles.iconWrap,
+                  isWide && styles.iconWrapWide,
+                  compactHeight && styles.iconWrapShort,
+                  { backgroundColor: theme.surfaceAlt },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={(item.post.icon as any) || "book-open-variant"}
+                  size={compactHeight ? 22 : isWide ? 32 : 28}
+                  color={theme.primary}
+                />
+              </View>
+            )}
 
             <Text
-              style={[styles.postTitle, { color: theme.text }]}
+              style={[
+                styles.postTitle,
+                isWide && styles.postTitleWide,
+                compactHeight && styles.postTitleShort,
+                veryShort && styles.postTitleVeryShort,
+                { color: theme.text },
+              ]}
               numberOfLines={2}
             >
               {item.post.title}
             </Text>
 
-            <View style={styles.creatorRow}>
-              <CommunityAvatar
-                uid={item.post.creatorId}
-                photoURL={item.post.creatorAvatar}
-                size={20}
-              />
-              <Text
-                style={[styles.creatorName, { color: theme.textSecondary }]}
-                numberOfLines={1}
-              >
-                {item.post.creatorName}
-              </Text>
-              {Boolean(item.post.sharedAt) && (
-                <>
-                  <Text style={{ color: theme.textMuted }}>·</Text>
-                  <Text style={[styles.sharedAt, { color: theme.textMuted }]}>
-                    {formatSharedAt(item.post.sharedAt)}
-                  </Text>
-                </>
-              )}
-            </View>
+            {!veryShort && (
+              <View style={styles.creatorRow}>
+                <CommunityAvatar
+                  uid={item.post.creatorId}
+                  photoURL={item.post.creatorAvatar}
+                  size={compactHeight ? 18 : isWide ? 22 : 20}
+                />
+                <Text
+                  style={[
+                    styles.creatorName,
+                    isWide && styles.creatorNameWide,
+                    { color: theme.textSecondary },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.post.creatorName}
+                </Text>
+                {Boolean(item.post.sharedAt) && (
+                  <>
+                    <Text style={{ color: theme.textMuted }}>·</Text>
+                    <Text style={[styles.sharedAt, { color: theme.textMuted }]}>
+                      {formatSharedAt(item.post.sharedAt)}
+                    </Text>
+                  </>
+                )}
+              </View>
+            )}
 
-            <Text style={[styles.subtopicTitle, { color: theme.text }]}>
+            <Text
+              style={[
+                styles.subtopicTitle,
+                isWide && styles.subtopicTitleWide,
+                isDesktop && styles.subtopicTitleDesktop,
+                compactHeight && styles.subtopicTitleShort,
+                veryShort && styles.subtopicTitleVeryShort,
+                { color: theme.text },
+              ]}
+            >
               {item.subtopicTitle}
             </Text>
 
             {content ? (
               <Text
-                style={[styles.contentText, { color: theme.textSecondary }]}
-                numberOfLines={7}
+                style={[
+                  styles.contentText,
+                  isWide && styles.contentTextWide,
+                  compactHeight && styles.contentTextShort,
+                  { color: theme.textSecondary },
+                ]}
+                numberOfLines={veryShort ? 2 : compactHeight ? 4 : isWide ? 6 : 7}
               >
                 {content}
               </Text>
             ) : (
               <View
-                style={[styles.contentLoading, { borderColor: theme.border }]}
+                style={[
+                  styles.contentLoading,
+                  isWide && styles.contentLoadingWide,
+                  compactHeight && styles.contentLoadingShort,
+                  { borderColor: theme.border },
+                ]}
               >
                 <ActivityIndicator size="small" color={theme.primary} />
                 <Text
@@ -461,7 +529,7 @@ function ReelCard({
             )}
           </View>
 
-          <View style={styles.reelBottomRow}>
+          <View style={[styles.reelBottomRow, isWide && styles.reelBottomRowWide]}>
             <View style={{ flex: 1, gap: 6 }}>
               {completed && (
                 <View style={styles.completedRow}>
@@ -477,19 +545,27 @@ function ReelCard({
                   </Text>
                 </View>
               )}
-              <Text style={[styles.metaText, { color: theme.textMuted }]}>
+              <Text
+                style={[
+                  styles.metaText,
+                  isWide && styles.metaTextWide,
+                  { color: theme.textMuted },
+                ]}
+              >
                 {subtopicCount} topics · {item.post.category.replace("-", " ")}
               </Text>
-              <View style={styles.hintWrap} pointerEvents="none">
-                <Text
-                  style={[
-                    styles.hintText,
-                    { color: theme.textMuted, opacity: 0.8 },
-                  ]}
-                >
-                  Tap to explore · Double-tap to like
-                </Text>
-              </View>
+              {!compactHeight && (
+                <View style={styles.hintWrap} pointerEvents="none">
+                  <Text
+                    style={[
+                      styles.hintText,
+                      { color: theme.textMuted, opacity: 0.8 },
+                    ]}
+                  >
+                    Tap to explore · Double-tap to like
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -505,7 +581,7 @@ function ReelCard({
           >
             <MaterialCommunityIcons
               name="heart"
-              size={80}
+              size={compactHeight ? 60 : isWide ? 88 : 80}
               color={theme.primary}
             />
           </Animated.View>
@@ -552,43 +628,56 @@ function ReelCard({
         </View>
       )}
 
-      <View style={styles.rail} pointerEvents="box-none">
-        <BlurView intensity={72} tint="dark" style={styles.railPill}>
-          <View style={styles.railAvatarWrap}>
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.railPulseRing,
-                {
-                  borderColor: theme.primary,
-                  transform: [
-                    {
-                      scale: ringPulse.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1, 1.28],
-                      }),
-                    },
-                  ],
-                  opacity: ringPulse.interpolate({
-                    inputRange: [0, 0.75, 1],
-                    outputRange: [0.7, 0.25, 0],
-                  }),
-                },
-              ]}
-            />
-            <View
-              style={[styles.railAvatarRing, { borderColor: theme.primary }]}
-            >
-              <CommunityAvatar
-                uid={item.post.creatorId}
-                photoURL={item.post.creatorAvatar}
-                size={34}
+      <View
+        style={[
+          styles.rail,
+          isWide && styles.railWide,
+          compactHeight && styles.railCompact,
+        ]}
+        pointerEvents="box-none"
+      >
+        {!compactHeight && (
+          <BlurView intensity={72} tint="dark" style={styles.railPill}>
+            <View style={styles.railAvatarWrap}>
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.railPulseRing,
+                  {
+                    borderColor: theme.primary,
+                    transform: [
+                      {
+                        scale: ringPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.28],
+                        }),
+                      },
+                    ],
+                    opacity: ringPulse.interpolate({
+                      inputRange: [0, 0.75, 1],
+                      outputRange: [0.7, 0.25, 0],
+                    }),
+                  },
+                ]}
               />
+              <View
+                style={[styles.railAvatarRing, { borderColor: theme.primary }]}
+              >
+                <CommunityAvatar
+                  uid={item.post.creatorId}
+                  photoURL={item.post.creatorAvatar}
+                  size={isWide ? 38 : 34}
+                />
+              </View>
             </View>
-          </View>
-        </BlurView>
+          </BlurView>
+        )}
 
-        <BlurView intensity={72} tint="dark" style={styles.railPill}>
+        <BlurView
+          intensity={72}
+          tint="dark"
+          style={[styles.railPill, compactHeight && styles.railPillCompact]}
+        >
           <Pressable
             onPress={like}
             accessibilityRole="button"
@@ -601,7 +690,7 @@ function ReelCard({
             >
               <MaterialCommunityIcons
                 name={liked ? "heart" : "heart-outline"}
-                size={26}
+                size={compactHeight ? 20 : isWide ? 28 : 26}
                 color={liked ? theme.primary : "#FFFFFF"}
               />
             </Animated.View>
@@ -609,6 +698,7 @@ function ReelCard({
           <Animated.Text
             style={[
               styles.railCount,
+              compactHeight && styles.railCountCompact,
               { color: "#FFFFFF", transform: [{ scale: countPop }] },
             ]}
           >
@@ -616,7 +706,11 @@ function ReelCard({
           </Animated.Text>
         </BlurView>
 
-        <BlurView intensity={72} tint="dark" style={styles.railPill}>
+        <BlurView
+          intensity={72}
+          tint="dark"
+          style={[styles.railPill, compactHeight && styles.railPillCompact]}
+        >
           <Pressable
             onPress={handleShare}
             accessibilityRole="button"
@@ -627,15 +721,27 @@ function ReelCard({
             <Animated.View style={{ transform: [{ scale: shareScale }] }}>
               <MaterialCommunityIcons
                 name="share-variant-outline"
-                size={24}
+                size={compactHeight ? 19 : isWide ? 26 : 24}
                 color="#FFFFFF"
               />
             </Animated.View>
           </Pressable>
-          <Text style={[styles.railCount, { color: "#FFFFFF" }]}>Share</Text>
+          <Text
+            style={[
+              styles.railCount,
+              compactHeight && styles.railCountCompact,
+              { color: "#FFFFFF" },
+            ]}
+          >
+            Share
+          </Text>
         </BlurView>
 
-        <BlurView intensity={72} tint="dark" style={styles.railPill}>
+        <BlurView
+          intensity={72}
+          tint="dark"
+          style={[styles.railPill, compactHeight && styles.railPillCompact]}
+        >
           <Pressable
             onPress={toggleEnroll}
             accessibilityRole="button"
@@ -646,34 +752,50 @@ function ReelCard({
             <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
               <MaterialCommunityIcons
                 name={enrolled ? "bookmark" : "bookmark-outline"}
-                size={24}
+                size={compactHeight ? 19 : isWide ? 26 : 24}
                 color={enrolled ? theme.primary : "#FFFFFF"}
               />
             </Animated.View>
           </Pressable>
           <Text
-            style={[styles.railCount, { color: enrolled ? theme.primary : "#FFFFFF" }]}
+            style={[
+              styles.railCount,
+              compactHeight && styles.railCountCompact,
+              { color: enrolled ? theme.primary : "#FFFFFF" },
+            ]}
           >
             {enrolled ? "Enrolled" : "Save"}
           </Text>
         </BlurView>
 
-        <BlurView intensity={72} tint="dark" style={styles.railPill}>
-          <MaterialCommunityIcons
-            name="eye-outline"
-            size={24}
-            color="#FFFFFF"
-          />
-          <Text style={[styles.railCount, { color: "#FFFFFF" }]}>
-            {formatCount(item.post.viewCount)}
-          </Text>
-        </BlurView>
+        {!compactHeight && (
+          <BlurView intensity={72} tint="dark" style={styles.railPill}>
+            <MaterialCommunityIcons
+              name="eye-outline"
+              size={isWide ? 26 : 24}
+              color="#FFFFFF"
+            />
+            <Text style={[styles.railCount, { color: "#FFFFFF" }]}>
+              {formatCount(item.post.viewCount)}
+            </Text>
+          </BlurView>
+        )}
       </View>
     </View>
   );
 }
 
-function FeedSkeleton({ height }: { height: number }) {
+function FeedSkeleton({
+  height,
+  inset = 16,
+  radius = 24,
+  padding = 22,
+}: {
+  height: number;
+  inset?: number;
+  radius?: number;
+  padding?: number;
+}) {
   const theme = useThemeColors();
   const shimmer = useRef(new Animated.Value(0.35)).current;
 
@@ -700,7 +822,10 @@ function FeedSkeleton({ height }: { height: number }) {
     <Animated.View style={{ flex: 1, opacity: shimmer }}>
       <LinearGradient
         colors={[theme.surface, theme.surfaceAlt]}
-        style={[styles.reel, { height }]}
+        style={[
+          styles.reel,
+          { height, marginHorizontal: inset, borderRadius: radius, padding },
+        ]}
       >
       <View
         style={[
@@ -819,6 +944,39 @@ export default function ExploreReels({
   const theme = useThemeColors();
   const router = useRouter();
   const { getToken, profile } = useAuth();
+  const { breakpoint, height, gutter, isWeb } = useResponsive();
+  const tabBarInset = useTabBarInset(80);
+  const layout = getExploreLayout(breakpoint);
+  const isPhone = breakpoint === "phone";
+  const isTabletUp = !isPhone;
+  const compactHeight = height < 700 && (isWeb || !isPhone);
+  const veryShort = height < 520 && (isWeb || !isPhone);
+  const showPanel = layout.showPanel;
+  const rowMaxWidth = showPanel
+    ? layout.stageMaxWidth + layout.gap + layout.panelWidth
+    : layout.stageMaxWidth || undefined;
+  const topBarMaxWidth =
+    rowMaxWidth !== undefined
+      ? Math.min(rowMaxWidth, EXPLORE.topBarMaxWidth)
+      : undefined;
+  const cardInset = isPhone ? 16 : Math.min(gutter, 24);
+  const cardRadius = isPhone
+    ? 24
+    : breakpoint === "desktop"
+      ? EXPLORE.cardRadiusDesktop
+      : EXPLORE.cardRadius;
+  const cardPadding = veryShort
+    ? 12
+    : compactHeight
+      ? 16
+      : isPhone
+        ? 22
+        : breakpoint === "tablet"
+          ? 26
+          : breakpoint === "laptop"
+            ? 30
+            : 32;
+  const feedBottomInset = isPhone && !isWeb ? 0 : tabBarInset;
 
   const [posts, setPosts] = useState<CommunityFeedPost[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
@@ -828,6 +986,7 @@ export default function ExploreReels({
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [reelHeight, setReelHeight] = useState(0);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   const [enrollOverrides, setEnrollOverrides] = useState<Record<string, boolean>>({});
 
   const flatListRef = useRef<FlatList<ReelItem>>(null);
@@ -968,7 +1127,10 @@ export default function ExploreReels({
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken<ReelItem>[] }) => {
       const first = viewableItems[0];
-      if (first?.item) trackView(first.item.post.id);
+      if (first?.item) {
+        setActiveKey(first.item.key);
+        trackView(first.item.post.id);
+      }
       for (const v of viewableItems.slice(0, 3)) {
         ensureCourse(v.item.post);
       }
@@ -1172,6 +1334,16 @@ export default function ExploreReels({
     });
   }, [items, query]);
 
+  useEffect(() => {
+    if (filtered.length === 0) {
+      if (activeKey !== null) setActiveKey(null);
+      return;
+    }
+    if (!activeKey || !filtered.some((item) => item.key === activeKey)) {
+      setActiveKey(filtered[0].key);
+    }
+  }, [activeKey, filtered]);
+
   const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
       const h = e.nativeEvent.layout.height;
@@ -1183,6 +1355,24 @@ export default function ExploreReels({
   const scrollToTop = useCallback(() => {
     flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
+
+  const selectUpNext = useCallback(
+    (key: string) => {
+      const index = filtered.findIndex((item) => item.key === key);
+      if (index < 0 || reelHeight <= 0) return;
+      setActiveKey(key);
+      flatListRef.current?.scrollToOffset({
+        offset: index * reelHeight,
+        animated: true,
+      });
+    },
+    [filtered, reelHeight],
+  );
+
+  const jumpToFirstLesson = useCallback(() => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    if (filtered[0]) setActiveKey(filtered[0].key);
+  }, [filtered]);
 
   useEffect(() => {
     if (refreshing) {
@@ -1201,172 +1391,305 @@ export default function ExploreReels({
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <View style={styles.headerTitleBlock}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            EXPLORE THE CAMP
-          </Text>
+      <View
+        style={[
+          styles.topBar,
+          topBarMaxWidth !== undefined && { maxWidth: topBarMaxWidth },
+        ]}
+      >
+        <View
+          style={[
+            styles.headerRow,
+            {
+              paddingHorizontal: cardInset,
+              marginTop: isTabletUp ? 24 : 16,
+              marginBottom: isTabletUp ? 10 : 5,
+            },
+          ]}
+        >
+          <View style={styles.headerTitleBlock}>
+            <Text
+              style={[
+                styles.sectionTitle,
+                isTabletUp && styles.sectionTitleWide,
+                { color: theme.text },
+              ]}
+            >
+              EXPLORE THE CAMP
+            </Text>
+          </View>
         </View>
-      </View>
 
-      <View style={[styles.searchBar, { backgroundColor: theme.surfaceAlt }]}>
-        <MaterialCommunityIcons
-          name="magnify"
-          size={18}
-          color={theme.textMuted}
-        />
-        <TextInput
-          style={[styles.searchInput, { color: theme.text }]}
-          placeholder="Search courses, topics, creators..."
-          placeholderTextColor={theme.textMuted}
-          value={query}
-          onChangeText={searchChanged}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {query.length > 0 && (
+        <View
+          style={[
+            styles.searchBar,
+            isTabletUp && styles.searchBarWide,
+            {
+              backgroundColor: theme.surfaceAlt,
+              borderColor: isTabletUp ? theme.border : "transparent",
+              marginHorizontal: cardInset,
+            },
+          ]}
+        >
+          <MaterialCommunityIcons
+            name="magnify"
+            size={isTabletUp ? 20 : 18}
+            color={theme.textMuted}
+          />
+          <TextInput
+            style={[
+              styles.searchInput,
+              isTabletUp && styles.searchInputWide,
+              { color: theme.text },
+            ]}
+            placeholder="Search courses, topics, creators..."
+            placeholderTextColor={theme.textMuted}
+            value={query}
+            onChangeText={searchChanged}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {query.length > 0 && (
+            <TouchableOpacity
+              onPress={() => searchChanged("")}
+              activeOpacity={0.6}
+            >
+              <MaterialCommunityIcons
+                name="close-circle"
+                size={isTabletUp ? 20 : 18}
+                color={theme.textMuted}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {error && (
           <TouchableOpacity
-            onPress={() => searchChanged("")}
-            activeOpacity={0.6}
+            style={[
+              styles.errorBanner,
+              {
+                backgroundColor: theme.danger + "12",
+                marginHorizontal: cardInset,
+              },
+            ]}
+            onPress={() => loadFeed()}
+            activeOpacity={0.7}
           >
             <MaterialCommunityIcons
-              name="close-circle"
-              size={18}
-              color={theme.textMuted}
+              name="alert-circle-outline"
+              size={16}
+              color={theme.danger}
             />
+            <Text style={[styles.errorText, { color: theme.danger }]}>
+              {error}
+            </Text>
+            <Text style={[styles.retryText, { color: theme.danger }]}>
+              Retry
+            </Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {error && (
-        <TouchableOpacity
-          style={[styles.errorBanner, { backgroundColor: theme.danger + "12" }]}
-          onPress={() => loadFeed()}
-          activeOpacity={0.7}
+      <View
+        style={[
+          styles.feedRow,
+          showPanel && styles.feedRowWide,
+          showPanel && { gap: layout.gap },
+          rowMaxWidth !== undefined && { maxWidth: rowMaxWidth },
+        ]}
+      >
+        <View
+          style={[
+            styles.stage,
+            showPanel ? styles.stageWide : styles.stageCentered,
+            layout.stageMaxWidth > 0 && { maxWidth: layout.stageMaxWidth },
+          ]}
         >
-          <MaterialCommunityIcons
-            name="alert-circle-outline"
-            size={16}
-            color={theme.danger}
-          />
-          <Text style={[styles.errorText, { color: theme.danger }]}>
-            {error}
-          </Text>
-          <Text style={[styles.retryText, { color: theme.danger }]}>Retry</Text>
-        </TouchableOpacity>
-      )}
-
-      <View style={styles.pagerWrap} onLayout={onLayout}>
-        {feedLoading && items.length === 0 ? (
-          <View style={[styles.stack, { height: reelHeight > 0 ? reelHeight : FEED_SKELETON_FALLBACK }]}>
-            <FeedSkeleton height={reelHeight > 0 ? reelHeight : FEED_SKELETON_FALLBACK} />
-          </View>
-        ) : reelHeight > 0 ? (
-          <AnimatedFlatList
-            ref={flatListRef}
-            data={filtered}
-            keyExtractor={(item) => item.key}
-            pagingEnabled
-            showsVerticalScrollIndicator={false}
-            snapToInterval={reelHeight}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            onScroll={Animated.event(
-              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-              { useNativeDriver: true },
-            )}
-            scrollEventThrottle={16}
-            getItemLayout={(_, index) => ({
-              length: reelHeight,
-              offset: reelHeight * index,
-              index,
-            })}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.6}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={theme.primary}
-              />
-            }
-            renderItem={({ item }) => (
-              <ReelCard
-                item={item}
-                disabled={openingId !== null}
-                onOpenChapter={openChapter}
-                onLike={toggleLike}
-                onShare={shareReel}
-                onToggleEnroll={toggleEnroll}
-                enrolled={enrollOverrides[item.post.id] ?? enrolledIds.has(item.post.id)}
-                completed={completedKeys.has(
-                  `${item.post.id}_${item.chapterOrder}_${item.subtopicOrder}`,
-                )}
-              />
-            )}
-            ListEmptyComponent={
-              <View style={[styles.emptyState, { height: reelHeight }]}>
-                {items.length === 0 ? (
-                  <>
-                    <MaterialCommunityIcons
-                      name="campfire"
-                      size={44}
-                      color={theme.textMuted}
+          <View
+            style={[
+              styles.pagerWrap,
+              {
+                marginTop: isTabletUp
+                  ? breakpoint === "tablet"
+                    ? 16
+                    : 20
+                  : 12,
+                paddingBottom: feedBottomInset,
+              },
+            ]}
+          >
+            <View style={styles.pagerInner} onLayout={onLayout}>
+              {feedLoading && items.length === 0 ? (
+                <View
+                  style={[
+                    styles.stack,
+                    {
+                      height:
+                        reelHeight > 0
+                          ? reelHeight
+                          : FEED_SKELETON_FALLBACK,
+                    },
+                  ]}
+                >
+                  <FeedSkeleton
+                    height={
+                      reelHeight > 0 ? reelHeight : FEED_SKELETON_FALLBACK
+                    }
+                    inset={cardInset}
+                    radius={cardRadius}
+                    padding={cardPadding}
+                  />
+                </View>
+              ) : reelHeight > 0 ? (
+                <AnimatedFlatList
+                  ref={flatListRef}
+                  data={filtered}
+                  keyExtractor={(item) => item.key}
+                  pagingEnabled
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={reelHeight}
+                  snapToAlignment="start"
+                  decelerationRate="fast"
+                  onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    { useNativeDriver: true },
+                  )}
+                  scrollEventThrottle={16}
+                  getItemLayout={(_, index) => ({
+                    length: reelHeight,
+                    offset: reelHeight * index,
+                    index,
+                  })}
+                  onViewableItemsChanged={onViewableItemsChanged}
+                  viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+                  onEndReached={loadMore}
+                  onEndReachedThreshold={0.6}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      tintColor={theme.primary}
                     />
-                    <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                      The camp is quiet
-                    </Text>
-                    <Text
-                      style={[styles.emptyText, { color: theme.textMuted }]}
-                    >
-                      Microlearning courses will scroll in here.
-                    </Text>
-                    <TouchableOpacity
+                  }
+                  renderItem={({ item }) => (
+                    <ReelCard
+                      item={item}
+                      disabled={openingId !== null}
+                      onOpenChapter={openChapter}
+                      onLike={toggleLike}
+                      onShare={shareReel}
+                      onToggleEnroll={toggleEnroll}
+                      enrolled={
+                        enrollOverrides[item.post.id] ??
+                        enrolledIds.has(item.post.id)
+                      }
+                      completed={completedKeys.has(
+                        `${item.post.id}_${item.chapterOrder}_${item.subtopicOrder}`,
+                      )}
+                      variant={breakpoint}
+                      compactHeight={compactHeight}
+                      veryShort={veryShort}
+                      inset={cardInset}
+                      radius={cardRadius}
+                      padding={cardPadding}
+                    />
+                  )}
+                  ListEmptyComponent={
+                    <View
                       style={[
-                        styles.shareBtn,
-                        { backgroundColor: theme.primary },
+                        styles.emptyState,
+                        {
+                          height: reelHeight,
+                          marginHorizontal: cardInset,
+                        },
                       ]}
-                      activeOpacity={0.8}
-                      onPress={handleShareCourse}
                     >
-                      <MaterialCommunityIcons
-                        name="book-plus"
-                        size={16}
-                        color="#FFFFFF"
-                      />
-                      <Text style={styles.shareBtnText}>Create a course</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <MaterialCommunityIcons
-                      name="file-search-outline"
-                      size={40}
-                      color={theme.textMuted}
-                    />
-                    <Text
-                      style={[styles.emptyText, { color: theme.textMuted }]}
-                    >
-                      No courses match “{query}”
-                    </Text>
-                  </>
-                )}
-              </View>
-            }
-          />
-        ) : null}
+                      {items.length === 0 ? (
+                        <>
+                          <MaterialCommunityIcons
+                            name="campfire"
+                            size={44}
+                            color={theme.textMuted}
+                          />
+                          <Text
+                            style={[styles.emptyTitle, { color: theme.text }]}
+                          >
+                            The camp is quiet
+                          </Text>
+                          <Text
+                            style={[
+                              styles.emptyText,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            Microlearning courses will scroll in here.
+                          </Text>
+                          <TouchableOpacity
+                            style={[
+                              styles.shareBtn,
+                              { backgroundColor: theme.primary },
+                            ]}
+                            activeOpacity={0.8}
+                            onPress={handleShareCourse}
+                          >
+                            <MaterialCommunityIcons
+                              name="book-plus"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                            <Text style={styles.shareBtnText}>
+                              Create a course
+                            </Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <>
+                          <MaterialCommunityIcons
+                            name="file-search-outline"
+                            size={40}
+                            color={theme.textMuted}
+                          />
+                          <Text
+                            style={[
+                              styles.emptyText,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            No courses match “{query}”
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  }
+                />
+              ) : null}
 
-        {!feedLoading && reelHeight > 0 && loadingMore && (
-          <View style={styles.loadingMoreBadge}>
-            <ActivityIndicator size="small" color={theme.primary} />
-            <Text
-              style={[styles.loadingMoreText, { color: theme.textSecondary }]}
-            >
-              Loading more…
-            </Text>
+              {!feedLoading && reelHeight > 0 && loadingMore && (
+                <View style={styles.loadingMoreBadge}>
+                  <ActivityIndicator size="small" color={theme.primary} />
+                  <Text
+                    style={[
+                      styles.loadingMoreText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Loading more…
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
+        </View>
+
+        {showPanel && (
+          <ExploreUpNextPanel
+            items={filtered}
+            activeKey={activeKey}
+            onSelect={selectUpNext}
+            onJumpToTop={jumpToFirstLesson}
+            loading={feedLoading && items.length === 0}
+            style={[styles.upNextPanel, { width: layout.panelWidth }]}
+          />
         )}
       </View>
     </View>
@@ -1376,6 +1699,35 @@ export default function ExploreReels({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  topBar: {
+    width: "100%",
+    alignSelf: "center",
+  },
+  feedRow: {
+    flex: 1,
+    width: "100%",
+    minHeight: 0,
+    alignSelf: "center",
+  },
+  feedRowWide: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  stage: {
+    flex: 1,
+    minWidth: 0,
+  },
+  stageCentered: {
+    width: "100%",
+    alignSelf: "center",
+  },
+  stageWide: {
+    flex: 1,
+    minWidth: 0,
+  },
+  upNextPanel: {
+    alignSelf: "stretch",
   },
   headerRow: {
     paddingHorizontal: 16,
@@ -1390,6 +1742,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.5,
   },
+  sectionTitleWide: {
+    fontSize: 22,
+    letterSpacing: 0.8,
+  },
   sectionSubtitle: {
     fontSize: 13,
   },
@@ -1402,10 +1758,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  searchBarWide: {
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
   searchInput: {
     flex: 1,
     fontSize: 14,
     paddingVertical: 2,
+  },
+  searchInputWide: {
+    fontSize: 15,
   },
   errorBanner: {
     flexDirection: "row",
@@ -1429,6 +1795,10 @@ const styles = StyleSheet.create({
   pagerWrap: {
     flex: 1,
     marginTop: 12,
+  },
+  pagerInner: {
+    flex: 1,
+    minHeight: 0,
   },
   openingOverlay: {
     position: "absolute",
@@ -1494,6 +1864,17 @@ const styles = StyleSheet.create({
     shadowRadius: 9,
     backgroundColor: "rgba(255,255,255,0.03)",
   },
+  reelWide: {
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    elevation: 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+  },
+  reelShort: {
+    justifyContent: "center",
+  },
   scrim: {
     position: "absolute",
     top: 0,
@@ -1539,6 +1920,18 @@ const styles = StyleSheet.create({
     gap: 8,
     marginVertical: 14,
   },
+  reelBodyWide: {
+    gap: 10,
+    marginVertical: 18,
+  },
+  reelBodyShort: {
+    gap: 5,
+    marginVertical: 6,
+  },
+  reelBodyVeryShort: {
+    gap: 3,
+    marginVertical: 2,
+  },
   iconWrap: {
     width: 52,
     height: 52,
@@ -1548,10 +1941,31 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 6,
   },
+  iconWrapWide: {
+    width: 62,
+    height: 62,
+    borderRadius: 20,
+    marginBottom: 8,
+  },
+  iconWrapShort: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    marginBottom: 2,
+  },
   postTitle: {
     fontSize: 17,
     fontWeight: "800",
     textAlign: "center",
+  },
+  postTitleWide: {
+    fontSize: 20,
+  },
+  postTitleShort: {
+    fontSize: 15,
+  },
+  postTitleVeryShort: {
+    fontSize: 14,
   },
   creatorRow: {
     flexDirection: "row",
@@ -1564,6 +1978,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  creatorNameWide: {
+    fontSize: 13,
+  },
   sharedAt: {
     fontSize: 11,
     fontWeight: "500",
@@ -1575,11 +1992,42 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     marginTop: 10,
   },
+  subtopicTitleWide: {
+    fontSize: 32,
+    lineHeight: 38,
+    marginTop: 12,
+  },
+  subtopicTitleDesktop: {
+    fontSize: 36,
+    lineHeight: 42,
+  },
+  subtopicTitleShort: {
+    fontSize: 21,
+    lineHeight: 26,
+    marginTop: 4,
+  },
+  subtopicTitleVeryShort: {
+    fontSize: 18,
+    lineHeight: 22,
+    marginTop: 2,
+  },
   contentText: {
     fontSize: 13,
     lineHeight: 20,
     textAlign: "center",
     marginTop: 8,
+  },
+  contentTextWide: {
+    alignSelf: "center",
+    maxWidth: 520,
+    fontSize: 15,
+    lineHeight: 23,
+    marginTop: 6,
+  },
+  contentTextShort: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
   },
   contentLoading: {
     borderRadius: 12,
@@ -1589,6 +2037,16 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     marginTop: 8,
+  },
+  contentLoadingWide: {
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 520,
+    paddingVertical: 20,
+  },
+  contentLoadingShort: {
+    paddingVertical: 10,
+    marginTop: 4,
   },
   contentLoadingText: {
     fontSize: 12,
@@ -1601,10 +2059,17 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 14,
   },
+  reelBottomRowWide: {
+    marginTop: 18,
+    paddingRight: 8,
+  },
   metaText: {
     flex: 1,
     fontSize: 11,
     fontWeight: "600",
+  },
+  metaTextWide: {
+    fontSize: 12,
   },
   completedRow: {
     flexDirection: "row",
@@ -1666,6 +2131,16 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: "center",
   },
+  railWide: {
+    right: 24,
+    bottom: 28,
+    gap: 14,
+  },
+  railCompact: {
+    right: 14,
+    bottom: 14,
+    gap: 8,
+  },
   railPill: {
     minWidth: 52,
     alignItems: "center",
@@ -1676,10 +2151,19 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: "hidden",
   },
+  railPillCompact: {
+    minWidth: 42,
+    gap: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
   railCount: {
     fontSize: 11,
     fontWeight: "800",
     opacity: 0.9,
+  },
+  railCountCompact: {
+    fontSize: 9,
   },
   railActionPressed: {
     opacity: 0.6,

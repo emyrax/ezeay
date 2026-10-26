@@ -581,9 +581,7 @@ function ReminderSheet({
           }}
         >
           <Text style={[styles.presetLabel, { color: theme.text }]}>
-            {new Date().getHours() < 18
-              ? "Later today: 6:00 PM"
-              : "Tomorrow: 6:00 PM"}
+            Next 6:00 PM
           </Text>
         </Pressable>
         <Pressable
@@ -610,32 +608,30 @@ function ReminderSheet({
         </Pressable>
       </View>
       <View style={styles.presetRow}>
-        {[1, 2].map((hours) => {
-          const target = new Date(Date.now() + hours * 3600000);
-          return (
-            <Pressable
-              key={hours}
-              style={[
-                styles.presetChip,
-                {
-                  backgroundColor: theme.surfaceAlt,
-                  borderColor: theme.borderLight,
-                },
-              ]}
-              onPress={() => {
-                setPickDate(target);
-                const h = target.getHours();
-                setPickHours(h === 0 ? 12 : h > 12 ? h - 12 : h);
-                setPickMinutes(target.getMinutes());
-                setPickAmPm(h >= 12 ? "PM" : "AM");
-              }}
-            >
-              <Text style={[styles.presetLabel, { color: theme.text }]}>
-                In {hours} hour{hours > 1 ? "s" : ""}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {[1, 2].map((hours) => (
+          <Pressable
+            key={hours}
+            style={[
+              styles.presetChip,
+              {
+                backgroundColor: theme.surfaceAlt,
+                borderColor: theme.borderLight,
+              },
+            ]}
+            onPress={() => {
+              const target = new Date(Date.now() + hours * 3600000);
+              setPickDate(target);
+              const h = target.getHours();
+              setPickHours(h === 0 ? 12 : h > 12 ? h - 12 : h);
+              setPickMinutes(target.getMinutes());
+              setPickAmPm(h >= 12 ? "PM" : "AM");
+            }}
+          >
+            <Text style={[styles.presetLabel, { color: theme.text }]}>
+              In {hours} hour{hours > 1 ? "s" : ""}
+            </Text>
+          </Pressable>
+        ))}
       </View>
       <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
         Date
@@ -1101,7 +1097,7 @@ const pgStyles = StyleSheet.create({
 });
 
 export default function NoteEditorScreen() {
-  const { noteId } = useLocalSearchParams<{ noteId: string }>();
+  const { noteId, fresh } = useLocalSearchParams<{ noteId: string; fresh?: string }>();
   const router = useRouter();
   const theme = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -1160,7 +1156,6 @@ export default function NoteEditorScreen() {
       return new Date(existing.reminderAt).getHours() >= 12 ? "PM" : "AM";
     return new Date().getHours() >= 12 ? "PM" : "AM";
   });
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [tagSuggestions, setTagSuggestions] = useState<NoteTag[]>([]);
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
@@ -1187,7 +1182,10 @@ export default function NoteEditorScreen() {
   const [currentPlayClipId, setCurrentPlayClipId] = useState<string | null>(
     null,
   );
-  const [playProgress, setPlayProgress] = useState(0);
+  const playProgress =
+    playerStatus.isLoaded && currentPlayClipId && playerStatus.duration > 0
+      ? playerStatus.currentTime / playerStatus.duration
+      : 0;
   const [playerSheetClip, setPlayerSheetClip] = useState<AudioClip | null>(
     null,
   );
@@ -1198,7 +1196,7 @@ export default function NoteEditorScreen() {
   const recordingStartTime = useRef(0);
   const appStateRef = useRef(AppState.currentState);
   const hasContentRef = useRef(false);
-  const wasAutoCreated = useRef(false);
+  const wasAutoCreated = useRef(fresh === "1");
 
   const [isRecording, setIsRecording] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -1254,13 +1252,15 @@ export default function NoteEditorScreen() {
   }, [isRecording, recorderState.metering]);
 
   useEffect(() => {
-    if (!playerStatus.isLoaded || !currentPlayClipId) {
-      setPlayProgress(0);
+    if (
+      !playerStatus.isLoaded ||
+      !currentPlayClipId ||
+      playerStatus.duration <= 0
+    ) {
       return;
     }
-    if (playerStatus.duration > 0) {
-      setPlayProgress(playerStatus.currentTime / playerStatus.duration);
-      const realMs = Math.round(playerStatus.duration * 1000);
+    const realMs = Math.round(playerStatus.duration * 1000);
+    const frame = requestAnimationFrame(() => {
       setAudioClips((prev) =>
         prev.some((c) => c.id === currentPlayClipId && c.duration === realMs)
           ? prev
@@ -1268,13 +1268,9 @@ export default function NoteEditorScreen() {
               c.id === currentPlayClipId ? { ...c, duration: realMs } : c,
             ),
       );
-    }
-  }, [
-    playerStatus.currentTime,
-    playerStatus.duration,
-    playerStatus.isLoaded,
-    currentPlayClipId,
-  ]);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [playerStatus.duration, playerStatus.isLoaded, currentPlayClipId]);
 
   const resetRecordingUI = useCallback(() => {
     waveformSamples.current = [];
@@ -1317,10 +1313,7 @@ export default function NoteEditorScreen() {
   }, [isRecording, handleAbortRecording]);
 
   useEffect(() => {
-    if (!isRecording) {
-      setRecordingElapsed(0);
-      return;
-    }
+    if (!isRecording) return;
     const interval = setInterval(() => {
       setRecordingElapsed(Date.now() - recordingStartTime.current);
     }, 100);
@@ -1394,6 +1387,7 @@ export default function NoteEditorScreen() {
     const removeEnd = subscribeSpeechEvent("end", () => {
       listeningRef.current = false;
       setIsRecording(false);
+      setRecordingElapsed(0);
       setVolumeLevel(0);
       setLiveTranscript("");
       const transcript = [finalTextRef.current, interimTextRef.current]
@@ -1414,6 +1408,7 @@ export default function NoteEditorScreen() {
     const removeError = subscribeSpeechEvent("error", (evt) => {
       listeningRef.current = false;
       setIsRecording(false);
+      setRecordingElapsed(0);
       setVolumeLevel(0);
       stopShouldInsertRef.current = false;
       finalTextRef.current = "";
@@ -1443,23 +1438,20 @@ export default function NoteEditorScreen() {
       : null,
   );
 
-  const currentNoteId = useMemo(() => {
-    if (editingNoteId) return editingNoteId;
-    if (existing?.id) return existing.id;
-    return null;
-  }, [editingNoteId, existing]);
+  const currentNoteId = useMemo(() => existing?.id ?? null, [existing]);
 
   useEffect(() => {
     noteIdRef.current = currentNoteId;
   }, [currentNoteId]);
 
   useEffect(() => {
-    if (isNew && !editingNoteId) {
-      const id = createNote();
-      setEditingNoteId(id);
-      wasAutoCreated.current = true;
-    }
-  }, [isNew, editingNoteId, createNote]);
+    if (!isNew) return;
+    const id = createNote();
+    router.replace({
+      pathname: "/(notes)/[noteId]",
+      params: { noteId: id, fresh: "1" },
+    });
+  }, [isNew, createNote, router]);
 
   const doSave = useCallback(
     (
@@ -1581,7 +1573,7 @@ export default function NoteEditorScreen() {
   }, [saveImmediately, router]);
 
   const handleDelete = useCallback(() => {
-    const id = editingNoteId || existing?.id;
+    const id = existing?.id;
     if (!id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert("Delete Note", `Delete "${title || "Untitled"}"?`, [
@@ -1606,7 +1598,6 @@ export default function NoteEditorScreen() {
       },
     ]);
   }, [
-    editingNoteId,
     existing,
     title,
     deleteNote,
@@ -1616,12 +1607,12 @@ export default function NoteEditorScreen() {
   ]);
 
   const handleTogglePin = useCallback(() => {
-    const id = editingNoteId || existing?.id;
+    const id = existing?.id;
     if (!id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     togglePin(id);
     setPinned(!pinned);
-  }, [editingNoteId, existing?.id, togglePin, pinned]);
+  }, [existing?.id, togglePin, pinned]);
 
   const handleToggleTag = useCallback((tagId: string) => {
     setNoteTags((prev) =>
@@ -1799,7 +1790,7 @@ export default function NoteEditorScreen() {
       return;
     }
     try {
-      const id = editingNoteId || existing?.id;
+      const id = existing?.id;
       if (!id) return;
       const hasPermission = await requestNotificationPermissions();
       if (!hasPermission) {
@@ -1870,20 +1861,19 @@ export default function NoteEditorScreen() {
     pickAmPm,
     repeatType,
     existing,
-    editingNoteId,
     title,
     updateNote,
   ]);
 
   const handleClearReminder = useCallback(() => {
-    const id = editingNoteId || existing?.id;
+    const id = existing?.id;
     if (!id) return;
     if (existing?.notificationId) {
       cancelNoteNotification(existing.notificationId);
     }
     setReminderAt(null);
     updateNote(id, { reminderAt: null, notificationId: null });
-  }, [editingNoteId, existing, updateNote]);
+  }, [existing, updateNote]);
 
   const handleStartRecording = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -2326,6 +2316,10 @@ export default function NoteEditorScreen() {
       handleExport,
       handleShare,
       handleTogglePin,
+      images,
+      pinned,
+      reminderAt,
+      repeatType,
     ],
   );
 
@@ -2647,7 +2641,7 @@ export default function NoteEditorScreen() {
           <NoteChatSheet
             inline
             visible={activeTab === "copilot"}
-            noteId={editingNoteId || existing?.id || ""}
+            noteId={existing?.id || ""}
             noteTitle={title}
             noteContent={content}
             images={images}

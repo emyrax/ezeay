@@ -14,7 +14,7 @@
     "start:server": "node scripts/free-port.mjs && tsx watch server/index.ts",
     "test:server": "tsx --test --test-force-exit server/app.test.ts server/lessonScript.test.ts server/mathjax.test.ts server/pcmToWav.test.ts server/audio/deliveryUrl.test.ts",
     "test:layout": "tsx --test --test-force-exit lib/responsive.test.ts",
-    "test:lesson": "tsx --test --test-force-exit lib/lesson/player.test.ts",
+    "test:lesson": "tsx --test --test-force-exit lib/lesson/player.test.ts lib/lesson/motion.test.ts",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web",

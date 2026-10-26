@@ -24,6 +24,7 @@ import {
 } from "expo-audio";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "../../../../../contexts/AuthContext";
+import { useLessonMotion } from "../../../../../hooks/useLessonMotion";
 import { useThemeColors } from "../../../../../hooks/useTheme";
 import {
   ApiError,
@@ -39,7 +40,10 @@ import {
 import ErrorBoundary from "../../../../../component/ErrorBoundary";
 import LessonStage from "../../../../../component/lesson/LessonStage";
 import LessonCheckpointCard from "../../../../../component/lesson/LessonCheckpointCard";
+import LessonCompleteCard from "../../../../../component/lesson/LessonCompleteCard";
 import LessonExplainSheet from "../../../../../component/lesson/LessonExplainSheet";
+import LessonNarrationCard from "../../../../../component/lesson/LessonNarrationCard";
+import LessonProgress from "../../../../../component/lesson/LessonProgress";
 import type {
   LessonExplainAction,
   LessonScript,
@@ -104,6 +108,7 @@ export default function LessonScreen() {
   }>();
   const router = useRouter();
   const theme = useThemeColors();
+  const motion = useLessonMotion();
   const { getToken } = useAuth();
   const chapterIdx = parseIndex(chapterIndex);
   const subtopicIdx = parseIndex(subtopicIndex);
@@ -155,7 +160,6 @@ export default function LessonScreen() {
     ? solvedCheckpoints.has(currentSlide.id)
     : true;
   const canAdvance = !currentSlide?.checkpoint || checkpointSolved;
-  const slideProgress = total > 0 ? (currentIndex + 1) / total : 0;
   const clipDurationSec =
     status.duration > 0
       ? status.duration
@@ -614,50 +618,27 @@ export default function LessonScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <LessonStage slide={currentSlide} index={currentIndex} total={total} />
+          <LessonStage
+            key={`stage-${currentSlide.id}`}
+            slide={currentSlide}
+            index={currentIndex}
+            total={total}
+          />
 
-          <View style={styles.progressRow}>
-            <View style={[styles.progressTrack, { backgroundColor: theme.surfaceAlt }]}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    backgroundColor: theme.primary,
-                    width: `${slideProgress * 100}%` as `${number}%`,
-                  },
-                ]}
-              />
-            </View>
-            <Text style={[styles.progressText, { color: theme.textMuted }]}>
-              {currentIndex + 1} / {total}
-            </Text>
-          </View>
+          <LessonProgress
+            index={currentIndex}
+            total={total}
+            preset={motion}
+          />
 
-          <View
-            style={[
-              styles.narrationCard,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
-          >
-            <View style={styles.narrationHeader}>
-              <View style={styles.narrationLabelWrap}>
-                <Ionicons
-                  name="volume-high-outline"
-                  size={16}
-                  color={theme.primary}
-                />
-                <Text style={[styles.narrationLabel, { color: theme.text }]}>
-                  Narration
-                </Text>
-              </View>
-              <Text style={[styles.narrationHint, { color: theme.textMuted }]}>
-                {currentClip ? "Audio ready" : "Create on play"}
-              </Text>
-            </View>
-            <Text style={[styles.narrationText, { color: theme.textSecondary }]}>
-              {currentSlide.narration}
-            </Text>
-          </View>
+          <LessonNarrationCard
+            key={`narration-${currentSlide.id}`}
+            text={currentSlide.narration}
+            clipReady={!!currentClip}
+            playing={status.playing}
+            progress={audioProgress}
+            preset={motion}
+          />
 
           <View
             style={[
@@ -776,8 +757,9 @@ export default function LessonScreen() {
 
           {currentSlide.checkpoint ? (
             <LessonCheckpointCard
-              key={currentSlide.id}
+              key={`checkpoint-${currentSlide.id}`}
               checkpoint={currentSlide.checkpoint}
+              preset={motion}
               initiallySolved={checkpointSolved}
               continueLabel={isLast ? "Finish lesson" : "Continue"}
               onSolved={handleCheckpointSolved}
@@ -786,46 +768,12 @@ export default function LessonScreen() {
           ) : null}
 
           {finished ? (
-            <View
-              style={[
-                styles.completeCard,
-                {
-                  backgroundColor: theme.success + "10",
-                  borderColor: theme.success + "35",
-                },
-              ]}
-            >
-              <View style={[styles.completeIcon, { backgroundColor: theme.success + "18" }]}>
-                <Ionicons name="checkmark-done" size={24} color={theme.success} />
-              </View>
-              <View style={styles.completeCopy}>
-                <Text style={[styles.completeTitle, { color: theme.success }]}>
-                  Lesson complete
-                </Text>
-                <Text style={[styles.completeText, { color: theme.textSecondary }]}>
-                  You made it through all {total} slides.
-                </Text>
-              </View>
-              <View style={styles.completeActions}>
-                <TouchableOpacity
-                  style={[styles.completeButton, { backgroundColor: theme.surface }]}
-                  onPress={handleReplayLesson}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="refresh" size={14} color={theme.text} />
-                  <Text style={[styles.completeButtonText, { color: theme.text }]}>
-                    Replay
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.completeButton, { backgroundColor: theme.primary }]}
-                  onPress={handleClose}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.completeButtonText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <LessonCompleteCard
+              total={total}
+              preset={motion}
+              onReplay={handleReplayLesson}
+              onDone={handleClose}
+            />
           ) : null}
 
           <View style={styles.navRow}>
@@ -1007,58 +955,6 @@ const styles = StyleSheet.create({
     maxWidth: 760,
     alignSelf: "center",
   },
-  progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 13,
-    marginBottom: 14,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 5,
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-  },
-  narrationCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 15,
-  },
-  narrationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 9,
-  },
-  narrationLabelWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  narrationLabel: {
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
-  narrationHint: {
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  narrationText: {
-    fontSize: 14,
-    lineHeight: 23,
-    fontWeight: "500",
-  },
   playerBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -1154,55 +1050,6 @@ const styles = StyleSheet.create({
   explainChipText: {
     fontSize: 12,
     fontWeight: "700",
-  },
-  completeCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-    gap: 11,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 14,
-    marginTop: 16,
-  },
-  completeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  completeCopy: {
-    flex: 1,
-    minWidth: 150,
-    gap: 2,
-  },
-  completeTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  completeText: {
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "500",
-  },
-  completeActions: {
-    flexDirection: "row",
-    gap: 7,
-    marginLeft: 51,
-  },
-  completeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  completeButtonText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "800",
   },
   navRow: {
     flexDirection: "row",

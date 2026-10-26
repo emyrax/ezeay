@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { usePathname, useRouter, useSegments } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { images } from "../constants/images";
 import { NAV } from "../constants/layout";
 import { NOTES_HREF, TAB_ITEMS } from "../constants/navigation";
 import { useThemeColors } from "../hooks/useTheme";
@@ -37,7 +38,11 @@ export default function AppSidebar() {
           end={{ x: 1, y: 1 }}
           style={styles.brandMark}
         >
-          <MaterialCommunityIcons name="infinity" size={26} color="#FFFFFF" />
+          <Image
+            source={images.yuinxLogoTrans}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
         </LinearGradient>
       </View>
 
@@ -150,6 +155,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+  },
+  brandLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
   },
   nav: {
     width: "100%",

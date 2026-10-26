@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { useResponsive } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
 import type { CommunityFeedPost } from "../types/community";
 
@@ -15,6 +16,7 @@ interface Props {
   activeKey: string | null;
   onSelect: (key: string) => void;
   onJumpToTop: () => void;
+  loading?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -23,9 +25,13 @@ export default function ExploreUpNextPanel({
   activeKey,
   onSelect,
   onJumpToTop,
+  loading = false,
   style,
 }: Props) {
   const theme = useThemeColors();
+  const { breakpoint, height } = useResponsive();
+  const isWide = breakpoint === "desktop";
+  const isCompact = height < 700;
   const activeIndex = Math.max(
     0,
     items.findIndex((item) => item.key === activeKey),
@@ -37,114 +43,200 @@ export default function ExploreUpNextPanel({
     <View
       style={[
         styles.panel,
-        { backgroundColor: theme.surface, borderColor: theme.border },
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          borderRadius: isWide ? 28 : 24,
+          padding: isWide ? 24 : 20,
+          shadowOpacity: isWide ? 0.18 : 0.12,
+        },
         style,
       ]}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, isWide && styles.headerWide]}>
         <Text style={[styles.eyebrow, { color: theme.textMuted }]}>UP NEXT</Text>
         <View style={[styles.countBadge, { backgroundColor: theme.primary + "18" }]}>
-          <Text style={[styles.countText, { color: theme.primary }]}>{items.length}</Text>
+          <Text style={[styles.countText, { color: theme.primary }]}>
+            {loading ? "…" : items.length}
+          </Text>
         </View>
       </View>
 
-      {current && (
-        <View style={[styles.currentCard, { backgroundColor: theme.surfaceAlt }]}>
-          <View style={[styles.accentBar, { backgroundColor: theme.primary }]} />
-          <View style={styles.currentBody}>
-            <Text style={[styles.currentLabel, { color: theme.textMuted }]}>
-              NOW EXPLORING
-            </Text>
-            <Text
-              style={[styles.currentTitle, { color: theme.text }]}
-              numberOfLines={2}
+      {loading ? (
+        <View style={styles.skeletonList}>
+          {[0, 1, 2, 3, 4].map((index) => (
+            <View
+              key={index}
+              style={[styles.skeletonRow, { backgroundColor: theme.surfaceAlt }]}
             >
-              {current.post.title}
-            </Text>
-            <Text
-              style={[styles.currentSubtopic, { color: theme.textSecondary }]}
-              numberOfLines={1}
-            >
-              {current.subtopicTitle}
-            </Text>
-            <View style={styles.metaRow}>
-              <Text style={[styles.metaText, { color: theme.textMuted }]} numberOfLines={1}>
-                {current.post.creatorName}
-              </Text>
-              <Text style={[styles.metaDot, { color: theme.textMuted }]}>·</Text>
-              <Text style={[styles.metaText, { color: theme.textMuted }]} numberOfLines={1}>
-                {current.chapterTitle}
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {upcoming.length === 0 ? (
-          <View style={styles.empty}>
-            <MaterialCommunityIcons name="check-decagram-outline" size={26} color={theme.textMuted} />
-            <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-              You&apos;re at the end of this feed.
-            </Text>
-          </View>
-        ) : (
-          upcoming.map((item, index) => (
-            <Pressable
-              key={item.key}
-              onPress={() => onSelect(item.key)}
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${item.subtopicTitle}`}
-            >
-              <View style={[styles.index, { backgroundColor: theme.surfaceAlt }]}>
-                <Text style={[styles.indexText, { color: theme.textSecondary }]}>
-                  {activeIndex + index + 2}
-                </Text>
+              <View
+                style={[styles.skeletonIndex, { backgroundColor: theme.border }]}
+              />
+              <View style={styles.skeletonBody}>
+                <View
+                  style={[
+                    styles.skeletonLine,
+                    { backgroundColor: theme.border, width: "78%" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.skeletonLine,
+                    {
+                      backgroundColor: theme.border,
+                      width: "52%",
+                      opacity: 0.7,
+                    },
+                  ]}
+                />
               </View>
-              <View style={styles.rowBody}>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <>
+          {current && (
+            <View
+              style={[
+                styles.currentCard,
+                isWide && styles.currentCardWide,
+                isCompact && styles.currentCardCompact,
+                { backgroundColor: theme.surfaceAlt },
+              ]}
+            >
+              <View style={[styles.accentBar, { backgroundColor: theme.primary }]} />
+              <View style={styles.currentBody}>
+                <Text style={[styles.currentLabel, { color: theme.textMuted }]}>
+                  NOW EXPLORING
+                </Text>
                 <Text
-                  style={[styles.rowTitle, { color: theme.text }]}
+                  style={[
+                    styles.currentTitle,
+                    isWide && styles.currentTitleWide,
+                    { color: theme.text },
+                  ]}
                   numberOfLines={2}
                 >
-                  {item.subtopicTitle}
+                  {current.post.title}
                 </Text>
                 <Text
-                  style={[styles.rowMeta, { color: theme.textMuted }]}
+                  style={[
+                    styles.currentSubtopic,
+                    { color: theme.textSecondary },
+                  ]}
                   numberOfLines={1}
                 >
-                  {item.chapterTitle} · {item.post.category.replace("-", " ")}
+                  {current.subtopicTitle}
+                </Text>
+                <View style={styles.metaRow}>
+                  <Text
+                    style={[styles.metaText, { color: theme.textMuted }]}
+                    numberOfLines={1}
+                  >
+                    {current.post.creatorName}
+                  </Text>
+                  <Text style={[styles.metaDot, { color: theme.textMuted }]}>
+                    ·
+                  </Text>
+                  <Text
+                    style={[styles.metaText, { color: theme.textMuted }]}
+                    numberOfLines={1}
+                  >
+                    {current.chapterTitle}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {upcoming.length === 0 ? (
+              <View style={styles.empty}>
+                <MaterialCommunityIcons
+                  name="check-decagram-outline"
+                  size={26}
+                  color={theme.textMuted}
+                />
+                <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+                  {items.length === 0
+                    ? "No lessons to queue yet."
+                    : "You're at the end of this feed."}
                 </Text>
               </View>
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={18}
-                color={theme.textMuted}
-              />
-            </Pressable>
-          ))
-        )}
-      </ScrollView>
+            ) : (
+              upcoming.map((item, index) => (
+                <Pressable
+                  key={item.key}
+                  onPress={() => onSelect(item.key)}
+                  style={({ pressed }) => [
+                    styles.row,
+                    isCompact && styles.rowCompact,
+                    pressed && styles.rowPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${item.subtopicTitle}`}
+                >
+                  <View
+                    style={[
+                      styles.index,
+                      { backgroundColor: theme.surfaceAlt },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.indexText, { color: theme.textSecondary }]}
+                    >
+                      {activeIndex + index + 2}
+                    </Text>
+                  </View>
+                  <View style={styles.rowBody}>
+                    <Text
+                      style={[styles.rowTitle, { color: theme.text }]}
+                      numberOfLines={2}
+                    >
+                      {item.subtopicTitle}
+                    </Text>
+                    <Text
+                      style={[styles.rowMeta, { color: theme.textMuted }]}
+                      numberOfLines={1}
+                    >
+                      {item.chapterTitle} · {item.post.category.replace("-", " ")}
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={18}
+                    color={theme.textMuted}
+                  />
+                </Pressable>
+              ))
+            )}
+          </ScrollView>
 
-      <Pressable
-        onPress={onJumpToTop}
-        style={({ pressed }) => [
-          styles.footer,
-          { borderTopColor: theme.border },
-          pressed && styles.rowPressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Back to the first lesson"
-      >
-        <MaterialCommunityIcons name="arrow-up" size={16} color={theme.primary} />
-        <Text style={[styles.footerText, { color: theme.primary }]}>
-          Back to the first lesson
-        </Text>
-      </Pressable>
+          <Pressable
+            onPress={onJumpToTop}
+            style={({ pressed }) => [
+              styles.footer,
+              { borderTopColor: theme.border },
+              pressed && styles.rowPressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Back to the first lesson"
+          >
+            <MaterialCommunityIcons
+              name="arrow-up"
+              size={16}
+              color={theme.primary}
+            />
+            <Text style={[styles.footerText, { color: theme.primary }]}>
+              Back to the first lesson
+            </Text>
+          </Pressable>
+        </>
+      )}
     </View>
   );
 }
@@ -167,6 +259,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 14,
+  },
+  headerWide: {
+    marginBottom: 18,
   },
   eyebrow: {
     fontSize: 11,
@@ -192,6 +287,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     overflow: "hidden",
   },
+  currentCardWide: {
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 18,
+  },
+  currentCardCompact: {
+    padding: 12,
+    marginBottom: 12,
+  },
   accentBar: {
     width: 3,
     borderRadius: 2,
@@ -210,6 +314,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     lineHeight: 21,
+  },
+  currentTitleWide: {
+    fontSize: 18,
+    lineHeight: 23,
   },
   currentSubtopic: {
     fontSize: 13,
@@ -244,6 +352,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 10,
+  },
+  rowCompact: {
+    paddingVertical: 7,
   },
   rowPressed: {
     opacity: 0.65,
@@ -282,6 +393,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     textAlign: "center",
+  },
+  skeletonList: {
+    flex: 1,
+    gap: 10,
+    paddingTop: 4,
+  },
+  skeletonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+  },
+  skeletonIndex: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+  },
+  skeletonBody: {
+    flex: 1,
+    gap: 6,
+  },
+  skeletonLine: {
+    height: 10,
+    borderRadius: 5,
   },
   footer: {
     flexDirection: "row",

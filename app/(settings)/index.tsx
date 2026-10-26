@@ -32,8 +32,13 @@ import {
   themes,
 } from "../../constants/themes";
 import { useAuth } from "../../contexts/AuthContext";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 import { useThemeColors } from "../../hooks/useTheme";
 import { api } from "../../lib/api";
+import {
+  LESSON_MOTION_OPTIONS,
+  type LessonMotionStyle,
+} from "../../lib/lesson/motion";
 import { resetUserData } from "../../lib/resetAppState";
 import {
   AI_MODELS,
@@ -47,6 +52,7 @@ import {
 import { AI_PROVIDERS, useAiKeysStore } from "../../store/aiKeysStore";
 import { useModelRatingStore } from "../../store/modelRatingStore";
 import { useModelStore } from "../../store/modelStore";
+import { useMotionStore } from "../../store/motionStore";
 import { useOfflineStore, type OfflineStatus } from "../../store/offlineStore";
 import { useSettingsStore } from "../../store/settingsStore";
 import { useThemeStore } from "../../store/themeStore";
@@ -107,6 +113,15 @@ const PROVIDER_ORDER: AiProvider[] = [
   "anthropic",
   "openrouter",
 ];
+
+const MOTION_ICONS: Record<
+  LessonMotionStyle,
+  ComponentProps<typeof MaterialCommunityIcons>["name"]
+> = {
+  calm: "weather-windy",
+  kinetic: "creation",
+  playful: "rocket-launch-outline",
+};
 
 function modelStatusLabel(
   provider: AiProvider | undefined,
@@ -205,12 +220,88 @@ function ThemeTile({
   );
 }
 
+function MotionStyleOption({
+  style,
+  label,
+  description,
+  isActive,
+  onPress,
+}: {
+  style: LessonMotionStyle;
+  label: string;
+  description: string;
+  isActive: boolean;
+  onPress: () => void;
+}) {
+  const theme = useThemeColors();
+
+  return (
+    <Pressable
+      style={[
+        st.motionOption,
+        {
+          backgroundColor: isActive ? theme.primary + "10" : theme.surfaceAlt,
+          borderColor: isActive ? theme.primary + "55" : theme.border,
+        },
+      ]}
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: isActive }}
+      accessibilityLabel={`${label} lesson motion`}
+    >
+      <View
+        style={[
+          st.motionOptionIcon,
+          {
+            backgroundColor: isActive
+              ? theme.primary + "18"
+              : theme.surface,
+          },
+        ]}
+      >
+        <MaterialCommunityIcons
+          name={MOTION_ICONS[style]}
+          size={18}
+          color={isActive ? theme.primary : theme.textSecondary}
+        />
+      </View>
+      <View style={st.motionOptionCopy}>
+        <Text style={[st.motionOptionLabel, { color: theme.text }]}>
+          {label}
+        </Text>
+        <Text
+          style={[
+            st.motionOptionDescription,
+            { color: theme.textSecondary },
+          ]}
+        >
+          {description}
+        </Text>
+      </View>
+      <View
+        style={[
+          st.motionRadio,
+          { borderColor: isActive ? theme.primary : theme.border },
+        ]}
+      >
+        {isActive ? (
+          <View
+            style={[st.motionRadioDot, { backgroundColor: theme.primary }]}
+          />
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const theme = useThemeColors();
 
   const { themeId, setTheme, customTheme, saveCustomTheme, deleteCustomTheme } =
     useThemeStore();
+  const { motionStyle, setMotionStyle } = useMotionStore();
+  const reduceMotion = useReducedMotion();
   const {
     courseNotifications,
     reminderNotifications,
@@ -451,11 +542,13 @@ export default function SettingsScreen() {
               useThemeStore.getState().reset();
               useSettingsStore.getState().reset();
               useModelStore.getState().reset();
+              useMotionStore.getState().reset();
               useOfflineStore.getState().reset();
               await AsyncStorage.multiRemove([
                 "yuinx-theme",
                 "@yuinx_settings_v1",
                 "@yuinx_model_v1",
+                "@yuinx_motion_v1",
                 "@yuinx_offline_v1",
                 "userProfile",
                 "currentUser",
@@ -689,6 +782,57 @@ export default function SettingsScreen() {
               </Text>
             </Pressable>
           )}
+        </SectionCard>
+
+        <SectionCard
+          title="Lesson motion"
+          icon="animation-outline"
+          theme={theme}
+        >
+          <Text style={[st.motionIntro, { color: theme.textSecondary }]}>
+            Choose how lesson slides, narration, diagrams, and checkpoints move.
+          </Text>
+          <View style={st.motionList}>
+            {LESSON_MOTION_OPTIONS.map((option) => (
+              <MotionStyleOption
+                key={option.id}
+                style={option.id}
+                label={option.label}
+                description={option.description}
+                isActive={motionStyle === option.id}
+                onPress={() => setMotionStyle(option.id)}
+              />
+            ))}
+          </View>
+          <View
+            style={[
+              st.motionNote,
+              {
+                backgroundColor: reduceMotion
+                  ? theme.accent + "12"
+                  : theme.surfaceAlt,
+                borderColor: reduceMotion
+                  ? theme.accent + "35"
+                  : theme.borderLight,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="information-outline"
+              size={15}
+              color={reduceMotion ? theme.accent : theme.textMuted}
+            />
+            <Text
+              style={[
+                st.motionNoteText,
+                { color: reduceMotion ? theme.accent : theme.textMuted },
+              ]}
+            >
+              {reduceMotion
+                ? "System Reduce Motion is on. Lessons will keep motion minimal."
+                : "Your device's Reduce Motion setting always takes priority."}
+            </Text>
+          </View>
         </SectionCard>
 
         {/* AI & Models */}
@@ -1498,6 +1642,62 @@ const st = StyleSheet.create({
     alignItems: "center",
   },
   deleteThemeText: { fontSize: 12, fontWeight: "600", fontFamily },
+  motionIntro: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "500",
+    marginBottom: 12,
+    fontFamily,
+  },
+  motionList: { gap: 8 },
+  motionOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 11,
+  },
+  motionOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  motionOptionCopy: { flex: 1, gap: 2 },
+  motionOptionLabel: { fontSize: 13, fontWeight: "700", fontFamily },
+  motionOptionDescription: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "500",
+    fontFamily,
+  },
+  motionRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  motionRadioDot: { width: 9, height: 9, borderRadius: 4.5 },
+  motionNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 12,
+  },
+  motionNoteText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "500",
+    fontFamily,
+  },
 
   aiIntro: { fontSize: 13, fontFamily, marginBottom: 12, lineHeight: 18 },
   aiHero: {
