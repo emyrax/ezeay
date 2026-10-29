@@ -4,10 +4,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../lib/api';
 import type { ApiUserProfile } from '../lib/api';
 import { getAvatarUrl } from '../lib/dicebear';
-import { consumePendingGoals } from '../lib/pendingGoals';
+import { answersToProfileUpdates } from '../lib/onboarding/merge';
+import { buildSignupProfile } from '../lib/onboarding/signup';
+import {
+  clearLegacyPendingGoals,
+  clearPendingOnboarding,
+  readLegacyPendingGoals,
+  readPendingOnboarding,
+} from '../lib/pendingOnboarding';
 import type { UserProfile, MappedUser } from '../types/user';
 import { useUserStore } from '../store/userStore';
 import { useModelRatingStore } from '../store/modelRatingStore';
+import { useOnboardingStore } from '../store/onboardingStore';
 import { resetUserData } from '../lib/resetAppState';
 
 export function toProfile(apiProfile: ApiUserProfile): UserProfile {
@@ -20,6 +28,13 @@ export function toProfile(apiProfile: ApiUserProfile): UserProfile {
     majorCourse: apiProfile.majorCourse,
     birthday: apiProfile.birthday,
     educationLevel: apiProfile.educationLevel,
+    country: apiProfile.country,
+    region: apiProfile.region,
+    schoolType: apiProfile.schoolType,
+    school: apiProfile.school,
+    grade: apiProfile.grade,
+    degree: apiProfile.degree,
+    subjects: apiProfile.subjects ?? [],
     professionalInfoEnabled: apiProfile.professionalInfoEnabled ?? true,
     status: apiProfile.status,
     xp: apiProfile.xp,
@@ -92,6 +107,7 @@ export interface AuthContextType {
   refreshProfile: () => Promise<void>;
   retryAccountLoad: () => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
+  saveProfile: (updates: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -107,34 +123,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchingRef = useRef(false);
   const [accountLoadTick, setAccountLoadTick] = useState(0);
 
-  const applyPendingGoalsIfAny = useCallback(
-    async (current: UserProfile) => {
-      const pending = await consumePendingGoals();
-      if (!pending || pending.length === 0) return;
+  const clearStoredOnboarding = useCallback(async () => {
+    try {
+      await clearPendingOnboarding();
+      await clearLegacyPendingGoals();
+      useOnboardingStore.getState().reset();
+    } catch (err) {
+      console.warn("[AuthContext] pending onboarding cleanup failed:", err);
+    }
+  }, []);
 
-      const updated: UserProfile = {
-        ...current,
-        learningGoals: pending,
-        onBoarded: true,
-      };
+  const applyPendingOnboardingIfAny = useCallback(
+    async (current: UserProfile) => {
+      const pending = await readPendingOnboarding();
+      const legacyGoals = pending ? null : await readLegacyPendingGoals();
+      const hasLegacyGoals = Boolean(legacyGoals && legacyGoals.length > 0);
+
+      if (!pending && !hasLegacyGoals) return;
+
+      if (current.onBoarded) {
+        await clearStoredOnboarding();
+        return;
+      }
+
+      const updates: Partial<UserProfile> = pending
+        ? answersToProfileUpdates(pending.answers)
+        : {
+            learningGoals: legacyGoals ?? [],
+            onBoarded: true,
+          };
+
+      try {
+        const token = await getToken();
+        if (!token) return;
+
+        await api.users.update(
+          current.uid,
+          updates as Record<string, unknown>,
+          token,
+        );
+      } catch (err) {
+        // Keep the pending answers; the onboarding screen can retry the save.
+        console.warn("[AuthContext] pending onboarding save failed:", err);
+        return;
+      }
+
+      const updated: UserProfile = { ...current, ...updates, onBoarded: true };
       setProfile(updated);
       setStoreProfile(updated);
-      await AsyncStorage.setItem("userProfile", JSON.stringify(updated));
-
-      getToken()
-        .then((token) => {
-          if (!token) return;
-          return api.users.update(
-            updated.uid,
-            { learningGoals: pending, onBoarded: true },
-            token,
-          );
-        })
-        .catch((err) => {
-          console.warn("[AuthContext] pending goals save failed:", err);
-        });
+      try {
+        await AsyncStorage.setItem("userProfile", JSON.stringify(updated));
+      } catch (err) {
+        console.warn("[AuthContext] profile cache write failed:", err);
+      }
+      await clearStoredOnboarding();
     },
-    [getToken, setStoreProfile],
+    [clearStoredOnboarding, getToken, setStoreProfile],
   );
 
   useEffect(() => {
@@ -200,6 +244,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             currentProfile.department !== userProfile.department ||
             currentProfile.birthday !== userProfile.birthday ||
             currentProfile.educationLevel !== userProfile.educationLevel ||
+            currentProfile.country !== userProfile.country ||
+            currentProfile.region !== userProfile.region ||
+            currentProfile.schoolType !== userProfile.schoolType ||
+            currentProfile.school !== userProfile.school ||
+            currentProfile.grade !== userProfile.grade ||
+            currentProfile.degree !== userProfile.degree ||
+            JSON.stringify(currentProfile.subjects ?? []) !== JSON.stringify(userProfile.subjects ?? []) ||
             currentProfile.professionalInfoEnabled !== userProfile.professionalInfoEnabled ||
             currentProfile.jobTitle !== userProfile.jobTitle ||
             currentProfile.company !== userProfile.company ||
@@ -221,24 +272,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (isChanged || !cached) {
             setProfile(userProfile);
             setStoreProfile(userProfile);
-            await AsyncStorage.setItem("userProfile", JSON.stringify(userProfile));
+            try {
+              await AsyncStorage.setItem("userProfile", JSON.stringify(userProfile));
+            } catch (err) {
+              console.warn("[AuthContext] profile cache write failed:", err);
+            }
           }
-          await applyPendingGoalsIfAny(useUserStore.getState().profile ?? userProfile);
+          await applyPendingOnboardingIfAny(userProfile);
           setAccountError(false);
         } catch (err: any) {
           if (err.message?.includes("Not found") || err.status === 404) {
             try {
-              const apiProfile = await api.users.create(clerkId, {
-                displayName: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Scholar",
-                email: user.primaryEmailAddress?.emailAddress || "",
-                photoURL: getAvatarUrl(clerkId),
-              }, token);
+              const pending = await readPendingOnboarding();
+              const legacyGoals = pending ? null : await readLegacyPendingGoals();
+              const createData = buildSignupProfile(
+                {
+                  displayName: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || "Scholar",
+                  email: user.primaryEmailAddress?.emailAddress || "",
+                  photoURL: getAvatarUrl(clerkId),
+                },
+                pending,
+                legacyGoals,
+              );
+
+              const apiProfile = await api.users.create(clerkId, createData, token);
 
               const userProfile = toProfile(apiProfile);
               setProfile(userProfile);
               setStoreProfile(userProfile);
-              await AsyncStorage.setItem("userProfile", JSON.stringify(userProfile));
-              await applyPendingGoalsIfAny(userProfile);
+              try {
+                await AsyncStorage.setItem("userProfile", JSON.stringify(userProfile));
+              } catch (err) {
+                console.warn("[AuthContext] profile cache write failed:", err);
+              }
+              if (pending || (legacyGoals && legacyGoals.length > 0)) {
+                await clearStoredOnboarding();
+              }
               setAccountError(false);
             } catch {
               // server unreachable for create — only hard-error if no cache
@@ -266,7 +335,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchingRef.current = false;
       }
     })();
-  }, [isLoaded, isSignedIn, user, setStoreProfile, getToken, accountLoadTick, applyPendingGoalsIfAny]);
+  }, [isLoaded, isSignedIn, user, setStoreProfile, getToken, accountLoadTick, applyPendingOnboardingIfAny, clearStoredOnboarding]);
 
   useEffect(() => {
     useModelRatingStore.getState().setRatings(profile?.modelRatings ?? {});
@@ -328,6 +397,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [setStoreProfile, getToken],
   );
 
+  const saveProfile = useCallback(
+    async (updates: Partial<UserProfile>) => {
+      const current = useUserStore.getState().profile;
+      if (!current) throw new Error("You need to be signed in to save your profile.");
+      const token = await getToken();
+      if (!token) throw new Error("Your session expired. Please sign in again.");
+
+      await api.users.update(
+        current.uid,
+        updates as Record<string, unknown>,
+        token,
+      );
+
+      const next: UserProfile = { ...current, ...updates };
+      setProfile(next);
+      setStoreProfile(next);
+      await AsyncStorage.setItem("userProfile", JSON.stringify(next));
+    },
+    [getToken, setStoreProfile],
+  );
+
   const mappedUser = useMemo<MappedUser | null>(() => {
     if (!user) return null;
     return {
@@ -351,7 +441,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshProfile,
     retryAccountLoad,
     updateProfile,
-  }), [mappedUser, profile, isLoaded, loading, loadedOnce, accountError, signOut, getToken, refreshProfile, retryAccountLoad, updateProfile]);
+    saveProfile,
+  }), [mappedUser, profile, isLoaded, loading, loadedOnce, accountError, signOut, getToken, refreshProfile, retryAccountLoad, updateProfile, saveProfile]);
 
   return (
     <AuthContext.Provider value={contextValue}>

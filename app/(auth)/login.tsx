@@ -1,860 +1,752 @@
-import { useOAuth } from "@clerk/expo";
-import { useSignIn, useSignUp } from "@clerk/expo/legacy";
-import {
-  AntDesign,
-  FontAwesome,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as WebBrowser from "expo-web-browser";
-import React, { useEffect, useRef, useState } from "react";
+import Head from "expo-router/head";
+import React from "react";
 import {
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
+  ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import AuthField from "../../component/auth/AuthField";
+import AuthShell from "../../component/auth/AuthShell";
+import OtpInput from "../../component/auth/OtpInput";
+import SocialAuthButtons from "../../component/auth/SocialAuthButtons";
 import LoadingScreen from "../../component/LoadingScreen";
-import { hero, safeFont } from "../../constants/themes";
-import { useResponsive } from "../../hooks/useResponsive";
-// Required for Clerk OAuth Web Browser redirects
-WebBrowser.maybeCompleteAuthSession();
+import {
+  landingColors,
+  landingFonts,
+} from "../../constants/landing";
+import { useLoginFlow } from "../../hooks/useLoginFlow";
 
-const brandName = "Yuinx";
+interface PrimaryButtonProps {
+  label: string;
+  onPress: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+}
 
-function OTPInput({
-  code,
-  setCode,
-}: {
-  code: string;
-  setCode: (v: string) => void;
-}) {
-  const inputRef = useRef<TextInput>(null);
-  const digits = code.split("").concat(Array(6 - code.length).fill(""));
-
+function PrimaryButton({
+  label,
+  onPress,
+  loading = false,
+  disabled = false,
+}: PrimaryButtonProps) {
   return (
-    <Pressable onPress={() => inputRef.current?.focus()} style={styles.otpRow}>
-      {digits.map((d, i) => (
-        <View
-          key={i}
-          style={[
-            styles.otpBox,
-            d ? styles.otpBoxFilled : null,
-            code.length === i && styles.otpBoxActive,
-          ]}
-        >
-          <Text style={[styles.otpDigit, d ? { color: "#fff" } : null]}>
-            {d || ""}
-          </Text>
-        </View>
-      ))}
-      <TextInput
-        ref={inputRef}
-        style={styles.otpHiddenInput}
-        value={code}
-        onChangeText={(v) => setCode(v.replace(/[^0-9]/g, "").slice(0, 6))}
-        keyboardType="number-pad"
-        autoCapitalize="none"
-        maxLength={6}
-      />
+    <Pressable
+      onPress={onPress}
+      disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
+      style={({ pressed }) => [
+        styles.primary,
+        pressed ? styles.primaryPressed : null,
+        disabled || loading ? styles.disabled : null,
+      ]}
+    >
+      <LinearGradient
+        colors={["#3B86FF", landingColors.blue, landingColors.violet]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.primaryFill}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={landingColors.white} />
+        ) : (
+          <Text style={styles.primaryText}>{label}</Text>
+        )}
+      </LinearGradient>
     </Pressable>
   );
 }
 
-export default function Login() {
-  const { isWebWide, breakpoint } = useResponsive();
-  const isTablet = breakpoint === "tablet";
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isExchanging, setIsExchanging] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
-
-  // Clerk Authentication hooks
-  const {
-    signIn,
-    setActive: setSignInActive,
-    isLoaded: isSignInLoaded,
-  } = useSignIn() as any;
-  const {
-    signUp,
-    setActive: setSignUpActive,
-    isLoaded: isSignUpLoaded,
-  } = useSignUp() as any;
-
-  // Custom Verification Code (OTP) state for Sign Up flow
-  const [pendingVerification, setPendingVerification] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
-
-  // Clerk useOAuth for Google and Apple social sign ins
-  const { startOAuthFlow: startGoogleFlow } = useOAuth({
-    strategy: "oauth_google",
-  });
-  const { startOAuthFlow: startAppleFlow } = useOAuth({
-    strategy: "oauth_apple",
-  });
-
-  // Mount animation
-  const cardSlide = useRef(new Animated.Value(1)).current;
-  const cardOpacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.spring(cardSlide, {
-        toValue: 0,
-        friction: 8,
-        tension: 50,
-        useNativeDriver: true,
-      }),
-      Animated.timing(cardOpacity, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [cardSlide, cardOpacity]);
-
-  // Mounted state for animated crossfade between mode switches
-  const formFade = useRef(new Animated.Value(1)).current;
-
-  const switchMode = (fn: () => void) => {
-    Animated.timing(formFade, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
-      fn();
-      Animated.timing(formFade, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    });
-  };
-
-  const handleEmailAuth = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Please enter both email and password.");
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters.");
-      return;
-    }
-
-    setIsExchanging(true);
-    try {
-      if (isSignUp) {
-        if (!isSignUpLoaded) {
-          Alert.alert("Error", "Sign up is not loaded yet. Please try again.");
-          return;
-        }
-
-        // Step 1: Start Clerk registration
-        await signUp.create({
-          emailAddress: email.trim(),
-          password,
-        });
-
-        // Step 2: Trigger OTP email code verification
-        await signUp.verifications.sendEmailCode();
-        setPendingVerification(true);
-        Alert.alert(
-          "Verification Sent",
-          "A 6-digit verification code was sent to your email.",
-        );
-      } else {
-        if (!isSignInLoaded) {
-          Alert.alert("Error", "Sign in is not loaded yet. Please try again.");
-          return;
-        }
-
-        const signInAttempt = await signIn.create({
-          identifier: email.trim(),
-          password,
-        });
-
-        if (signInAttempt.status === "complete") {
-          await setSignInActive({ session: signInAttempt.createdSessionId });
-          setAuthReady(true);
-        } else {
-          Alert.alert("Sign In Incomplete", `Status: ${signInAttempt.status}`);
-        }
-      }
-    } catch (error: any) {
-      console.error("Clerk Email Auth Error:", error);
-      const message =
-        error.errors?.[0]?.message ||
-        error.message ||
-        "An authentication error occurred.";
-      Alert.alert(isSignUp ? "Registration Failed" : "Login Failed", message);
-    } finally {
-      setIsExchanging(false);
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    if (!verificationCode.trim()) {
-      Alert.alert("Error", "Please enter the verification code.");
-      return;
-    }
-
-    setIsExchanging(true);
-    try {
-      if (!isSignUpLoaded || !signUp) {
-        Alert.alert(
-          "Error",
-          "Verification service is not ready. Please try again.",
-        );
-        return;
-      }
-
-      const completeSignUp = await signUp.verifications.verifyEmailCode({
-        code: verificationCode.trim(),
-      });
-
-      if (completeSignUp.status === "complete") {
-        await setSignUpActive({ session: completeSignUp.createdSessionId });
-        setAuthReady(true);
-      } else {
-        Alert.alert("Verification Failed", `Status: ${completeSignUp.status}`);
-      }
-    } catch (error: any) {
-      console.error("Clerk OTP Verification Error:", error);
-      const message =
-        error.errors?.[0]?.message ||
-        error.message ||
-        "Invalid or expired verification code.";
-      Alert.alert("Verification Failed", message);
-    } finally {
-      setIsExchanging(false);
-    }
-  };
-
-const handleGoogleLogin = async () => {
-    try {
-      setIsExchanging(true);
-      setAuthReady(false);
-      const { createdSessionId, setActive } = await startGoogleFlow();
-      if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId });
-        setAuthReady(true);
-      } else {
-        Alert.alert(
-          "Google Login Incomplete",
-          "We couldn't finish signing you in. Please try again.",
-        );
-      }
-    } catch (error: any) {
-      console.error("Google OAuth Error:", error);
-      if (error.code !== "ERR_CANCELED") {
-        const message =
-          error.errors?.[0]?.message ||
-          error.message ||
-          "Failed to sign in with Google.";
-        Alert.alert("Google Login Failed", message);
-      }
-    } finally {
-      setIsExchanging(false);
-    }
-  };
-
-  const handleAppleLogin = async () => {
-    try {
-      setIsExchanging(true);
-      setAuthReady(false); // Reset before starting
-      const { createdSessionId, setActive } = await startAppleFlow();
-      if (createdSessionId && setActive) {
-        await setActive({ session: createdSessionId });
-        setAuthReady(true);
-      } else {
-        Alert.alert(
-          "Apple Login Incomplete",
-          "We couldn't finish signing you in. Please try again.",
-        );
-      }
-    } catch (error: any) {
-      console.error("Apple OAuth Error:", error);
-      if (error.code !== "ERR_CANCELED") {
-        const message =
-          error.errors?.[0]?.message ||
-          error.message ||
-          "Failed to sign in with Apple.";
-        Alert.alert("Apple Login Failed", message);
-      }
-    } finally {
-      setIsExchanging(false);
-    }
-  };
-
-  const brand = (
-    <View style={styles.brandWrapper}>
-      <View style={styles.brandIconRing}>
-        <MaterialCommunityIcons name="infinity" size={28} color={hero.primary} />
-      </View>
-      <Text style={styles.brandText}>{brandName}</Text>
-    </View>
-  );
-
+function TextAction({
+  label,
+  onPress,
+  disabled = false,
+  centered = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  centered?: boolean;
+}) {
   return (
-    <View style={styles.container}>
-      {authReady ? (
-        <LoadingScreen message="Signing in..." />
-      ) : (
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1 }}
-      >
-        <SafeAreaView style={styles.safeArea}>
-          <ScrollView
-            contentContainerStyle={[
-              styles.scrollContent,
-              isTablet && styles.scrollContentTablet,
-              isWebWide && styles.scrollContentWide,
-            ]}
-            bounces={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {isWebWide ? (
-              <View style={styles.brandPanel}>
-                {brand}
-                <Text style={styles.brandHeadline}>
-                  Built around{"\n"}
-                  <Text style={styles.brandHeadlineAccent}>your curiosity.</Text>
-                </Text>
-                <Text style={styles.brandSub}>
-                  Personalized learning paths, gamified quests, and real progress — all in one place.
-                </Text>
-                <View style={styles.perks}>
-                  <View style={styles.perkRow}>
-                    <View style={styles.perkIcon}>
-                      <MaterialCommunityIcons name="compass" size={18} color={hero.primary} />
-                    </View>
-                    <Text style={styles.perkText}>Personalized learning paths</Text>
-                  </View>
-                  <View style={styles.perkRow}>
-                    <View style={styles.perkIcon}>
-                      <MaterialCommunityIcons name="trophy" size={18} color={hero.primary} />
-                    </View>
-                    <Text style={styles.perkText}>Gamified quests and streaks</Text>
-                  </View>
-                  <View style={styles.perkRow}>
-                    <View style={styles.perkIcon}>
-                      <MaterialCommunityIcons name="chart-line" size={18} color={hero.primary} />
-                    </View>
-                    <Text style={styles.perkText}>Track real progress</Text>
-                  </View>
-                </View>
-              </View>
-            ) : (
-              <View style={[styles.header, isTablet && styles.headerTablet]}>{brand}</View>
-            )}
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      style={({ pressed }) => [
+        centered ? styles.textActionCentered : styles.textAction,
+        pressed ? styles.textActionPressed : null,
+        disabled ? styles.disabledText : null,
+      ]}
+    >
+      <Text style={[styles.textActionLabel, disabled ? styles.disabledText : null]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
-            {/* Card area */}
-            <View
-              style={[
-                styles.formPanel,
-                isTablet && styles.formPanelTablet,
-                isWebWide && styles.formPanelWide,
-              ]}
-            >
-            <View
-              style={[
-                styles.cardContainer,
-                isTablet && styles.cardContainerTablet,
-                isWebWide && styles.cardContainerWide,
-              ]}
-            >
-              <Animated.View
-                style={{
-                  transform: [
-                    {
-                      translateY: cardSlide.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 80],
-                      }),
-                    },
-                  ],
-                  opacity: cardOpacity,
-                }}
-              >
-                <View style={styles.gradientBorder}>
-                  <LinearGradient
-                    colors={[hero.gradientStart, hero.gradientMid, hero.gradientEnd]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientBorderFill}
-                  >
-                    <View style={styles.cardInner}>
-                      <Animated.View style={{ opacity: formFade }}>
-                        {/* Card header */}
-                        <View style={styles.cardHeader}>
-                          <View>
-                            <Text style={styles.title}>
-                              {pendingVerification
-                                ? "Verify Email"
-                                : isSignUp
-                                  ? "Create Account"
-                                  : "Welcome Back"}
-                            </Text>
-                            <Text style={styles.subtitle}>
-                              {pendingVerification
-                                ? "We emailed a 6-digit code"
-                                : isSignUp
-                                  ? "Enter your details to start"
-                                  : "Sign in to continue your progress"}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {isExchanging ? (
-                          <LoadingScreen
-                            message={
-                              pendingVerification
-                                ? "Verifying Code..."
-                                : isSignUp
-                                  ? "Creating Account..."
-                                  : "Signing In..."
-                            }
-                            fullScreen={false}
-                          />
-                        ) : pendingVerification ? (
-                          <>
-                            <View style={styles.inputGroup}>
-                              <OTPInput
-                                code={verificationCode}
-                                setCode={setVerificationCode}
-                              />
-                            </View>
-
-                            <Pressable
-                              style={styles.primaryButton}
-                              onPress={handleVerifyCode}
-                            >
-                              <Text style={styles.primaryButtonText}>Verify Email</Text>
-                            </Pressable>
-
-                            <Pressable
-                              style={styles.toggleAuth}
-                              onPress={() => {
-                                switchMode(() => setPendingVerification(false));
-                              }}
-                            >
-                              <Text style={styles.toggleText}>
-                                Wrong email?{" "}
-                                <Text style={styles.toggleAction}>Go Back</Text>
-                              </Text>
-                            </Pressable>
-                          </>
-                        ) : (
-                          <>
-                            <View style={styles.inputGroup}>
-                              <View style={styles.inputWrapper}>
-                                <MaterialCommunityIcons
-                                  name="email-outline"
-                                  size={20}
-                                  color={hero.textMuted}
-                                />
-                                <TextInput
-                                  style={styles.input}
-                                  placeholder="Email Address"
-                                  placeholderTextColor={hero.textMuted}
-                                  value={email}
-                                  onChangeText={setEmail}
-                                  autoCapitalize="none"
-                                  keyboardType="email-address"
-                                />
-                              </View>
-                            </View>
-
-                            <View style={styles.inputGroup}>
-                              <View style={styles.inputWrapper}>
-                                <MaterialCommunityIcons
-                                  name="lock-outline"
-                                  size={20}
-                                  color={hero.textMuted}
-                                />
-                                <TextInput
-                                  style={styles.input}
-                                  placeholder="Password"
-                                  placeholderTextColor={hero.textMuted}
-                                  value={password}
-                                  onChangeText={setPassword}
-                                  secureTextEntry
-                                />
-                              </View>
-                            </View>
-
-                            <Pressable
-                              style={styles.primaryButton}
-                              onPress={handleEmailAuth}
-                            >
-                              <Text style={styles.primaryButtonText}>
-                                {isSignUp ? "Sign Up" : "Login"}
-                              </Text>
-                            </Pressable>
-
-                            <Pressable
-                              style={styles.toggleAuth}
-                              onPress={() => {
-                                switchMode(() => setIsSignUp(!isSignUp));
-                              }}
-                            >
-                              <Text style={styles.toggleText}>
-                                {isSignUp
-                                  ? "Already have an account? "
-                                  : "Don't have an account? "}
-                                <Text style={styles.toggleAction}>
-                                  {isSignUp ? "Login" : "Sign Up"}
-                                </Text>
-                              </Text>
-                            </Pressable>
-
-                            <View style={styles.divider}>
-                              <View style={styles.dividerLine} />
-                              <Text style={styles.dividerText}>or continue with</Text>
-                              <View style={styles.dividerLine} />
-                            </View>
-
-                            <View style={styles.socialRow}>
-                              <Pressable
-                                style={styles.socialButton}
-                                onPress={handleGoogleLogin}
-                              >
-                                <AntDesign name="google" size={18} color="#fff" />
-                                <Text style={styles.socialButtonText}>Google</Text>
-                              </Pressable>
-                              <Pressable
-                                style={styles.socialButton}
-                                onPress={handleAppleLogin}
-                              >
-                                <FontAwesome name="apple" size={18} color="#fff" />
-                                <Text style={styles.socialButtonText}>Apple</Text>
-                              </Pressable>
-                            </View>
-                          </>
-                        )}
-                      </Animated.View>
-
-                      <Text style={styles.disclaimer}>
-                        By continuing, you agree to our Terms & Conditions and Privacy Policy.
-                      </Text>
-                    </View>
-                  </LinearGradient>
-                </View>
-              </Animated.View>
-            </View>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </KeyboardAvoidingView>
-      )}
+function CardHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <View style={styles.header}>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
     </View>
   );
 }
 
+function Banner({
+  message,
+  tone,
+}: {
+  message: string;
+  tone: "error" | "info";
+}) {
+  const isError = tone === "error";
+  return (
+    <View
+      style={[styles.banner, isError ? styles.bannerError : styles.bannerInfo]}
+      accessibilityRole={isError ? "alert" : "text"}
+    >
+      <MaterialCommunityIcons
+        name={isError ? "alert-circle-outline" : "information-outline"}
+        size={17}
+        color={isError ? landingColors.danger : landingColors.blueSoft}
+      />
+      <Text style={[styles.bannerText, isError ? styles.bannerTextError : null]}>
+        {message}
+      </Text>
+    </View>
+  );
+}
+
+function OnboardingCallout() {
+  return (
+    <View style={styles.callout}>
+      <View style={styles.calloutIcon}>
+        <MaterialCommunityIcons
+          name="bookmark-check-outline"
+          size={17}
+          color={landingColors.green}
+        />
+      </View>
+      <Text style={styles.calloutText}>
+        Your answers are saved. Create an account to keep your learning path.
+      </Text>
+    </View>
+  );
+}
+
+function Divider() {
+  return (
+    <View style={styles.divider}>
+      <View style={styles.dividerLine} />
+      <Text style={styles.dividerText}>or continue with</Text>
+      <View style={styles.dividerLine} />
+    </View>
+  );
+}
+
+function Disclaimer() {
+  return (
+    <Text style={styles.disclaimer}>
+      By continuing, you agree to our Terms & Conditions and Privacy Policy.
+    </Text>
+  );
+}
+
+function SuccessView({
+  onContinue,
+  onSignIn,
+  loading,
+}: {
+  onContinue: () => void;
+  onSignIn: () => void;
+  loading: boolean;
+}) {
+  return (
+    <View style={styles.success}>
+      <View style={styles.successIcon}>
+        <MaterialCommunityIcons
+          name="check"
+          size={30}
+          color={landingColors.black}
+        />
+      </View>
+      <Text style={styles.successTitle}>Password updated</Text>
+      <Text style={styles.successText}>
+        Your new password is ready. Continue to pick up where you left off.
+      </Text>
+      <PrimaryButton
+        label="Continue to Yuinx"
+        onPress={onContinue}
+        loading={loading}
+      />
+      <TextAction label="Back to sign in" onPress={onSignIn} centered />
+    </View>
+  );
+}
+
+export default function Login() {
+  const flow = useLoginFlow();
+  const isBusy = flow.busy !== null;
+
+  if (flow.authReady) {
+    return <LoadingScreen message="Signing in..." />;
+  }
+
+  const pageTitle =
+    flow.view === "signup"
+      ? "Create your account"
+      : flow.view === "signin"
+        ? "Sign in"
+        : "Account access";
+
+  const renderForm = () => (
+    <>
+      <CardHeader
+        title={flow.isSignUp ? "Create your account" : "Welcome back"}
+        subtitle={
+          flow.isSignUp
+            ? "Start with an email and password."
+            : "Sign in to continue your progress."
+        }
+      />
+
+      {flow.fromOnboarding ? <OnboardingCallout /> : null}
+      {flow.formError ? <Banner message={flow.formError} tone="error" /> : null}
+      {flow.notice ? <Banner message={flow.notice} tone="info" /> : null}
+
+      <View style={styles.form}>
+        <AuthField
+          label="Email"
+          icon="email-outline"
+          value={flow.email}
+          onChangeText={flow.setEmail}
+          placeholder="you@example.com"
+          error={flow.errors.email}
+          autoComplete="email"
+          textContentType="emailAddress"
+          keyboardType="email-address"
+          returnKeyType="next"
+          editable={!isBusy}
+        />
+
+        <AuthField
+          label="Password"
+          icon="lock-outline"
+          value={flow.password}
+          onChangeText={flow.setPassword}
+          placeholder={flow.isSignUp ? "Choose a password" : "Enter your password"}
+          error={flow.errors.password}
+          secure
+          autoComplete={flow.isSignUp ? "new-password" : "current-password"}
+          textContentType={flow.isSignUp ? "newPassword" : "password"}
+          returnKeyType="go"
+          onSubmitEditing={flow.submitEmail}
+          editable={!isBusy}
+        />
+
+        {!flow.isSignUp ? (
+          <View style={styles.forgotRow}>
+            <TextAction label="Forgot password?" onPress={flow.startForgotPassword} />
+          </View>
+        ) : null}
+
+        <PrimaryButton
+          label={flow.isSignUp ? "Create account" : "Sign in"}
+          onPress={flow.submitEmail}
+          loading={flow.busy === "email"}
+          disabled={isBusy && flow.busy !== "email"}
+        />
+      </View>
+
+      <View style={styles.toggleRow}>
+        <Text style={styles.toggleText}>
+          {flow.isSignUp
+            ? "Already have an account?"
+            : "Don't have an account?"}
+        </Text>
+        <TextAction
+          label={flow.isSignUp ? "Sign in" : "Create one"}
+          onPress={flow.switchMode}
+          disabled={isBusy}
+        />
+      </View>
+
+      <Divider />
+      <SocialAuthButtons
+        onGoogle={flow.handleGoogle}
+        onApple={flow.handleApple}
+        showApple={flow.showApple}
+        loading={
+          flow.busy === "google"
+            ? "google"
+            : flow.busy === "apple"
+              ? "apple"
+              : null
+        }
+        disabled={isBusy}
+      />
+      <Disclaimer />
+    </>
+  );
+
+  const renderVerifyEmail = () => (
+    <>
+      <CardHeader
+        title="Check your email"
+        subtitle={`We sent a 6-digit code to ${flow.email || "your email"}.`}
+      />
+      {flow.notice ? <Banner message={flow.notice} tone="info" /> : null}
+      {flow.formError ? <Banner message={flow.formError} tone="error" /> : null}
+
+      <View style={styles.form}>
+        <OtpInput
+          code={flow.code}
+          setCode={flow.setCode}
+          onComplete={flow.verifyEmail}
+          error={flow.errors.code}
+          editable={!isBusy}
+        />
+        <PrimaryButton
+          label="Verify email"
+          onPress={flow.verifyEmail}
+          loading={flow.busy === "verify"}
+          disabled={isBusy && flow.busy !== "verify"}
+        />
+      </View>
+
+      <View style={styles.verifyActions}>
+        <TextAction
+          label={flow.resendLabel}
+          onPress={flow.resendVerification}
+          disabled={isBusy || flow.cooldown > 0}
+          centered
+        />
+        <TextAction
+          label="Use a different email"
+          onPress={flow.editVerificationEmail}
+          disabled={isBusy}
+          centered
+        />
+      </View>
+    </>
+  );
+
+  const renderSecondFactor = () => (
+    <>
+      <CardHeader
+        title="One more step"
+        subtitle={
+          flow.secondFactorStrategy === "email_code"
+            ? `Enter the 6-digit code sent to ${flow.email || "your email"}.`
+            : "Enter the 6-digit code from your authenticator app."
+        }
+      />
+      {flow.notice ? <Banner message={flow.notice} tone="info" /> : null}
+      {flow.formError ? <Banner message={flow.formError} tone="error" /> : null}
+
+      <View style={styles.form}>
+        <OtpInput
+          code={flow.code}
+          setCode={flow.setCode}
+          onComplete={flow.verifySecondFactor}
+          error={flow.errors.code}
+          editable={!isBusy}
+        />
+        <PrimaryButton
+          label="Verify and sign in"
+          onPress={flow.verifySecondFactor}
+          loading={flow.busy === "second-factor"}
+          disabled={isBusy && flow.busy !== "second-factor"}
+        />
+      </View>
+
+      {flow.secondFactorStrategy === "email_code" ? (
+        <TextAction
+          label={flow.resendLabel}
+          onPress={flow.resendSecondFactor}
+          disabled={isBusy || flow.cooldown > 0}
+          centered
+        />
+      ) : null}
+      <TextAction
+        label="Back to sign in"
+        onPress={() => flow.backToSignIn()}
+        disabled={isBusy}
+        centered
+      />
+    </>
+  );
+
+  const renderForgotEmail = () => (
+    <>
+      <CardHeader
+        title="Reset your password"
+        subtitle="Enter the email you use for Yuinx and we will send a reset code."
+      />
+      {flow.formError ? <Banner message={flow.formError} tone="error" /> : null}
+      {flow.notice ? <Banner message={flow.notice} tone="info" /> : null}
+
+      <View style={styles.form}>
+        <AuthField
+          label="Email"
+          icon="email-outline"
+          value={flow.email}
+          onChangeText={flow.setEmail}
+          placeholder="you@example.com"
+          error={flow.errors.email}
+          autoComplete="email"
+          textContentType="emailAddress"
+          keyboardType="email-address"
+          returnKeyType="go"
+          onSubmitEditing={flow.requestResetCode}
+          editable={!isBusy}
+        />
+        <PrimaryButton
+          label="Send reset code"
+          onPress={flow.requestResetCode}
+          loading={flow.busy === "reset-request"}
+          disabled={isBusy && flow.busy !== "reset-request"}
+        />
+      </View>
+
+      <TextAction
+        label="Back to sign in"
+        onPress={() => flow.backToSignIn()}
+        disabled={isBusy}
+        centered
+      />
+    </>
+  );
+
+  const renderForgotCode = () => (
+    <>
+      <CardHeader
+        title="Enter your reset code"
+        subtitle={`We sent a code to ${flow.email || "your email"}.`}
+      />
+      {flow.notice ? <Banner message={flow.notice} tone="info" /> : null}
+      {flow.formError ? <Banner message={flow.formError} tone="error" /> : null}
+
+      <View style={styles.form}>
+        <OtpInput
+          code={flow.code}
+          setCode={flow.setCode}
+          onComplete={flow.verifyResetCode}
+          error={flow.errors.code}
+          editable={!isBusy}
+        />
+        <PrimaryButton
+          label="Verify code"
+          onPress={flow.verifyResetCode}
+          loading={flow.busy === "reset-verify"}
+          disabled={isBusy && flow.busy !== "reset-verify"}
+        />
+      </View>
+
+      <View style={styles.verifyActions}>
+        <TextAction
+          label={flow.resendLabel}
+          onPress={flow.resendResetCode}
+          disabled={isBusy || flow.cooldown > 0}
+          centered
+        />
+        <TextAction
+          label="Use a different email"
+          onPress={flow.backToEmail}
+          disabled={isBusy}
+          centered
+        />
+      </View>
+    </>
+  );
+
+  const renderForgotPassword = () => (
+    <>
+      <CardHeader
+        title="Choose a new password"
+        subtitle="Use a password you have not used on Yuinx before."
+      />
+      {flow.formError ? <Banner message={flow.formError} tone="error" /> : null}
+      {flow.notice ? <Banner message={flow.notice} tone="info" /> : null}
+
+      <View style={styles.form}>
+        <AuthField
+          label="New password"
+          icon="lock-outline"
+          value={flow.password}
+          onChangeText={flow.setPassword}
+          placeholder="New password"
+          error={flow.errors.password}
+          secure
+          autoComplete="new-password"
+          textContentType="newPassword"
+          returnKeyType="next"
+          editable={!isBusy}
+        />
+        <AuthField
+          label="Confirm new password"
+          icon="lock-check-outline"
+          value={flow.confirmPassword}
+          onChangeText={flow.setConfirmPassword}
+          placeholder="Repeat your new password"
+          error={flow.errors.confirmPassword}
+          secure
+          autoComplete="new-password"
+          textContentType="newPassword"
+          returnKeyType="go"
+          onSubmitEditing={flow.submitNewPassword}
+          editable={!isBusy}
+        />
+        <PrimaryButton
+          label="Update password"
+          onPress={flow.submitNewPassword}
+          loading={flow.busy === "reset-submit"}
+          disabled={isBusy && flow.busy !== "reset-submit"}
+        />
+      </View>
+
+      <TextAction
+        label="Back to sign in"
+        onPress={() => flow.backToSignIn()}
+        disabled={isBusy}
+        centered
+      />
+    </>
+  );
+
+  return (
+    <AuthShell
+      onBack={flow.fromOnboarding ? flow.goBackToAnswers : undefined}
+      backLabel="Back to your answers"
+    >
+      <Head>
+        <title>{`${pageTitle} - Yuinx`}</title>
+        <meta
+          name="description"
+          content="Sign in to Yuinx to continue your learning path, quests, and progress."
+        />
+        <meta name="theme-color" content="#070A10" />
+      </Head>
+
+      {flow.view === "signup" || flow.view === "signin" ? renderForm() : null}
+      {flow.view === "verify-email" ? renderVerifyEmail() : null}
+      {flow.view === "second-factor" ? renderSecondFactor() : null}
+      {flow.view === "forgot-email" ? renderForgotEmail() : null}
+      {flow.view === "forgot-code" ? renderForgotCode() : null}
+      {flow.view === "forgot-password" ? renderForgotPassword() : null}
+      {flow.view === "forgot-success" ? (
+        <SuccessView
+          onContinue={flow.continueAfterReset}
+          onSignIn={() => flow.backToSignIn("Your password was updated. Sign in below.")}
+          loading={flow.busy === "reset-continue"}
+        />
+      ) : null}
+    </AuthShell>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  scrollContentTablet: {
-    justifyContent: "center",
-    paddingVertical: 40,
-  },
-  scrollContentWide: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 72,
-    paddingHorizontal: 48,
-    paddingVertical: 40,
-  },
-  brandPanel: {
-    flex: 1,
-    maxWidth: 520,
-    gap: 20,
-  },
-  brandHeadline: {
-    color: "#fff",
-    fontSize: 44,
-    lineHeight: 52,
-    fontWeight: "800",
-    fontFamily: safeFont,
-    letterSpacing: -0.8,
-  },
-  brandHeadlineAccent: {
-    color: hero.primary,
-  },
-  brandSub: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 16,
-    lineHeight: 24,
-    fontFamily: safeFont,
-    maxWidth: 420,
-  },
-  perks: {
-    gap: 14,
-    marginTop: 8,
-  },
-  perkRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  perkIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  perkText: {
-    color: "rgba(255,255,255,0.82)",
-    fontSize: 14,
-    fontWeight: "500",
-    fontFamily: safeFont,
-  },
-  formPanel: {
-    flex: 1,
-  },
-  formPanelTablet: {
-    flex: 0,
-  },
-  formPanelWide: {
-    flex: 0,
-    width: 440,
-  },
-  cardContainerTablet: {
-    flex: 0,
-    width: "100%",
-    maxWidth: 440,
-    alignSelf: "center",
-    paddingBottom: 0,
-    marginTop: 24,
-  },
-  cardContainerWide: {
-    flex: 0,
-    justifyContent: "center",
-    paddingHorizontal: 0,
-    paddingBottom: 0,
-  },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
-  },
-  headerTablet: {
-    alignItems: "center",
-    paddingHorizontal: 0,
-    paddingTop: 0,
-  },
-  brandWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  brandIconRing: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: hero.primary + "15",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: hero.primary + "30",
-  },
-  brandText: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "800",
-    fontFamily: safeFont,
-  },
-  cardContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
-  gradientBorder: {
-    borderRadius: 32,
-    overflow: "hidden",
-  },
-  gradientBorderFill: {
-    padding: 1.5,
-  },
-  cardInner: {
-    backgroundColor: "rgba(20, 20, 42, 0.92)",
-    borderRadius: 30.5,
-    padding: 24,
-  },
-  cardHeader: {
-    paddingBottom: 20,
+    gap: 7,
+    marginBottom: 22,
   },
   title: {
-    color: "#fff",
-    fontSize: 28,
-    fontWeight: "800",
-    fontFamily: safeFont,
-    lineHeight: 36,
-    marginBottom: 8,
+    color: landingColors.text,
+    fontFamily: landingFonts.display,
+    fontSize: 29,
+    lineHeight: 35,
+    letterSpacing: -0.9,
   },
   subtitle: {
-    color: hero.textMuted,
+    color: landingColors.textMuted,
+    fontFamily: landingFonts.body,
     fontSize: 14,
-    lineHeight: 20,
-    fontFamily: safeFont,
+    lineHeight: 21,
   },
-  inputGroup: {
-    marginBottom: 12,
-  },
-  inputWrapper: {
+  callout: {
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
     borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 56,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(56,217,150,0.24)",
+    backgroundColor: "rgba(56,217,150,0.08)",
+    marginBottom: 14,
   },
-  input: {
+  calloutIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(56,217,150,0.12)",
+  },
+  calloutText: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: "#fff",
-    fontFamily: safeFont,
+    color: "rgba(248,250,252,0.82)",
+    fontFamily: landingFonts.body,
+    fontSize: 12,
+    lineHeight: 18,
   },
-  primaryButton: {
+  banner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  bannerError: {
+    borderColor: "rgba(255,92,92,0.28)",
+    backgroundColor: "rgba(255,92,92,0.08)",
+  },
+  bannerInfo: {
+    borderColor: "rgba(47,124,255,0.28)",
+    backgroundColor: "rgba(47,124,255,0.08)",
+  },
+  bannerText: {
+    flex: 1,
+    color: landingColors.textMuted,
+    fontFamily: landingFonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  bannerTextError: {
+    color: "#FFB4B4",
+  },
+  form: {
+    gap: 14,
+  },
+  forgotRow: {
+    alignItems: "flex-end",
+    marginTop: -4,
+  },
+  primary: {
+    minHeight: 52,
+    borderRadius: 15,
+    overflow: "hidden",
+    marginTop: 2,
+  },
+  primaryPressed: {
+    opacity: 0.9,
+  },
+  primaryFill: {
+    minHeight: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  primaryText: {
+    color: landingColors.white,
+    fontFamily: landingFonts.bodySemiBold,
+    fontSize: 16,
+  },
+  disabled: {
+    opacity: 0.55,
+  },
+  disabledText: {
+    opacity: 0.45,
+  },
+  toggleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: hero.primary,
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  primaryButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "700",
-    fontFamily: safeFont,
-  },
-  toggleAuth: {
-    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 16,
     marginBottom: 20,
   },
   toggleText: {
-    fontSize: 14,
-    color: hero.textMuted,
-    fontFamily: safeFont,
+    color: landingColors.textMuted,
+    fontFamily: landingFonts.body,
+    fontSize: 13,
   },
-  toggleAction: {
-    color: hero.primary,
-    fontWeight: "700",
+  textAction: {
+    alignSelf: "flex-start",
+  },
+  textActionCentered: {
+    alignSelf: "center",
+  },
+  textActionPressed: {
+    opacity: 0.7,
+  },
+  textActionLabel: {
+    color: landingColors.blueSoft,
+    fontFamily: landingFonts.bodySemiBold,
+    fontSize: 13,
   },
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 16,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: landingColors.border,
   },
   dividerText: {
-    marginHorizontal: 12,
-    fontSize: 12,
-    color: hero.textMuted,
-    fontFamily: safeFont,
-  },
-  socialRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 18,
-  },
-  socialButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingVertical: 14,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-  },
-  socialButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontFamily: safeFont,
-    fontWeight: "700",
+    color: landingColors.textSubtle,
+    fontFamily: landingFonts.body,
+    fontSize: 11,
   },
   disclaimer: {
-    color: hero.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
+    color: landingColors.textSubtle,
+    fontFamily: landingFonts.body,
+    fontSize: 11,
+    lineHeight: 17,
+    textAlign: "center",
+    marginTop: 18,
+  },
+  verifyActions: {
+    alignItems: "center",
+    gap: 12,
+    marginTop: 18,
+  },
+  success: {
+    alignItems: "center",
+    paddingTop: 8,
+  },
+  successIcon: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: landingColors.green,
+    marginBottom: 18,
+  },
+  successTitle: {
+    color: landingColors.text,
+    fontFamily: landingFonts.display,
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: -0.7,
+    textAlign: "center",
+  },
+  successText: {
+    color: landingColors.textMuted,
+    fontFamily: landingFonts.body,
+    fontSize: 14,
+    lineHeight: 21,
     textAlign: "center",
     marginTop: 8,
-    fontFamily: safeFont,
-  },
-  otpRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 10,
-    paddingVertical: 16,
-  },
-  otpBox: {
-    width: 48,
-    height: 56,
-    borderRadius: 14,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  otpBoxFilled: {
-    backgroundColor: hero.primary + "20",
-    borderColor: hero.primary,
-  },
-  otpBoxActive: {
-    borderColor: hero.primary,
-    shadowColor: hero.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  otpDigit: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: hero.textMuted,
-    fontFamily: safeFont,
-  },
-  otpHiddenInput: {
-    position: "absolute",
-    width: 1,
-    height: 1,
-    opacity: 0,
+    marginBottom: 22,
+    maxWidth: 310,
   },
 });

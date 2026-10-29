@@ -275,6 +275,13 @@ export interface ApiUserProfile {
   majorCourse?: string;
   birthday?: string;
   educationLevel?: string;
+  country?: string;
+  region?: string;
+  schoolType?: string;
+  school?: string;
+  grade?: string;
+  degree?: string;
+  subjects?: string[];
   professionalInfoEnabled?: boolean;
   status: "active" | "deleted";
   xp: number;
@@ -318,6 +325,14 @@ export interface ApiUserProfile {
   deletedAt?: string;
 }
 
+export type ApiUserCreateInput = Partial<
+  Omit<ApiUserProfile, "uid" | "createdAt" | "updatedAt" | "deletedAt">
+> & {
+  displayName: string;
+  email: string;
+  photoURL: string | null;
+};
+
 export const api = {
   users: {
     get: (uid: string, token: string) =>
@@ -325,11 +340,7 @@ export const api = {
 
     create: (
       uid: string,
-      data: {
-        displayName: string;
-        email: string;
-        photoURL: string | null;
-      },
+      data: ApiUserCreateInput,
       token: string,
     ) =>
       apiFetch<ApiUserProfile>(`/api/users`, {

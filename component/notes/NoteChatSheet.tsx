@@ -406,6 +406,7 @@ export default function NoteChatSheet({
   const modelGroups = useMemo(() => {
     const order: AiProvider[] = ["gemini", "openai", "anthropic", "openrouter", "offline"];
     return order
+      .filter((provider) => Platform.OS !== "web" || provider !== "offline")
       .map((provider) => ({
         provider,
         models: sortModels(

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  View, Text, StyleSheet, Pressable, ScrollView, Alert, ActivityIndicator, Animated, useWindowDimensions,
+  View, Text, StyleSheet, Pressable, ScrollView, Alert, ActivityIndicator, Animated, Platform, useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -216,19 +216,38 @@ export default function ProfileScreen() {
     }
   };
 
+  const performSignOut = async () => {
+    try {
+      await signOut();
+      router.replace("/login");
+    } catch (error) {
+      console.error("Sign out error:", error);
+      const message =
+        error instanceof Error ? error.message : "Could not sign out. Please try again.";
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.alert(message);
+      } else {
+        Alert.alert("Sign Out Failed", message);
+      }
+    }
+  };
+
   const handleSignOut = () => {
+    if (Platform.OS === "web") {
+      if (typeof window === "undefined" || !window.confirm("Are you sure you want to sign out?")) {
+        return;
+      }
+      void performSignOut();
+      return;
+    }
+
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Sign Out", style: "destructive",
-        onPress: async () => {
-          try {
-            await signOut();
-            router.replace("/login");
-          } catch (error: any) {
-            console.error("Sign out error:", error);
-            Alert.alert("Sign Out Failed", error?.message || "Could not sign out. Please try again.");
-          }
+        text: "Sign Out",
+        style: "destructive",
+        onPress: () => {
+          void performSignOut();
         },
       },
     ]);
@@ -288,7 +307,7 @@ export default function ProfileScreen() {
             />
             <Pressable
               style={[pfStyles.settingsBtn, { backgroundColor: theme.glass }]}
-              onPress={() => router.push("/(settings)")}
+              onPress={() => router.push("/settings")}
               hitSlop={8}
             >
               <MaterialCommunityIcons name="cog-outline" size={22} color={theme.text} />

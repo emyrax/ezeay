@@ -69,6 +69,7 @@ function NavigationGuard() {
   const prevReadyRef = useRef<boolean>(false);
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [restoreStuck, setRestoreStuck] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const strayArmedRef = useRef(false);
 
   const ready = !!user && !!profile && !loading && loadedOnce && !accountError;
@@ -107,6 +108,15 @@ function NavigationGuard() {
   // forced back to home so the stray can never stick. It disarms the moment the
   // tab home renders, so normal in-session navigation is never intercepted.
   useEffect(() => {
+    if (!ready || !profile || profile.onBoarded) {
+      setNeedsOnboarding(false);
+      return;
+    }
+    const timer = setTimeout(() => setNeedsOnboarding(true), 700);
+    return () => clearTimeout(timer);
+  }, [ready, profile]);
+
+  useEffect(() => {
     if (!loading) {
       SplashScreen.hideAsync();
     }
@@ -114,6 +124,7 @@ function NavigationGuard() {
     const isPublicPage = !segments[0];
     const inAuthGroup = segments[0] === "(auth)";
     const inTabsGroup = segments[0] === "(tabs)";
+    const inSettingsGroup = segments[0] === "(settings)";
 
     if (becameReady) {
       strayArmedRef.current = true;
@@ -137,7 +148,12 @@ function NavigationGuard() {
 
     if (!ready) return;
 
-    if (!inTabsGroup && (becameReady || isPublicPage || strayArmedRef.current)) {
+    if (needsOnboarding && !inAuthGroup) {
+      router.replace("/onboarding");
+      return;
+    }
+
+    if (!inTabsGroup && !inSettingsGroup && (becameReady || isPublicPage || strayArmedRef.current)) {
       // dismissAll dispatches POP_TO_TOP unconditionally. During cold start the
       // navigator (and its stack) may not be mounted/registered yet, so the
       // action has no handler and warns. canDismiss() returns false in that
@@ -149,7 +165,7 @@ function NavigationGuard() {
     } else if (inTabsGroup && strayArmedRef.current) {
       strayArmedRef.current = false;
     }
-  }, [user, profile, loading, loadedOnce, ready, becameReady, accountError, segments, router]);
+  }, [user, profile, loading, loadedOnce, ready, becameReady, accountError, needsOnboarding, segments, router]);
 
   if (user && (accountError || (loading && restoreStuck))) {
     return (

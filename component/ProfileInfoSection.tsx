@@ -14,6 +14,17 @@ import { searchPlaces, reverseGeocode, searchUniversities, expandBoundsForSearch
 import type { Bounds, PlaceSuggestion, UniversitySuggestion } from "../lib/geocode";
 import { useUserStore } from "../store/userStore";
 import type { Education, WorkExperience, Certification, CollarType, Availability, UserProfile } from "../types/user";
+import CountryPicker from "./onboarding/CountryPicker";
+import CountryFlag from "./onboarding/CountryFlag";
+import { findAfricanCountry } from "../data/countries";
+import {
+  DEGREE_OPTIONS,
+  SCHOOL_TYPES,
+  getGradeOptions,
+  getSchoolTypeLabel,
+  requiresDegree,
+  supportsGrade,
+} from "../data/onboarding";
 
 const COLLAR_OPTIONS: { value: CollarType; label: string }[] = [
   { value: "white", label: "White Collar" }, { value: "yellow", label: "Yellow Collar" }, { value: "both", label: "Both" },
@@ -146,6 +157,16 @@ export default function ProfileInfoSection({
   const [birthday, setBirthday] = useState(profile.birthday ?? "");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [educationLevel, setEducationLevel] = useState(profile.educationLevel ?? "");
+  const [country, setCountry] = useState(profile.country ?? "");
+  const [region, setRegion] = useState(profile.region ?? "");
+  const [schoolType, setSchoolType] = useState(profile.schoolType ?? "");
+  const [school, setSchool] = useState(profile.school ?? "");
+  const [grade, setGrade] = useState(profile.grade ?? "");
+  const [degree, setDegree] = useState(profile.degree ?? "");
+  const [majorCourse, setMajorCourse] = useState(profile.majorCourse ?? "");
+  const [subjects, setSubjects] = useState<string[]>(profile.subjects ?? []);
+  const [subjectInput, setSubjectInput] = useState("");
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [professionalInfoEnabled, setProfessionalInfoEnabled] = useState(profile.professionalInfoEnabled ?? true);
   const [department, setDepartment] = useState(profile.department ?? "");
   const [collarType, setCollarType] = useState<CollarType | null>(profile.collarType ?? null);
@@ -169,6 +190,10 @@ export default function ProfileInfoSection({
   const [editWork, setEditWork] = useState<WorkExperience | null>(null);
   const [editCert, setEditCert] = useState<Certification | null>(null);
 
+  const selectedCountry = findAfricanCountry(country);
+  const profileCountry = findAfricanCountry(profile.country ?? "");
+  const gradeOptions = getGradeOptions(schoolType);
+
   useEffect(() => {
     if (startEditing) {
       setEditMode(true);
@@ -180,6 +205,7 @@ export default function ProfileInfoSection({
   function addLanguage() { const v = languageInput.trim(); if (v && !languages.includes(v)) setLanguages([...languages, v]); setLanguageInput(""); }
   function addInterest() { const v = interestInput.trim(); if (v && !interests.includes(v)) setInterests([...interests, v]); setInterestInput(""); }
   function addTradeSkill() { const v = tradeSkillInput.trim(); if (v && !tradeSkills.includes(v)) setTradeSkills([...tradeSkills, v]); setTradeSkillInput(""); }
+  function addSubject() { const v = subjectInput.trim(); if (v && !subjects.includes(v)) setSubjects([...subjects, v]); setSubjectInput(""); }
 
   useEffect(() => () => {
     if (placeTimer.current) clearTimeout(placeTimer.current);
@@ -344,9 +370,14 @@ export default function ProfileInfoSection({
         location: location || null,
         locationLat: typeof locationLat === "number" ? locationLat : null,
         locationLng: typeof locationLng === "number" ? locationLng : null,
-        university: university || null,
+        university:
+          schoolType === "university" && school ? school : university || null,
         website: website || null, linkedInUrl: linkedInUrl || null,
         birthday: birthday || null, educationLevel: educationLevel || null,
+        country: country || null, region: region || null,
+        schoolType: schoolType || null, school: school || null,
+        grade: grade || null, degree: degree || null,
+        majorCourse: majorCourse || null, subjects,
         professionalInfoEnabled: professionalInfoEnabled, department: department || null,
         collarType: collarType || null, availability: availability || null,
         industry: industry || null, jobTitle: jobTitle || null, company: company || null,
@@ -369,11 +400,22 @@ export default function ProfileInfoSection({
         location: location ?? profile.location,
         locationLat: locationLat ?? profile.locationLat,
         locationLng: locationLng ?? profile.locationLng,
-        university: university ?? profile.university,
+        university:
+          schoolType === "university" && school
+            ? school
+            : university || profile.university,
         website: website ?? profile.website,
         linkedInUrl: linkedInUrl ?? profile.linkedInUrl,
         birthday: birthday ?? profile.birthday,
         educationLevel: educationLevel ?? profile.educationLevel,
+        country: country || profile.country,
+        region: region || profile.region,
+        schoolType: schoolType || profile.schoolType,
+        school: school || profile.school,
+        grade: grade || profile.grade,
+        degree: degree || profile.degree,
+        majorCourse: majorCourse || profile.majorCourse,
+        subjects,
         professionalInfoEnabled: professionalInfoEnabled,
         department: department ?? profile.department,
         collarType: collarType ?? profile.collarType,
@@ -413,6 +455,16 @@ export default function ProfileInfoSection({
     setLinkedInUrl(profile.linkedInUrl ?? "");
     setBirthday(profile.birthday ?? "");
     setEducationLevel(profile.educationLevel ?? "");
+    setCountry(profile.country ?? "");
+    setRegion(profile.region ?? "");
+    setSchoolType(profile.schoolType ?? "");
+    setSchool(profile.school ?? "");
+    setGrade(profile.grade ?? "");
+    setDegree(profile.degree ?? "");
+    setMajorCourse(profile.majorCourse ?? "");
+    setSubjects(profile.subjects ?? []);
+    setSubjectInput("");
+    setShowCountryPicker(false);
     setProfessionalInfoEnabled(profile.professionalInfoEnabled ?? true);
     setDepartment(profile.department ?? "");
     setCollarType(profile.collarType ?? null);
@@ -657,6 +709,79 @@ export default function ProfileInfoSection({
         <TextInput style={[infoStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]} value={linkedInUrl} onChangeText={setLinkedInUrl} placeholder="LinkedIn URL" placeholderTextColor={theme.textMuted} keyboardType="url" autoCapitalize="none" />
         <TextInput editable={false} value={profile.email ?? ""} style={[infoStyles.input, { color: theme.textMuted, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]} placeholder="Email (from account)" placeholderTextColor={theme.textMuted} />
 
+        <Text style={[infoStyles.editSectionLabel, { color: theme.text }]}>Learning Profile</Text>
+        <TouchableOpacity
+          style={[infoStyles.countryField, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+          onPress={() => setShowCountryPicker(true)}
+          accessibilityRole="button"
+        >
+          {selectedCountry ? <CountryFlag country={selectedCountry} size={34} /> : (
+            <View style={[infoStyles.countryFieldIcon, { backgroundColor: theme.primary + "20" }]}>
+              <MaterialCommunityIcons name="earth" size={18} color={theme.primary} />
+            </View>
+          )}
+          <View style={infoStyles.countryFieldText}>
+            <Text style={[infoStyles.countryFieldLabel, { color: theme.textMuted }]}>Country</Text>
+            <Text style={[infoStyles.countryFieldValue, { color: country ? theme.text : theme.textMuted }]}>
+              {country || "Choose your country"}
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textMuted} />
+        </TouchableOpacity>
+        <TextInput style={[infoStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]} value={region} onChangeText={setRegion} placeholder="Region or city" placeholderTextColor={theme.textMuted} />
+        <Text style={[infoStyles.editSubLabel, { color: theme.textSecondary }]}>Learning stage</Text>
+        <View style={infoStyles.optionRow}>
+          {SCHOOL_TYPES.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[infoStyles.optionChip, { borderColor: schoolType === option.value ? theme.primary : theme.border }, schoolType === option.value && { backgroundColor: theme.primary + "20" }]}
+              onPress={() => {
+                setSchoolType(schoolType === option.value ? "" : option.value);
+                setGrade("");
+                if (option.value !== "university") setDegree("");
+              }}
+            >
+              <Text style={[infoStyles.optionChipText, { color: schoolType === option.value ? theme.primary : theme.textMuted }]}>{option.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TextInput style={[infoStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]} value={school} onChangeText={setSchool} placeholder="School, university, or training centre" placeholderTextColor={theme.textMuted} />
+        {supportsGrade(schoolType) && gradeOptions.length > 0 ? (
+          <>
+            <Text style={[infoStyles.editSubLabel, { color: theme.textSecondary }]}>{schoolType === "self_taught" ? "Experience level" : "Year / level"}</Text>
+            <View style={infoStyles.optionRow}>
+              {gradeOptions.map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[infoStyles.optionChip, { borderColor: grade === option ? theme.primary : theme.border }, grade === option && { backgroundColor: theme.primary + "20" }]}
+                  onPress={() => setGrade(grade === option ? "" : option)}
+                >
+                  <Text style={[infoStyles.optionChipText, { color: grade === option ? theme.primary : theme.textMuted }]}>{option}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        ) : null}
+        {requiresDegree(schoolType) ? (
+          <>
+            <Text style={[infoStyles.editSubLabel, { color: theme.textSecondary }]}>Degree level</Text>
+            <View style={infoStyles.optionRow}>
+              {DEGREE_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[infoStyles.optionChip, { borderColor: degree === option ? theme.primary : theme.border }, degree === option && { backgroundColor: theme.primary + "20" }]}
+                  onPress={() => setDegree(degree === option ? "" : option)}
+                >
+                  <Text style={[infoStyles.optionChipText, { color: degree === option ? theme.primary : theme.textMuted }]}>{option}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput style={[infoStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]} value={majorCourse} onChangeText={setMajorCourse} placeholder="Field of study" placeholderTextColor={theme.textMuted} />
+          </>
+        ) : null}
+        <Text style={[infoStyles.editSubLabel, { color: theme.textSecondary }]}>Subjects</Text>
+        {renderTagInput(subjects, subjectInput, setSubjectInput, addSubject, (i) => setSubjects(subjects.filter((_, j) => j !== i)), "Add a subject")}
+
         <Text style={[infoStyles.editSectionLabel, { color: theme.text }]}>Professional Info</Text>
         <View style={[infoStyles.toggleRow, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}>
           <Text style={[infoStyles.toggleLabel, { color: theme.text }]}>Show Professional Info</Text>
@@ -736,6 +861,13 @@ export default function ProfileInfoSection({
             />
           )}
         </Modal>
+
+        <CountryPicker
+          visible={showCountryPicker}
+          selected={country}
+          onSelect={setCountry}
+          onClose={() => setShowCountryPicker(false)}
+        />
       </View>
     );
   }
@@ -747,13 +879,35 @@ export default function ProfileInfoSection({
         <ViewRow icon="account" label="Name" value={profile.displayName || profile.email?.split("@")[0] || "Scholar"} theme={theme} />
         <ViewRow icon="cake" label="Birthday" value={profile.birthday ? new Date(profile.birthday).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : undefined} theme={theme} tint={theme.accent} />
         <ViewRow icon="email" label="Email" value={profile.email} theme={theme} tint={theme.info} />
-        <ViewRow icon="school" label="Education Level" value={profile.educationLevel} theme={theme} tint={theme.accent} />
         <ViewRow icon="map-marker" label="Location" value={profile.location} theme={theme} tint={theme.accent} />
-        <ViewRow icon="school-outline" label="University" value={profile.university} theme={theme} tint={theme.accent} />
         <ViewRow icon="layers" label="Department" value={profile.department} theme={theme} />
         <ViewRow icon="link" label="Website" value={profile.website} theme={theme} tint={theme.accent} onPress={openUrl(profile.website)} />
         <ViewRow icon="linkedin" label="LinkedIn" value={profile.linkedInUrl ? "View Profile" : undefined} theme={theme} tint={theme.info} onPress={openUrl(profile.linkedInUrl)} />
         <ViewRow icon="calendar" label="Member Since" value={profile.createdAt ? new Date(profile.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "Unknown"} theme={theme} tint={theme.info} />
+      </GroupCard>
+
+      <GroupHeader title="Learning Profile" theme={theme} />
+      <GroupCard theme={theme}>
+        <ViewRow
+          icon="earth"
+          label="Country"
+          value={profileCountry ? `${profileCountry.name}` : profile.country}
+          theme={theme}
+          tint={theme.primary}
+        />
+        <ViewRow icon="map-marker-outline" label="Region" value={profile.region} theme={theme} tint={theme.accent} />
+        <ViewRow icon="school" label="Learning Stage" value={profile.schoolType ? getSchoolTypeLabel(profile.schoolType) : undefined} theme={theme} tint={theme.accent} />
+        <ViewRow icon="school-outline" label="School" value={profile.school ?? profile.university} theme={theme} tint={theme.accent} />
+        <ViewRow icon="stairs-up" label="Year / Level" value={profile.grade} theme={theme} tint={theme.accent} />
+        <ViewRow icon="certificate-outline" label="Degree" value={profile.degree ?? profile.educationLevel} theme={theme} tint={theme.accent} />
+        <ViewRow icon="book-education-outline" label="Field of Study" value={profile.majorCourse} theme={theme} />
+        <ViewRow
+          icon="book-open-variant"
+          label="Subjects"
+          value={profile.subjects?.length ? profile.subjects.join(", ") : undefined}
+          theme={theme}
+          tint={theme.accent}
+        />
       </GroupCard>
 
       {profile.professionalInfoEnabled !== false && (
@@ -945,6 +1099,26 @@ const infoStyles = StyleSheet.create({
   input: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, borderWidth: 1, marginBottom: 10 },
   geoRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
   geoInput: { flex: 1, marginBottom: 0 },
+  countryField: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  countryFieldIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countryFieldText: { flex: 1, gap: 2 },
+  countryFieldLabel: { fontSize: 11, fontWeight: "600" },
+  countryFieldValue: { fontSize: 14, fontWeight: "600" },
   geoPinBtn: { width: 44, height: 44, borderRadius: 12, justifyContent: "center", alignItems: "center" },
   suggestionBox: { borderRadius: 12, borderWidth: 1, overflow: "hidden", marginBottom: 10 },
   suggestionRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10 },

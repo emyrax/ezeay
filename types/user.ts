@@ -47,6 +47,13 @@ export interface UserProfile {
   majorCourse?: string;
   birthday?: string;
   educationLevel?: string;
+  country?: string;
+  region?: string;
+  schoolType?: string;
+  school?: string;
+  grade?: string;
+  degree?: string;
+  subjects?: string[];
   professionalInfoEnabled?: boolean;
   status: "active" | "deleted";
   deletedAt?: Date;

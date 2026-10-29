@@ -208,9 +208,17 @@ export default function QuestsScreen() {
       const v = value?.trim();
       if (v) parts.push(`${field}: ${v}`);
     };
+    add("Country", p.country);
+    add("Region", p.region);
+    add("Learning stage", p.schoolType);
+    add("School", p.school ?? p.university);
+    add("Grade / Year", p.grade);
+    add("Degree", p.degree);
     add("Department", p.department);
     add("Level / Year of study", p.level);
     add("Course / Major", p.majorCourse);
+    const subjects = (p.subjects ?? []).slice(0, 6);
+    if (subjects.length > 0) parts.push(`Subjects: ${subjects.join(", ")}`);
     add("Industry", p.industry);
     add("Job title", p.jobTitle);
     add("Company", p.company);

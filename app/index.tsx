@@ -6,6 +6,7 @@ import {
   Animated,
   Easing,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,10 +16,15 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { hero, safeFont } from "../constants/themes";
 import { images } from "../constants/images";
+import LandingPage from "../component/landing/LandingPage";
 import { useAuth } from "../contexts/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
 
 export default function Index() {
+  return Platform.OS === "web" ? <LandingPage /> : <NativeWelcome />;
+}
+
+function NativeWelcome() {
   const router = useRouter();
   const { user, profile, loading } = useAuth();
   const { isWebWide } = useResponsive();

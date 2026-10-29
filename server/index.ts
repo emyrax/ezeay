@@ -52,6 +52,11 @@ import type { NotesAiAction, NotesChatMode } from "./prompts/notesPrompts";
 import { buildScheduleSuggestPrompt } from "./prompts/scheduleSuggest";
 import { buildLessonScriptPrompt } from "./prompts/lessonScript";
 import { buildLessonExplainPrompt } from "./prompts/lessonExplain";
+import {
+  buildUserCreateValues,
+  buildUserUpdateValues,
+  ProfilePayloadError,
+} from "./profilePayload";
 import { latexToSvg } from "./math/mathjax";
 import { pcmRateFromMime, pcmToWav } from "./audio/pcmToWav";
 import { lessonAudioDeliveryUrl } from "./audio/deliveryUrl";
@@ -503,6 +508,13 @@ type UserRow = {
   majorCourse: string;
   birthday: string | null;
   educationLevel: string | null;
+  country: string | null;
+  region: string | null;
+  schoolType: string | null;
+  school: string | null;
+  grade: string | null;
+  degree: string | null;
+  subjects: string;
   professionalInfoEnabled: boolean;
   status: string;
   xp: number;
@@ -546,6 +558,17 @@ type UserRow = {
   deletedAt: Date | null;
 };
 
+function parseStringArray(raw: string | null | undefined): string[] {
+  try {
+    const value = JSON.parse(raw ?? "[]");
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function mapUser(row: UserRow) {
   let courses: unknown[] = [];
   try { courses = JSON.parse(row.courses); } catch { /* ignore */ }
@@ -569,6 +592,7 @@ function mapUser(row: UserRow) {
   try { workExperience = JSON.parse(row.workExperience); } catch { /* ignore */ }
   let certifications: unknown[] = [];
   try { certifications = JSON.parse(row.certifications); } catch { /* ignore */ }
+  const subjects = parseStringArray(row.subjects);
   return {
     uid: row.id,
     displayName: row.displayName,
@@ -578,6 +602,13 @@ function mapUser(row: UserRow) {
     majorCourse: row.majorCourse,
     birthday: row.birthday ?? undefined,
     educationLevel: row.educationLevel ?? undefined,
+    country: row.country ?? undefined,
+    region: row.region ?? undefined,
+    schoolType: row.schoolType ?? undefined,
+    school: row.school ?? undefined,
+    grade: row.grade ?? undefined,
+    degree: row.degree ?? undefined,
+    subjects,
     professionalInfoEnabled: row.professionalInfoEnabled ?? true,
     status: row.status,
     xp: row.xp,
@@ -778,39 +809,32 @@ app.post("/api/users", async (req, res) => {
   try {
     const claims = await verifyClerkToken(req.headers.authorization);
     const clerkUserId = claims.sub;
-    const body = req.body;
+    const values = buildUserCreateValues(clerkUserId, req.body);
 
-    const nextLevelXp = 100;
-    const now = new Date();
-    const values = {
-      id: clerkUserId,
-      displayName: body.displayName || "Scholar",
-      email: body.email || "",
-      photoUrl: body.photoURL || null,
-      level: body.level || "",
-      majorCourse: body.majorCourse || "",
-      birthday: body.birthday || null,
-      educationLevel: body.educationLevel || null,
-      professionalInfoEnabled: body.professionalInfoEnabled ?? true,
-      locationLat: typeof body.locationLat === "number" ? body.locationLat : null,
-      locationLng: typeof body.locationLng === "number" ? body.locationLng : null,
-      university: body.university || null,
-      xp: body.xp ?? 0,
-      coins: body.coins ?? 0,
-      gamingLevel: body.gamingLevel ?? 1,
-      rank: body.rank ?? "Spark",
-      nextLevelXp: nextLevelXp,
-      courses: JSON.stringify(body.courses ?? []),
-      earnedTrophies: JSON.stringify(body.earnedTrophies ?? []),
-      isPro: body.isPro ?? false,
-      status: "active" as const,
-      createdAt: now,
-    };
+    try {
+      await db.insert(users).values(values);
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        const [existing] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, clerkUserId))
+          .limit(1);
+        if (existing) {
+          res.status(200).json(mapUser(existing as unknown as UserRow));
+          return;
+        }
+      }
+      throw err;
+    }
 
-    await db.insert(users).values(values);
     console.debug(`[Server] POST /api/users — created ${clerkUserId}`);
     res.status(201).json(mapUser(values as unknown as UserRow));
   } catch (err: any) {
+    if (err instanceof ProfilePayloadError) {
+      res.status(400).json({ error: err.message, code: err.code });
+      return;
+    }
     if (isTokenError(err)) {
       res.status(401).json({ error: "Invalid token" });
       return;
@@ -827,59 +851,16 @@ app.put("/api/users/:id", async (req, res) => {
       return;
     }
 
-    const body = req.body;
-    const updateData: Record<string, unknown> = {};
-    if (body.displayName !== undefined) updateData.displayName = body.displayName;
-    if (body.email !== undefined) updateData.email = body.email;
-    if (body.photoURL !== undefined) updateData.photoUrl = body.photoURL;
-    if (body.level !== undefined) updateData.level = body.level;
-    if (body.majorCourse !== undefined) updateData.majorCourse = body.majorCourse;
-    if (body.birthday !== undefined) updateData.birthday = body.birthday;
-    if (body.educationLevel !== undefined) updateData.educationLevel = body.educationLevel || null;
-    if (body.professionalInfoEnabled !== undefined) updateData.professionalInfoEnabled = Boolean(body.professionalInfoEnabled);
-    if (body.status !== undefined) updateData.status = body.status;
-    if (body.xp !== undefined) updateData.xp = body.xp;
-    if (body.coins !== undefined) updateData.coins = body.coins;
-    if (body.gamingLevel !== undefined) updateData.gamingLevel = body.gamingLevel;
-    if (body.rank !== undefined) updateData.rank = body.rank;
-    if (body.nextLevelXp !== undefined) updateData.nextLevelXp = body.nextLevelXp;
-    if (body.courses !== undefined) updateData.courses = JSON.stringify(body.courses);
-    if (body.earnedTrophies !== undefined) updateData.earnedTrophies = JSON.stringify(body.earnedTrophies);
-    if (body.lastCheckInDate !== undefined) updateData.lastCheckInDate = body.lastCheckInDate;
-    if (body.currentStreak !== undefined) updateData.currentStreak = body.currentStreak;
-    if (body.longestStreak !== undefined) updateData.longestStreak = body.longestStreak;
-    if (body.learningGoals !== undefined) updateData.learningGoals = JSON.stringify(body.learningGoals);
-    if (body.onBoarded !== undefined) updateData.onBoarded = body.onBoarded;
-    if (body.modelRatings !== undefined) updateData.modelRatings = JSON.stringify(body.modelRatings);
-    if (body.isPro !== undefined) updateData.isPro = Boolean(body.isPro);
-    if (body.headline !== undefined) updateData.headline = body.headline || null;
-    if (body.bio !== undefined) updateData.bio = body.bio || null;
-    if (body.location !== undefined) updateData.location = body.location || null;
-    if (body.locationLat !== undefined) updateData.locationLat = typeof body.locationLat === "number" ? body.locationLat : null;
-    if (body.locationLng !== undefined) updateData.locationLng = typeof body.locationLng === "number" ? body.locationLng : null;
-    if (body.university !== undefined) updateData.university = body.university || null;
-    if (body.website !== undefined) updateData.website = body.website || null;
-    if (body.linkedInUrl !== undefined) updateData.linkedInUrl = body.linkedInUrl || null;
-    if (body.department !== undefined) updateData.department = body.department || null;
-    if (body.collarType !== undefined) updateData.collarType = body.collarType || null;
-    if (body.availability !== undefined) updateData.availability = body.availability || null;
-    if (body.industry !== undefined) updateData.industry = body.industry || null;
-    if (body.jobTitle !== undefined) updateData.jobTitle = body.jobTitle || null;
-    if (body.company !== undefined) updateData.company = body.company || null;
-    if (body.yearsOfTradeExperience !== undefined) updateData.yearsOfTradeExperience = body.yearsOfTradeExperience;
-    if (body.skills !== undefined) updateData.skills = Array.isArray(body.skills) ? JSON.stringify(body.skills) : body.skills;
-    if (body.languages !== undefined) updateData.languages = Array.isArray(body.languages) ? JSON.stringify(body.languages) : body.languages;
-    if (body.interests !== undefined) updateData.interests = Array.isArray(body.interests) ? JSON.stringify(body.interests) : body.interests;
-    if (body.tradeSkills !== undefined) updateData.tradeSkills = Array.isArray(body.tradeSkills) ? JSON.stringify(body.tradeSkills) : body.tradeSkills;
-    if (body.education !== undefined) updateData.education = Array.isArray(body.education) ? JSON.stringify(body.education) : body.education;
-    if (body.workExperience !== undefined) updateData.workExperience = Array.isArray(body.workExperience) ? JSON.stringify(body.workExperience) : body.workExperience;
-    if (body.certifications !== undefined) updateData.certifications = Array.isArray(body.certifications) ? JSON.stringify(body.certifications) : body.certifications;
-    updateData.updatedAt = new Date();
+    const updateData = buildUserUpdateValues(req.body);
 
     await db.update(users).set(updateData).where(eq(users.id, req.params.id));
     console.debug(`[Server] PUT /api/users/${req.params.id} — updated`);
     res.status(204).end();
   } catch (err: any) {
+    if (err instanceof ProfilePayloadError) {
+      res.status(400).json({ error: err.message, code: err.code });
+      return;
+    }
     if (isTokenError(err)) {
       res.status(401).json({ error: "Invalid token" });
       return;

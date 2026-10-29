@@ -415,13 +415,19 @@ export default function SettingsScreen() {
   const userRatings = useModelRatingStore((s) => s.ratings);
 
   const modelGroups = useMemo(() => {
-    return PROVIDER_ORDER.map((provider) => ({
-      provider,
-      models: sortModels(
-        AI_MODELS.filter((m) => m.provider === provider),
-        userRatings,
-      ),
-    })).filter((group) => group.models.length > 0);
+    const providers =
+      Platform.OS === "web"
+        ? PROVIDER_ORDER.filter((provider) => provider !== "offline")
+        : PROVIDER_ORDER;
+    return providers
+      .map((provider) => ({
+        provider,
+        models: sortModels(
+          AI_MODELS.filter((m) => m.provider === provider),
+          userRatings,
+        ),
+      }))
+      .filter((group) => group.models.length > 0);
   }, [userRatings]);
 
   const currentModel = getModelOption(selectedModel);
@@ -620,8 +626,9 @@ export default function SettingsScreen() {
           </View>
           <Text style={st.heroTitle}>Make Yuinx yours</Text>
           <Text style={st.heroSubtitle}>
-            Your AI model, themes, offline mode &amp; privacy — all in one
-            place.
+            {Platform.OS === "web"
+              ? "Your AI model, themes & privacy — all in one place."
+              : "Your AI model, themes, offline mode & privacy — all in one place."}
           </Text>
         </LinearGradient>
 
@@ -1113,10 +1120,11 @@ export default function SettingsScreen() {
           })}
         </SectionCard>
 
-        {/* Offline AI */}
-        <SectionCard title="Offline AI" icon="chip" theme={theme}>
-          <OfflineAICard />
-        </SectionCard>
+        {Platform.OS !== "web" ? (
+          <SectionCard title="Offline AI" icon="chip" theme={theme}>
+            <OfflineAICard />
+          </SectionCard>
+        ) : null}
 
         {/* Notifications */}
         <Text style={[st.groupKicker, { color: theme.textMuted }]}>
