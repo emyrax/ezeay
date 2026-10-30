@@ -1,35 +1,41 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
-import { useLocalSearchParams, useRouter, Stack, type Href } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "../../../../contexts/AuthContext";
-import { useCourseStore } from "../../../../store/courseStore";
-import { useProgressStore } from "../../../../store/courseProgressStore";
-import { useUserStore } from "../../../../store/userStore";
-import { useEnrollmentStore } from "../../../../store/courseEnrollmentStore";
-import { api } from "../../../../lib/api";
-import ProgressBar from "../../../../component/ProgressBar";
-import GlassmorphismToast from "../../../../component/GlassmorphismToast";
+import { Stack, useLocalSearchParams, useRouter, type Href } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import ChapterCompletionDialog from "../../../../component/ChapterCompletionDialog";
+import ErrorBoundary from "../../../../component/ErrorBoundary";
+import GlassmorphismToast from "../../../../component/GlassmorphismToast";
+import ProgressBar from "../../../../component/ProgressBar";
 import QuizRewardOverlay from "../../../../component/QuizRewardOverlay";
+import { useAuth } from "../../../../contexts/AuthContext";
+import { useResponsive } from "../../../../hooks/useResponsive";
+import { useThemeColors } from "../../../../hooks/useTheme";
+import { api } from "../../../../lib/api";
+import { useEnrollmentStore } from "../../../../store/courseEnrollmentStore";
+import type { ChapterPerformance } from "../../../../store/courseProgressStore";
+import { useProgressStore } from "../../../../store/courseProgressStore";
+import { useCourseStore } from "../../../../store/courseStore";
 import { useSpinStore } from "../../../../store/spinStore";
 import { useStatsStore } from "../../../../store/statsStore";
-import { useThemeColors } from "../../../../hooks/useTheme";
-import { useResponsive } from "../../../../hooks/useResponsive";
-import ErrorBoundary from "../../../../component/ErrorBoundary";
+import { useUserStore } from "../../../../store/userStore";
 import type { Chapter, Quiz } from "../../../../types/chapter";
-import type { ChapterPerformance } from "../../../../store/courseProgressStore";
 
-type QuizState = "idle" | "loading" | "active" | "submitted" | "passed" | "failed";
+type QuizState =
+  | "idle"
+  | "loading"
+  | "active"
+  | "submitted"
+  | "passed"
+  | "failed";
 
 export default function ChapterScreen() {
   const { courseId, chapterIndex, subtopic } = useLocalSearchParams<{
@@ -58,7 +64,9 @@ export default function ChapterScreen() {
     getChapterPerformance,
   } = useProgressStore();
   const addRewards = useUserStore((s) => s.addRewards);
-  const getEnrollmentForCourse = useEnrollmentStore((s) => s.getEnrollmentForCourse);
+  const getEnrollmentForCourse = useEnrollmentStore(
+    (s) => s.getEnrollmentForCourse,
+  );
   const updateEnrollmentProgress = useEnrollmentStore((s) => s.updateProgress);
   const enrollInCourse = useEnrollmentStore((s) => s.enroll);
 
@@ -69,7 +77,11 @@ export default function ChapterScreen() {
     if (!raw) return [];
     if (Array.isArray(raw)) return raw;
     if (typeof raw === "string") {
-      try { return JSON.parse(raw) as Chapter[]; } catch { return []; }
+      try {
+        return JSON.parse(raw) as Chapter[];
+      } catch {
+        return [];
+      }
     }
     return [];
   }, [course?.chapters]);
@@ -114,7 +126,15 @@ export default function ChapterScreen() {
         }
       })
       .finally(() => setCourseFetching(false));
-  }, [courseId, course, chapters.length, storeLoaded, fetchKey, getToken, upsertCourse]);
+  }, [
+    courseId,
+    course,
+    chapters.length,
+    storeLoaded,
+    fetchKey,
+    getToken,
+    upsertCourse,
+  ]);
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) {
@@ -126,13 +146,22 @@ export default function ChapterScreen() {
 
   const handleCourseRetry = useCallback(() => setFetchKey((k) => k + 1), []);
 
-  const [activeSubtopic, setActiveSubtopic] = useState<number | null>(requestedSubtopic);
+  const [activeSubtopic, setActiveSubtopic] = useState<number | null>(
+    requestedSubtopic,
+  );
   const [quizState, setQuizState] = useState<QuizState>("idle");
   const [quiz, setQuiz] = useState<Quiz | null>(null);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<
+    Record<number, number>
+  >({});
   const [results, setResults] = useState<Record<number, boolean>>({});
   const [showContent, setShowContent] = useState(requestedSubtopic !== null);
-  const [toast, setToast] = useState<{ visible: boolean; xp: number; coins: number; title: string }>({
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    xp: number;
+    coins: number;
+    title: string;
+  }>({
     visible: false,
     xp: 0,
     coins: 0,
@@ -141,14 +170,17 @@ export default function ChapterScreen() {
   const [showCompletion, setShowCompletion] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [enrolledNow, setEnrolledNow] = useState(false);
-  const [chapterPerformance, setChapterPerformance] = useState<ChapterPerformance | null>(null);
+  const [chapterPerformance, setChapterPerformance] =
+    useState<ChapterPerformance | null>(null);
   const [passScore, setPassScore] = useState(0);
   const [rewardVisible, setRewardVisible] = useState(false);
 
   const completedCount = getCompletedSubtopicCount(courseId ?? "", chapterIdx);
-  const isChapterComplete = completedCount >= subtopics.length && subtopics.length > 0;
+  const isChapterComplete =
+    completedCount >= subtopics.length && subtopics.length > 0;
 
-  const chapterProgress = subtopics.length > 0 ? completedCount / subtopics.length : 0;
+  const chapterProgress =
+    subtopics.length > 0 ? completedCount / subtopics.length : 0;
 
   const totalSubtopics = useMemo(
     () => chapters.reduce((sum, ch) => sum + (ch.subtopics?.length ?? 0), 0),
@@ -166,16 +198,14 @@ export default function ChapterScreen() {
 
   const handleOpenLesson = useCallback(() => {
     if (!courseId || activeSubtopic === null) return;
-    router.push(
-      {
-        pathname: "/(course)/[courseId]/lesson/[chapterIndex]/[subtopicIndex]",
-        params: {
-          courseId,
-          chapterIndex: String(chapterIdx),
-          subtopicIndex: String(activeSubtopic),
-        },
-      } as unknown as Href,
-    );
+    router.push({
+      pathname: "/(course)/[courseId]/lesson/[chapterIndex]/[subtopicIndex]",
+      params: {
+        courseId,
+        chapterIndex: String(chapterIdx),
+        subtopicIndex: String(activeSubtopic),
+      },
+    } as unknown as Href);
   }, [router, courseId, chapterIdx, activeSubtopic]);
 
   const handleEnroll = useCallback(async () => {
@@ -224,7 +254,8 @@ export default function ChapterScreen() {
       setQuiz(response.quiz);
       setQuizState("active");
     } catch (err: any) {
-      const message = err?.message || "Failed to generate quiz. Please try again.";
+      const message =
+        err?.message || "Failed to generate quiz. Please try again.";
       Alert.alert("Error", message, [
         { text: "Cancel", style: "cancel" },
         { text: "Retry", onPress: () => takeQuizRef.current?.() },
@@ -237,9 +268,12 @@ export default function ChapterScreen() {
 
   takeQuizRef.current = handleTakeQuiz;
 
-  const handleSelectAnswer = useCallback((questionIdx: number, optionIdx: number) => {
-    setSelectedAnswers((prev) => ({ ...prev, [questionIdx]: optionIdx }));
-  }, []);
+  const handleSelectAnswer = useCallback(
+    (questionIdx: number, optionIdx: number) => {
+      setSelectedAnswers((prev) => ({ ...prev, [questionIdx]: optionIdx }));
+    },
+    [],
+  );
 
   const handleSubmitQuiz = useCallback(async () => {
     if (!quiz || activeSubtopic === null || !courseId) return;
@@ -256,7 +290,9 @@ export default function ChapterScreen() {
         if (!isCorrect) allCorrect = false;
       });
 
-      const correctCount = quiz.questions.filter((_, idx) => newResults[idx]).length;
+      const correctCount = quiz.questions.filter(
+        (_, idx) => newResults[idx],
+      ).length;
       const score = Math.round((correctCount / quiz.questions.length) * 100);
 
       setResults(newResults);
@@ -300,9 +336,16 @@ export default function ChapterScreen() {
           title: `Subtopic ${(activeSubtopic ?? 0) + 1} complete!`,
         });
 
-        const newCompletedCount = getCompletedSubtopicCount(courseId, chapterIdx);
+        const newCompletedCount = getCompletedSubtopicCount(
+          courseId,
+          chapterIdx,
+        );
         if (newCompletedCount >= subtopics.length && subtopics.length > 0) {
-          const performance = getChapterPerformance(courseId, chapterIdx, subtopics.length);
+          const performance = getChapterPerformance(
+            courseId,
+            chapterIdx,
+            subtopics.length,
+          );
           setChapterPerformance(performance);
         }
       } else {
@@ -311,7 +354,26 @@ export default function ChapterScreen() {
     } finally {
       submitQuizLockRef.current = false;
     }
-  }, [quiz, activeSubtopic, courseId, chapterIdx, selectedAnswers, getToken, batchMarkCompleted, getCompletedSubtopicCount, subtopics.length, totalSubtopics, getCompletionPercent, getEnrollmentForCourse, updateEnrollmentProgress, getProgressDetails, recordQuizAttempt, recordQuizScore, getChapterPerformance, profile?.uid]);
+  }, [
+    quiz,
+    activeSubtopic,
+    courseId,
+    chapterIdx,
+    selectedAnswers,
+    getToken,
+    batchMarkCompleted,
+    getCompletedSubtopicCount,
+    subtopics.length,
+    totalSubtopics,
+    getCompletionPercent,
+    getEnrollmentForCourse,
+    updateEnrollmentProgress,
+    getProgressDetails,
+    recordQuizAttempt,
+    recordQuizScore,
+    getChapterPerformance,
+    profile?.uid,
+  ]);
 
   const handleRetry = useCallback(() => {
     setSelectedAnswers({});
@@ -328,7 +390,8 @@ export default function ChapterScreen() {
   }, []);
 
   const handleNextSubtopic = useCallback(() => {
-    if (activeSubtopic === null || activeSubtopic >= subtopics.length - 1) return;
+    if (activeSubtopic === null || activeSubtopic >= subtopics.length - 1)
+      return;
     const next = activeSubtopic + 1;
     setActiveSubtopic(next);
     setQuizState("idle");
@@ -378,7 +441,9 @@ export default function ChapterScreen() {
     if (courseFetching) {
       return (
         <ErrorBoundary>
-          <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+          <SafeAreaView
+            style={[styles.container, { backgroundColor: theme.bg }]}
+          >
             <Stack.Screen
               options={{
                 headerShown: true,
@@ -409,19 +474,27 @@ export default function ChapterScreen() {
             }}
           />
           <View style={styles.center}>
-            <Text style={[styles.errorText, { color: theme.textSecondary }]}>Chapter not found</Text>
+            <Text style={[styles.errorText, { color: theme.textSecondary }]}>
+              Chapter not found
+            </Text>
             <View style={styles.errorActions}>
               <TouchableOpacity
                 style={[styles.errorBtn, { backgroundColor: theme.primary }]}
                 onPress={handleCourseRetry}
               >
-                <Text style={[styles.errorBtnText, { color: "#FFFFFF" }]}>Retry</Text>
+                <Text style={[styles.errorBtnText, { color: "#FFFFFF" }]}>
+                  Retry
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.errorBtn, { backgroundColor: theme.surfaceAlt }]}
                 onPress={handleBack}
               >
-                <Text style={[styles.errorBtnText, { color: theme.textSecondary }]}>Go back</Text>
+                <Text
+                  style={[styles.errorBtnText, { color: theme.textSecondary }]}
+                >
+                  Go back
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -452,7 +525,9 @@ export default function ChapterScreen() {
           <Text style={[styles.lessonButtonTitle, { color: theme.text }]}>
             Watch animated lesson
           </Text>
-          <Text style={[styles.lessonButtonSubtitle, { color: theme.textMuted }]}>
+          <Text
+            style={[styles.lessonButtonSubtitle, { color: theme.textMuted }]}
+          >
             Visuals, narration, and a quick checkpoint
           </Text>
         </View>
@@ -482,8 +557,14 @@ export default function ChapterScreen() {
             style={[styles.navPill, { backgroundColor: theme.surfaceAlt }]}
             onPress={handlePrevSubtopic}
           >
-            <Ionicons name="chevron-back" size={16} color={theme.textSecondary} />
-            <Text style={[styles.navPillText, { color: theme.textSecondary }]}>Prev</Text>
+            <Ionicons
+              name="chevron-back"
+              size={16}
+              color={theme.textSecondary}
+            />
+            <Text style={[styles.navPillText, { color: theme.textSecondary }]}>
+              Prev
+            </Text>
           </TouchableOpacity>
         ) : (
           <View style={{ flex: 1 }} />
@@ -494,8 +575,14 @@ export default function ChapterScreen() {
             style={[styles.navPill, { backgroundColor: theme.surfaceAlt }]}
             onPress={handleNextSubtopic}
           >
-            <Text style={[styles.navPillText, { color: theme.textSecondary }]}>Next</Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+            <Text style={[styles.navPillText, { color: theme.textSecondary }]}>
+              Next
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={theme.textSecondary}
+            />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -508,12 +595,27 @@ export default function ChapterScreen() {
       {lessonButton}
 
       {(() => {
-        const alreadyPassed = isQuizPassed(courseId ?? "", chapterIdx, activeSubtopic);
+        const alreadyPassed = isQuizPassed(
+          courseId ?? "",
+          chapterIdx,
+          activeSubtopic,
+        );
         if (quizState === "idle" && alreadyPassed) {
           return (
-            <View style={[styles.quizAlreadyPassed, { backgroundColor: theme.success + "12" }]}>
-              <Ionicons name="checkmark-circle" size={22} color={theme.success} />
-              <Text style={[styles.quizAlreadyPassedText, { color: theme.success }]}>
+            <View
+              style={[
+                styles.quizAlreadyPassed,
+                { backgroundColor: theme.success + "12" },
+              ]}
+            >
+              <Ionicons
+                name="checkmark-circle"
+                size={22}
+                color={theme.success}
+              />
+              <Text
+                style={[styles.quizAlreadyPassedText, { color: theme.success }]}
+              >
                 Quiz already completed
               </Text>
             </View>
@@ -536,7 +638,9 @@ export default function ChapterScreen() {
       {quizState === "loading" && (
         <View style={styles.quizLoading}>
           <ActivityIndicator color={theme.primary} size="large" />
-          <Text style={[styles.quizLoadingText, { color: theme.textSecondary }]}>
+          <Text
+            style={[styles.quizLoadingText, { color: theme.textSecondary }]}
+          >
             Generating quiz questions...
           </Text>
         </View>
@@ -568,14 +672,23 @@ export default function ChapterScreen() {
                     style={[
                       styles.radio,
                       { borderColor: theme.textMuted },
-                      selectedAnswers[qIdx] === oIdx && { borderColor: theme.primary },
+                      selectedAnswers[qIdx] === oIdx && {
+                        borderColor: theme.primary,
+                      },
                     ]}
                   >
                     {selectedAnswers[qIdx] === oIdx && (
-                      <View style={[styles.radioInner, { backgroundColor: theme.primary }]} />
+                      <View
+                        style={[
+                          styles.radioInner,
+                          { backgroundColor: theme.primary },
+                        ]}
+                      />
                     )}
                   </View>
-                  <Text style={[styles.optionText, { color: theme.text }]}>{opt}</Text>
+                  <Text style={[styles.optionText, { color: theme.text }]}>
+                    {opt}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -588,37 +701,143 @@ export default function ChapterScreen() {
                 styles.submitButtonDisabled,
             ]}
             onPress={handleSubmitQuiz}
-            disabled={Object.keys(selectedAnswers).length < quiz.questions.length}
+            disabled={
+              Object.keys(selectedAnswers).length < quiz.questions.length
+            }
           >
             <Text style={styles.submitButtonText}>Submit Answers</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {quizState === "submitted" && (
+      {(quizState === "submitted" || quizState === "failed") && (
         <View style={styles.resultsSection}>
-          {quiz?.questions.map((q, qIdx) => (
-            <View key={qIdx} style={styles.resultRow}>
-              <Ionicons
-                name={results[qIdx] ? "checkmark-circle" : "close-circle"}
-                size={20}
-                color={results[qIdx] ? theme.success : theme.danger}
-              />
+          <View style={styles.resultsHeader}>
+            <Text style={[styles.resultsTitle, { color: theme.text }]}>
+              Quiz results
+            </Text>
+            <View
+              style={[
+                styles.resultsSummaryChip,
+                {
+                  backgroundColor: theme.surfaceAlt,
+                  borderColor: theme.borderLight,
+                },
+              ]}
+            >
               <Text
                 style={[
-                  styles.resultText,
-                  { color: results[qIdx] ? theme.success : theme.danger },
+                  styles.resultsSummaryText,
+                  { color: theme.textSecondary },
                 ]}
               >
-                {results[qIdx] ? "Correct" : "Wrong"}
+                {quiz?.questions.filter((_, idx) => !!results[idx]).length ?? 0}
+                /{quiz?.questions.length ?? 0} correct
               </Text>
             </View>
-          ))}
+          </View>
+          {quiz?.questions.map((q, qIdx) => {
+            const isCorrect = !!results[qIdx];
+
+            return (
+              <View
+                key={qIdx}
+                style={[
+                  styles.resultCard,
+                  {
+                    backgroundColor: theme.surfaceAlt,
+                    borderColor: isCorrect
+                      ? theme.success + "40"
+                      : theme.danger + "40",
+                    shadowColor: isCorrect ? theme.success : theme.danger,
+                    shadowOpacity: 0.15,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: 4,
+                  },
+                ]}
+              >
+                <View style={styles.resultHeader}>
+                  <View style={styles.resultTitleWrap}>
+                    <View
+                      style={[
+                        styles.resultIndexBadge,
+                        {
+                          backgroundColor: isCorrect
+                            ? theme.success + "18"
+                            : theme.danger + "18",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.resultIndexText,
+                          { color: isCorrect ? theme.success : theme.danger },
+                        ]}
+                      >
+                        {qIdx + 1}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[styles.resultQuestion, { color: theme.text }]}
+                    >
+                      Question {qIdx + 1}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.resultStatus,
+                      {
+                        backgroundColor: isCorrect
+                          ? theme.success + "18"
+                          : theme.danger + "18",
+                        borderColor: isCorrect
+                          ? theme.success + "40"
+                          : theme.danger + "40",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={isCorrect ? "checkmark-circle" : "close-circle"}
+                      size={15}
+                      color={isCorrect ? theme.success : theme.danger}
+                    />
+                    <Text
+                      style={[
+                        styles.resultStatusText,
+                        { color: isCorrect ? theme.success : theme.danger },
+                      ]}
+                    >
+                      {isCorrect ? "Correct" : "Incorrect"}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text
+                  style={[
+                    styles.resultText,
+                    {
+                      color: isCorrect
+                        ? theme.textSecondary
+                        : theme.textSecondary,
+                    },
+                  ]}
+                >
+                  {isCorrect
+                    ? "Nice work — you got this one right."
+                    : "Keep going — review this concept and try again."}
+                </Text>
+              </View>
+            );
+          })}
         </View>
       )}
 
       {quizState === "failed" && (
-        <View style={[styles.failedBanner, { backgroundColor: theme.surfaceAlt }]}>
+        <View
+          style={[styles.failedBanner, { backgroundColor: theme.surfaceAlt }]}
+        >
           <Ionicons name="refresh" size={28} color={theme.textSecondary} />
           <Text style={[styles.failedText, { color: theme.textSecondary }]}>
             Not quite right. Review and try again.
@@ -656,272 +875,450 @@ export default function ChapterScreen() {
             }
             showsVerticalScrollIndicator={false}
           >
-          <View style={styles.progressSection}>
-            <View style={styles.progressHeader}>
-              <Text style={[styles.progressTitle, { color: theme.textSecondary }]}>
-                Progress
-              </Text>
-              <Text style={[styles.progressCount, { color: theme.primary }]}>
-                {completedCount}/{subtopics.length}
-              </Text>
-            </View>
-            <ProgressBar
-              progress={chapterProgress}
-              trackColor={theme.surfaceAlt}
-              filledColors={[theme.primary, theme.accent]}
-              height={8}
-              borderRadius={4}
-            />
-          </View>
-
-          {(!showContent || isWebWide) && (
-            <>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>Subtopics</Text>
-              {subtopics.map((subtopic, index) => {
-                const unlocked = isSubtopicUnlocked(
-                  courseId ?? "",
-                  chapterIdx,
-                  index,
-                  chapters[chapterIdx - 1]?.subtopics?.length ?? 0,
-                );
-                const quizPassed = isQuizPassed(courseId ?? "", chapterIdx, index);
-                const isActive = activeSubtopic === index;
-
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.subtopicCard,
-                      { backgroundColor: theme.surface },
-                      !unlocked && styles.subtopicLocked,
-                      isActive && { borderColor: theme.primary, borderWidth: 1 },
-                    ]}
-                    onPress={() => unlocked && handleStartSubtopic(index)}
-                    disabled={!unlocked}
-                  >
-                    <View style={styles.subtopicHeader}>
-                      <View
-                        style={[
-                          styles.subtopicNumber,
-                          {
-                            backgroundColor: quizPassed
-                              ? theme.success + "20"
-                              : theme.primary + "20",
-                          },
-                        ]}
-                      >
-                        {quizPassed ? (
-                          <Ionicons name="checkmark" size={16} color={theme.success} />
-                        ) : (
-                          <Text style={[styles.subtopicNumberText, { color: theme.primary }]}>
-                            {index + 1}
-                          </Text>
-                        )}
-                      </View>
-                      <View style={styles.subtopicInfo}>
-                        <Text
-                          style={[
-                            styles.subtopicTitle,
-                            { color: quizPassed ? theme.textSecondary : theme.text },
-                          ]}
-                        >
-                          {subtopic.title}
-                        </Text>
-                      </View>
-                      {!unlocked ? (
-                        <Ionicons name="lock-closed" size={16} color={theme.textMuted} />
-                      ) : null}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </>
-          )}
-
-          {!isWebWide && showContent && activeSubtopic !== null && (
-            <View style={styles.contentSection}>
-              <View style={styles.contentHeader}>
-                <View style={styles.contentTitleWrap}>
-                  <Text style={[styles.contentLabel, { color: theme.textMuted }]}>
-                    Subtopic {activeSubtopic + 1} of {subtopics.length}
-                  </Text>
-                  <Text style={[styles.contentTitle, { color: theme.text }]}>
-                    {subtopics[activeSubtopic]?.title}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={handleContinue}>
-                  <Text style={[styles.backLink, { color: theme.primary }]}>Back</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.navRow}>
-                {activeSubtopic > 0 ? (
-                  <TouchableOpacity
-                    style={[styles.navPill, { backgroundColor: theme.surfaceAlt }]}
-                    onPress={handlePrevSubtopic}
-                  >
-                    <Ionicons name="chevron-back" size={16} color={theme.textSecondary} />
-                    <Text style={[styles.navPillText, { color: theme.textSecondary }]}>Prev</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={{ flex: 1 }} />
-                )}
-                <View style={{ flex: 1 }} />
-                {activeSubtopic < subtopics.length - 1 ? (
-                  <TouchableOpacity
-                    style={[styles.navPill, { backgroundColor: theme.surfaceAlt }]}
-                    onPress={handleNextSubtopic}
-                  >
-                    <Text style={[styles.navPillText, { color: theme.textSecondary }]}>Next</Text>
-                    <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-              <View style={[styles.contentCard, { backgroundColor: theme.surface }]}>
-                <Text style={[styles.contentText, { color: theme.textSecondary }]}>
-                  {subtopics[activeSubtopic]?.content}
+            <View style={styles.progressSection}>
+              <View style={styles.progressHeader}>
+                <Text
+                  style={[styles.progressTitle, { color: theme.textSecondary }]}
+                >
+                  Progress
+                </Text>
+                <Text style={[styles.progressCount, { color: theme.primary }]}>
+                  {completedCount}/{subtopics.length}
                 </Text>
               </View>
+              <ProgressBar
+                progress={chapterProgress}
+                trackColor={theme.surfaceAlt}
+                filledColors={[theme.primary, theme.accent]}
+                height={8}
+                borderRadius={4}
+              />
+            </View>
 
-              {lessonButton}
-
-              {(() => {
-                const alreadyPassed = isQuizPassed(courseId ?? "", chapterIdx, activeSubtopic);
-                if (quizState === "idle" && alreadyPassed) {
-                  return (
-                    <View style={[styles.quizAlreadyPassed, { backgroundColor: theme.success + "12" }]}>
-                      <Ionicons name="checkmark-circle" size={22} color={theme.success} />
-                      <Text style={[styles.quizAlreadyPassedText, { color: theme.success }]}>
-                        Quiz already completed
-                      </Text>
-                    </View>
+            {(!showContent || isWebWide) && (
+              <>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                  Subtopics
+                </Text>
+                {subtopics.map((subtopic, index) => {
+                  const unlocked = isSubtopicUnlocked(
+                    courseId ?? "",
+                    chapterIdx,
+                    index,
+                    chapters[chapterIdx - 1]?.subtopics?.length ?? 0,
                   );
-                }
-                if (quizState === "idle" && !alreadyPassed) {
+                  const quizPassed = isQuizPassed(
+                    courseId ?? "",
+                    chapterIdx,
+                    index,
+                  );
+                  const isActive = activeSubtopic === index;
+
                   return (
                     <TouchableOpacity
-                      style={[styles.quizButton, { backgroundColor: theme.primary }]}
-                      onPress={handleTakeQuiz}
+                      key={index}
+                      style={[
+                        styles.subtopicCard,
+                        { backgroundColor: theme.surface },
+                        !unlocked && styles.subtopicLocked,
+                        isActive && {
+                          borderColor: theme.primary,
+                          borderWidth: 1,
+                        },
+                      ]}
+                      onPress={() => unlocked && handleStartSubtopic(index)}
+                      disabled={!unlocked}
                     >
-                      <Ionicons name="help-circle" size={20} color="#FFF" />
-                      <Text style={styles.quizButtonText}>Complete & Take Quiz</Text>
-                    </TouchableOpacity>
-                  );
-                }
-                return null;
-              })()}
-
-              {quizState === "loading" && (
-                <View style={styles.quizLoading}>
-                  <ActivityIndicator color={theme.primary} size="large" />
-                  <Text style={[styles.quizLoadingText, { color: theme.textSecondary }]}>
-                    Generating quiz questions...
-                  </Text>
-                </View>
-              )}
-
-              {quizState === "active" && quiz && (
-                <View style={styles.quizSection}>
-                  <Text style={[styles.quizTitle, { color: theme.text }]}>Quiz</Text>
-                  {quiz.questions.map((q, qIdx) => (
-                    <View key={qIdx} style={styles.questionCard}>
-                      <Text style={[styles.questionText, { color: theme.text }]}>
-                        {qIdx + 1}. {q.text}
-                      </Text>
-                      {q.options.map((opt, oIdx) => (
-                        <TouchableOpacity
-                          key={oIdx}
+                      <View style={styles.subtopicHeader}>
+                        <View
                           style={[
-                            styles.optionButton,
-                            { backgroundColor: theme.surfaceAlt },
-                            selectedAnswers[qIdx] === oIdx && {
-                              backgroundColor: theme.primary + "15",
-                              borderColor: theme.primary,
-                              borderWidth: 1,
+                            styles.subtopicNumber,
+                            {
+                              backgroundColor: quizPassed
+                                ? theme.success + "20"
+                                : theme.primary + "20",
                             },
                           ]}
-                          onPress={() => handleSelectAnswer(qIdx, oIdx)}
                         >
-                          <View
+                          {quizPassed ? (
+                            <Ionicons
+                              name="checkmark"
+                              size={16}
+                              color={theme.success}
+                            />
+                          ) : (
+                            <Text
+                              style={[
+                                styles.subtopicNumberText,
+                                { color: theme.primary },
+                              ]}
+                            >
+                              {index + 1}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.subtopicInfo}>
+                          <Text
                             style={[
-                              styles.radio,
-                              { borderColor: theme.textMuted },
-                              selectedAnswers[qIdx] === oIdx && { borderColor: theme.primary },
+                              styles.subtopicTitle,
+                              {
+                                color: quizPassed
+                                  ? theme.textSecondary
+                                  : theme.text,
+                              },
                             ]}
                           >
-                            {selectedAnswers[qIdx] === oIdx && (
-                              <View style={[styles.radioInner, { backgroundColor: theme.primary }]} />
-                            )}
-                          </View>
-                          <Text style={[styles.optionText, { color: theme.text }]}>{opt}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  ))}
-                  <TouchableOpacity
-                    style={[
-                      styles.submitButton,
-                      { backgroundColor: theme.success },
-                      Object.keys(selectedAnswers).length < quiz.questions.length &&
-                        styles.submitButtonDisabled,
-                    ]}
-                    onPress={handleSubmitQuiz}
-                    disabled={Object.keys(selectedAnswers).length < quiz.questions.length}
-                  >
-                    <Text style={styles.submitButtonText}>Submit Answers</Text>
+                            {subtopic.title}
+                          </Text>
+                        </View>
+                        {!unlocked ? (
+                          <Ionicons
+                            name="lock-closed"
+                            size={16}
+                            color={theme.textMuted}
+                          />
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            )}
+
+            {!isWebWide && showContent && activeSubtopic !== null && (
+              <View style={styles.contentSection}>
+                <View style={styles.contentHeader}>
+                  <View style={styles.contentTitleWrap}>
+                    <Text
+                      style={[styles.contentLabel, { color: theme.textMuted }]}
+                    >
+                      Subtopic {activeSubtopic + 1} of {subtopics.length}
+                    </Text>
+                    <Text style={[styles.contentTitle, { color: theme.text }]}>
+                      {subtopics[activeSubtopic]?.title}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={handleContinue}>
+                    <Text style={[styles.backLink, { color: theme.primary }]}>
+                      Back
+                    </Text>
                   </TouchableOpacity>
                 </View>
-              )}
 
-              {quizState === "submitted" && (
-                <View style={styles.resultsSection}>
-                  {quiz?.questions.map((q, qIdx) => (
-                    <View key={qIdx} style={styles.resultRow}>
+                <View style={styles.navRow}>
+                  {activeSubtopic > 0 ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.navPill,
+                        { backgroundColor: theme.surfaceAlt },
+                      ]}
+                      onPress={handlePrevSubtopic}
+                    >
                       <Ionicons
-                        name={results[qIdx] ? "checkmark-circle" : "close-circle"}
-                        size={20}
-                        color={results[qIdx] ? theme.success : theme.danger}
+                        name="chevron-back"
+                        size={16}
+                        color={theme.textSecondary}
                       />
                       <Text
                         style={[
-                          styles.resultText,
-                          { color: results[qIdx] ? theme.success : theme.danger },
+                          styles.navPillText,
+                          { color: theme.textSecondary },
                         ]}
                       >
-                        {results[qIdx] ? "Correct" : "Wrong"}
+                        Prev
                       </Text>
-                    </View>
-                  ))}
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ flex: 1 }} />
+                  )}
+                  <View style={{ flex: 1 }} />
+                  {activeSubtopic < subtopics.length - 1 ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.navPill,
+                        { backgroundColor: theme.surfaceAlt },
+                      ]}
+                      onPress={handleNextSubtopic}
+                    >
+                      <Text
+                        style={[
+                          styles.navPillText,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        Next
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={16}
+                        color={theme.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
-              )}
-
-              {quizState === "failed" && (
-                <View style={[styles.failedBanner, { backgroundColor: theme.surfaceAlt }]}>
-                  <Ionicons name="refresh" size={28} color={theme.textSecondary} />
-                  <Text style={[styles.failedText, { color: theme.textSecondary }]}>
-                    Not quite right. Review and try again.
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.retryButton, { backgroundColor: theme.primary }]}
-                    onPress={handleRetry}
+                <View
+                  style={[
+                    styles.contentCard,
+                    { backgroundColor: theme.surface },
+                  ]}
+                >
+                  <Text
+                    style={[styles.contentText, { color: theme.textSecondary }]}
                   >
-                    <Text style={styles.retryButtonText}>Retry Quiz</Text>
-                  </TouchableOpacity>
+                    {subtopics[activeSubtopic]?.content}
+                  </Text>
                 </View>
-              )}
-            </View>
-          )}
 
-          {isChapterComplete && !showContent && (
-            <View style={[styles.chapterCompleteBanner, { backgroundColor: theme.primary + "10", borderColor: theme.primary + "30" }]}>
-              <Ionicons name="checkmark-done-circle" size={24} color={theme.success} />
-              <Text style={[styles.chapterCompleteText, { color: theme.success }]}>
-                Chapter Complete!
-              </Text>
-            </View>
-          )}
+                {lessonButton}
 
-          <View style={{ height: 60 }} />
+                {(() => {
+                  const alreadyPassed = isQuizPassed(
+                    courseId ?? "",
+                    chapterIdx,
+                    activeSubtopic,
+                  );
+                  if (quizState === "idle" && alreadyPassed) {
+                    return (
+                      <View
+                        style={[
+                          styles.quizAlreadyPassed,
+                          { backgroundColor: theme.success + "12" },
+                        ]}
+                      >
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={22}
+                          color={theme.success}
+                        />
+                        <Text
+                          style={[
+                            styles.quizAlreadyPassedText,
+                            { color: theme.success },
+                          ]}
+                        >
+                          Quiz already completed
+                        </Text>
+                      </View>
+                    );
+                  }
+                  if (quizState === "idle" && !alreadyPassed) {
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          styles.quizButton,
+                          { backgroundColor: theme.primary },
+                        ]}
+                        onPress={handleTakeQuiz}
+                      >
+                        <Ionicons name="help-circle" size={20} color="#FFF" />
+                        <Text style={styles.quizButtonText}>
+                          Complete & Take Quiz
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {quizState === "loading" && (
+                  <View style={styles.quizLoading}>
+                    <ActivityIndicator color={theme.primary} size="large" />
+                    <Text
+                      style={[
+                        styles.quizLoadingText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Generating quiz questions...
+                    </Text>
+                  </View>
+                )}
+
+                {quizState === "active" && quiz && (
+                  <View style={styles.quizSection}>
+                    <Text style={[styles.quizTitle, { color: theme.text }]}>
+                      Quiz
+                    </Text>
+                    {quiz.questions.map((q, qIdx) => (
+                      <View key={qIdx} style={styles.questionCard}>
+                        <Text
+                          style={[styles.questionText, { color: theme.text }]}
+                        >
+                          {qIdx + 1}. {q.text}
+                        </Text>
+                        {q.options.map((opt, oIdx) => (
+                          <TouchableOpacity
+                            key={oIdx}
+                            style={[
+                              styles.optionButton,
+                              { backgroundColor: theme.surfaceAlt },
+                              selectedAnswers[qIdx] === oIdx && {
+                                backgroundColor: theme.primary + "15",
+                                borderColor: theme.primary,
+                                borderWidth: 1,
+                              },
+                            ]}
+                            onPress={() => handleSelectAnswer(qIdx, oIdx)}
+                          >
+                            <View
+                              style={[
+                                styles.radio,
+                                { borderColor: theme.textMuted },
+                                selectedAnswers[qIdx] === oIdx && {
+                                  borderColor: theme.primary,
+                                },
+                              ]}
+                            >
+                              {selectedAnswers[qIdx] === oIdx && (
+                                <View
+                                  style={[
+                                    styles.radioInner,
+                                    { backgroundColor: theme.primary },
+                                  ]}
+                                />
+                              )}
+                            </View>
+                            <Text
+                              style={[styles.optionText, { color: theme.text }]}
+                            >
+                              {opt}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    ))}
+                    <TouchableOpacity
+                      style={[
+                        styles.submitButton,
+                        { backgroundColor: theme.success },
+                        Object.keys(selectedAnswers).length <
+                          quiz.questions.length && styles.submitButtonDisabled,
+                      ]}
+                      onPress={handleSubmitQuiz}
+                      disabled={
+                        Object.keys(selectedAnswers).length <
+                        quiz.questions.length
+                      }
+                    >
+                      <Text style={styles.submitButtonText}>
+                        Submit Answers
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {(quizState === "submitted" || quizState === "failed") && (
+                  <View style={styles.resultsSection}>
+                    <Text style={[styles.resultsTitle, { color: theme.text }]}>
+                      Quiz results
+                    </Text>
+                    {quiz?.questions.map((q, qIdx) => {
+                      const isCorrect = !!results[qIdx];
+
+                      return (
+                        <View
+                          key={qIdx}
+                          style={[
+                            styles.resultCard,
+                            {
+                              backgroundColor: theme.surfaceAlt,
+                              borderColor: isCorrect
+                                ? theme.success + "40"
+                                : theme.danger + "40",
+                            },
+                          ]}
+                        >
+                          <View style={styles.resultHeader}>
+                            <Text
+                              style={[
+                                styles.resultQuestion,
+                                { color: theme.text },
+                              ]}
+                            >
+                              Question {qIdx + 1}
+                            </Text>
+                            <Ionicons
+                              name={
+                                isCorrect ? "checkmark-circle" : "close-circle"
+                              }
+                              size={20}
+                              color={isCorrect ? theme.success : theme.danger}
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.resultText,
+                              {
+                                color: isCorrect ? theme.success : theme.danger,
+                              },
+                            ]}
+                          >
+                            {isCorrect ? "Correct" : "Incorrect"}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {quizState === "failed" && (
+                  <View
+                    style={[
+                      styles.failedBanner,
+                      { backgroundColor: theme.surfaceAlt },
+                    ]}
+                  >
+                    <Ionicons
+                      name="refresh"
+                      size={28}
+                      color={theme.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.failedText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Not quite right. Review and try again.
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.retryButton,
+                        { backgroundColor: theme.primary },
+                      ]}
+                      onPress={handleRetry}
+                    >
+                      <Text style={styles.retryButtonText}>Retry Quiz</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {isChapterComplete && !showContent && (
+              <View
+                style={[
+                  styles.chapterCompleteBanner,
+                  {
+                    backgroundColor: theme.primary + "10",
+                    borderColor: theme.primary + "30",
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="checkmark-done-circle"
+                  size={24}
+                  color={theme.success}
+                />
+                <Text
+                  style={[styles.chapterCompleteText, { color: theme.success }]}
+                >
+                  Chapter Complete!
+                </Text>
+              </View>
+            )}
+
+            <View style={{ height: 60 }} />
           </ScrollView>
           {isWebWide && (
             <ScrollView
@@ -932,8 +1329,17 @@ export default function ChapterScreen() {
               {contentSection}
               {!contentSection && (
                 <View style={styles.readingEmpty}>
-                  <Ionicons name="book-outline" size={40} color={theme.textMuted} />
-                  <Text style={[styles.readingEmptyText, { color: theme.textMuted }]}>
+                  <Ionicons
+                    name="book-outline"
+                    size={40}
+                    color={theme.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.readingEmptyText,
+                      { color: theme.textMuted },
+                    ]}
+                  >
                     Select a subtopic to start learning
                   </Text>
                 </View>
@@ -971,7 +1377,11 @@ export default function ChapterScreen() {
                   subtopics.length - completedCount === 1 ? "" : "s"
                 } to finish the chapter`
           }
-          primaryLabel={completedCount >= subtopics.length ? "Claim Chapter Reward" : "Next Subtopic"}
+          primaryLabel={
+            completedCount >= subtopics.length
+              ? "Claim Chapter Reward"
+              : "Next Subtopic"
+          }
           onPrimary={() => {
             if (completedCount >= subtopics.length) {
               setRewardVisible(false);
@@ -980,7 +1390,9 @@ export default function ChapterScreen() {
               handleNextSubtopic();
             }
           }}
-          secondaryLabel={completedCount >= subtopics.length ? undefined : "Back to List"}
+          secondaryLabel={
+            completedCount >= subtopics.length ? undefined : "Back to List"
+          }
           onSecondary={handleContinue}
           onRequestClose={handleContinue}
         >
@@ -988,7 +1400,10 @@ export default function ChapterScreen() {
             !enrolledNow &&
             !getEnrollmentForCourse(courseId ?? "") && (
               <TouchableOpacity
-                style={[styles.enrollButton, { backgroundColor: theme.primary }]}
+                style={[
+                  styles.enrollButton,
+                  { backgroundColor: theme.primary },
+                ]}
                 onPress={handleEnroll}
                 disabled={enrolling}
               >
@@ -996,8 +1411,14 @@ export default function ChapterScreen() {
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <>
-                    <Ionicons name="add-circle-outline" size={18} color="#FFF" />
-                    <Text style={styles.continueButtonText}>Enroll in Full Course</Text>
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={18}
+                      color="#FFF"
+                    />
+                    <Text style={styles.continueButtonText}>
+                      Enroll in Full Course
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1236,14 +1657,84 @@ const styles = StyleSheet.create({
   submitButtonDisabled: { opacity: 0.4 },
   submitButtonText: { color: "#FFF", fontSize: 14, fontWeight: "700" },
   resultsSection: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: 12,
     marginTop: 16,
     marginBottom: 16,
   },
-  resultRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  resultText: { fontSize: 13, fontWeight: "600" },
+  resultsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 4,
+  },
+  resultsTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  resultsSummaryChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  resultsSummaryText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  resultCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    gap: 8,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  resultHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  resultTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  resultIndexBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  resultIndexText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  resultQuestion: {
+    fontSize: 13,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  resultStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  resultStatusText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  resultText: { fontSize: 12.5, fontWeight: "600", lineHeight: 18 },
   passedBanner: {
     alignItems: "center",
     borderRadius: 16,
