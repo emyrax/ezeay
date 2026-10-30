@@ -260,6 +260,8 @@ export default function ProfileScreen() {
   const tabBarInset = useTabBarInset(80);
   const { width: windowWidth } = useWindowDimensions();
   const isLargeLayout = isWebWide || windowWidth >= 768;
+  const isHeroWide = isLargeLayout && windowWidth >= 860;
+  const isWideProfileSummary = windowWidth >= 960;
   const [panelWidth, setPanelWidth] = useState(
     Math.min(windowWidth, CONTENT_WIDTHS.standard),
   );
@@ -421,821 +423,1153 @@ export default function ProfileScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {startEditing ? (
-            <View style={{ paddingHorizontal: 20 }}>
-              {profile ? (
-                <ProfileInfoSection
-                  profile={profile}
-                  startEditing={startEditing}
-                  onDoneEditing={() => setStartEditing(false)}
-                />
-              ) : null}
-            </View>
-          ) : (
-            <>
-              {/* Cover */}
-              <View
-                style={[
-                  pfStyles.coverWrap,
-                  isWebWide && pfStyles.coverWrapWide,
-                ]}
-              >
-                <LinearGradient
-                  colors={[
-                    theme.gradientStart + "60",
-                    theme.gradientMid + "30",
-                    theme.bg,
-                  ]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={pfStyles.coverGradient}
-                />
-                <Pressable
-                  style={[
-                    pfStyles.settingsBtn,
-                    { backgroundColor: theme.glass },
-                  ]}
-                  onPress={() => router.push("/settings")}
-                  hitSlop={8}
-                >
-                  <MaterialCommunityIcons
-                    name="cog-outline"
-                    size={22}
-                    color={theme.text}
+          <View style={pfStyles.pageShell}>
+            {startEditing ? (
+              <View style={{ paddingHorizontal: 20 }}>
+                {profile ? (
+                  <ProfileInfoSection
+                    profile={profile}
+                    startEditing={startEditing}
+                    onDoneEditing={() => setStartEditing(false)}
                   />
-                </Pressable>
+                ) : null}
               </View>
-
-              {/* Avatar + Identity */}
-              <View style={pfStyles.identitySection}>
-                <View style={pfStyles.avatarOuter}>
-                  <View
-                    style={[
-                      pfStyles.avatarRing,
-                      { borderColor: theme.primary + "40" },
+            ) : (
+              <>
+                {/* Cover */}
+                <View
+                  style={[
+                    pfStyles.coverWrap,
+                    isWebWide && pfStyles.coverWrapWide,
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[
+                      theme.gradientStart + "60",
+                      theme.gradientMid + "30",
+                      theme.bg,
                     ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={pfStyles.coverGradient}
                   />
                   <Pressable
-                    onPress={handlePickImage}
-                    style={pfStyles.avatarPress}
-                  >
-                    {avatarError ? (
-                      <View
-                        style={[
-                          pfStyles.avatar,
-                          pfStyles.avatarPlaceholder,
-                          { backgroundColor: theme.border },
-                        ]}
-                      >
-                        <AntDesign
-                          name="user"
-                          size={40}
-                          color={theme.textMuted}
-                        />
-                      </View>
-                    ) : (
-                      <Image
-                        source={{ uri: avatarUri }}
-                        style={[
-                          pfStyles.avatar,
-                          { backgroundColor: theme.surface },
-                        ]}
-                        contentFit="cover"
-                        onError={() => {
-                          console.warn("[Profile] Avatar load failed");
-                          setFailedAvatarUri(avatarUri);
-                        }}
-                      />
-                    )}
-                    <View
-                      style={[
-                        pfStyles.cameraBadge,
-                        { backgroundColor: theme.primary },
-                      ]}
-                    >
-                      {uploading ? (
-                        <ActivityIndicator color="#fff" size="small" />
-                      ) : (
-                        <MaterialIcons
-                          name="camera-alt"
-                          size={14}
-                          color="#fff"
-                        />
-                      )}
-                    </View>
-                    {profile?.availability ? (
-                      <View
-                        style={[
-                          pfStyles.availDot,
-                          {
-                            backgroundColor:
-                              AVAILABILITY_CONFIG[profile.availability].color,
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </Pressable>
-                </View>
-
-                <Text style={[pfStyles.displayName, { color: theme.text }]}>
-                  {profile?.displayName || "Scholar"}
-                </Text>
-
-                {profile?.headline ? (
-                  <Text
-                    style={[pfStyles.headline, { color: theme.textSecondary }]}
-                  >
-                    {profile.headline}
-                  </Text>
-                ) : null}
-
-                {profile?.bio ? (
-                  <Text
                     style={[
-                      pfStyles.bioBelowName,
-                      { color: theme.textSecondary },
-                    ]}
-                    numberOfLines={3}
-                  >
-                    {profile.bio}
-                  </Text>
-                ) : null}
-
-                <View style={pfStyles.metaRow}>
-                  {profile?.location ? (
-                    <View style={pfStyles.metaItem}>
-                      <Ionicons
-                        name="location-outline"
-                        size={13}
-                        color={theme.textMuted}
-                      />
-                      <Text
-                        style={[pfStyles.metaText, { color: theme.textMuted }]}
-                      >
-                        {profile.location}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                <AvailabilityBadge
-                  availability={profile?.availability}
-                  theme={theme}
-                />
-
-                <View style={pfStyles.actionRow}>
-                  <Pressable
-                    style={[
-                      pfStyles.editProfileBtn,
-                      {
-                        backgroundColor: theme.primary,
-                        borderColor: theme.primary,
-                      },
-                    ]}
-                    onPress={() => setStartEditing(true)}
-                  >
-                    <MaterialCommunityIcons
-                      name="account-edit-outline"
-                      size={16}
-                      color="#FFF"
-                    />
-                    <Text style={pfStyles.editProfileText}>Edit Profile</Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      pfStyles.secondaryActionBtn,
-                      {
-                        backgroundColor: theme.glass,
-                        borderColor: theme.borderLight,
-                      },
+                      pfStyles.settingsBtn,
+                      { backgroundColor: theme.glass },
                     ]}
                     onPress={() => router.push("/settings")}
+                    hitSlop={8}
                   >
                     <MaterialCommunityIcons
                       name="cog-outline"
-                      size={16}
+                      size={22}
                       color={theme.text}
                     />
-                    <Text
-                      style={[
-                        pfStyles.secondaryActionText,
-                        { color: theme.text },
-                      ]}
-                    >
-                      Settings
-                    </Text>
                   </Pressable>
                 </View>
-              </View>
 
-              {/* Stats Bar */}
-              <View
-                style={[
-                  pfStyles.statsCard,
-                  {
-                    backgroundColor: theme.glass,
-                    borderColor: theme.borderLight,
-                  },
-                  isLargeLayout && pfStyles.desktopCard,
-                ]}
-              >
-                <View style={pfStyles.statsRow}>
-                  <View style={pfStyles.statItem}>
-                    <Text
-                      style={[pfStyles.statValue, { color: theme.primary }]}
-                    >
-                      {profile?.xp ?? 0}
-                    </Text>
-                    <Text
-                      style={[pfStyles.statLabel, { color: theme.textMuted }]}
-                    >
-                      XP
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      pfStyles.statDivider,
-                      { backgroundColor: theme.borderLight },
-                    ]}
-                  />
-                  <View style={pfStyles.statItem}>
-                    <Text style={[pfStyles.statValue, { color: theme.accent }]}>
-                      {profile?.gamingLevel ?? 1}
-                    </Text>
-                    <Text
-                      style={[pfStyles.statLabel, { color: theme.textMuted }]}
-                    >
-                      Level
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      pfStyles.statDivider,
-                      { backgroundColor: theme.borderLight },
-                    ]}
-                  />
-                  <View style={pfStyles.statItem}>
-                    <Text
-                      style={[pfStyles.statValue, { color: theme.warning }]}
-                    >
-                      {profile?.coins ?? 0}
-                    </Text>
-                    <Text
-                      style={[pfStyles.statLabel, { color: theme.textMuted }]}
-                    >
-                      Coins
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      pfStyles.statDivider,
-                      { backgroundColor: theme.borderLight },
-                    ]}
-                  />
-                  <View style={pfStyles.statItem}>
-                    <Text
-                      style={[pfStyles.statValue, { color: theme.success }]}
-                    >
-                      {profile?.rank || "Spark"}
-                    </Text>
-                    <Text
-                      style={[pfStyles.statLabel, { color: theme.textMuted }]}
-                    >
-                      Rank
-                    </Text>
-                  </View>
-                </View>
-                <View style={pfStyles.xpBarOuter}>
-                  <Animated.View
-                    style={[
-                      pfStyles.xpBarInner,
-                      {
-                        width: xpPercent,
-                        backgroundColor: theme.primary,
-                        shadowColor: theme.primary,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={[pfStyles.xpLabel, { color: theme.textMuted }]}>
-                  {xpForNext > 0
-                    ? `${xpProgress.toLocaleString()} / ${xpForNext.toLocaleString()} XP to next level`
-                    : "Max level reached"}
-                </Text>
-              </View>
-
-              {/* Profile Completion */}
-              <View
-                style={[
-                  pfStyles.completionCard,
-                  {
-                    backgroundColor: theme.glass,
-                    borderColor: theme.borderLight,
-                  },
-                  isLargeLayout && pfStyles.desktopCard,
-                ]}
-              >
-                <View style={pfStyles.completionRow}>
-                  <View
-                    style={[
-                      pfStyles.completionRing,
-                      { borderColor: theme.primary },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        pfStyles.completionPctLabel,
-                        { color: theme.primary },
-                      ]}
-                    >
-                      {completionPct}%
-                    </Text>
-                  </View>
-                  <View style={pfStyles.completionInfo}>
-                    <Text
-                      style={[pfStyles.completionTitle, { color: theme.text }]}
-                    >
-                      Profile {completionPct}% complete
-                    </Text>
-                    <Text
-                      style={[
-                        pfStyles.completionSub,
-                        { color: theme.textMuted },
-                      ]}
-                    >
-                      {filledCount} of {PROFILE_FIELDS.length} fields filled
-                    </Text>
-                  </View>
-                </View>
+                {/* Avatar + Identity */}
                 <View
                   style={[
-                    pfStyles.completionBarOuter,
-                    { backgroundColor: theme.border },
+                    pfStyles.identitySection,
+                    isHeroWide && pfStyles.identitySectionWide,
                   ]}
                 >
                   <View
                     style={[
-                      pfStyles.completionBarInner,
-                      {
-                        width: `${completionPct}%`,
-                        backgroundColor: theme.primary,
-                      },
+                      pfStyles.avatarOuter,
+                      isHeroWide && pfStyles.avatarOuterWide,
                     ]}
-                  />
-                </View>
-              </View>
-
-              {/* Tab Bar */}
-              <View
-                style={[pfStyles.tabRow, isLargeLayout && pfStyles.desktopTabs]}
-              >
-                {tabs.map((tab, i) => {
-                  const active = activeTab === i;
-                  return (
-                    <Pressable
-                      key={tab}
-                      onPress={() => switchTab(i)}
+                  >
+                    <View
                       style={[
-                        pfStyles.tabPill,
-                        { borderColor: theme.border },
-                        active && {
-                          backgroundColor: theme.tabActive,
-                          borderColor: theme.tabActive,
-                        },
+                        pfStyles.avatarRing,
+                        { borderColor: theme.primary + "40" },
                       ]}
+                    />
+                    <Pressable
+                      onPress={handlePickImage}
+                      style={pfStyles.avatarPress}
                     >
-                      <Text
+                      {avatarError ? (
+                        <View
+                          style={[
+                            pfStyles.avatar,
+                            pfStyles.avatarPlaceholder,
+                            { backgroundColor: theme.border },
+                          ]}
+                        >
+                          <AntDesign
+                            name="user"
+                            size={40}
+                            color={theme.textMuted}
+                          />
+                        </View>
+                      ) : (
+                        <Image
+                          source={{ uri: avatarUri }}
+                          style={[
+                            pfStyles.avatar,
+                            { backgroundColor: theme.surface },
+                          ]}
+                          contentFit="cover"
+                          onError={() => {
+                            console.warn("[Profile] Avatar load failed");
+                            setFailedAvatarUri(avatarUri);
+                          }}
+                        />
+                      )}
+                      <View
                         style={[
-                          pfStyles.tabPillText,
-                          { color: active ? "#FFFFFF" : theme.tabInactive },
+                          pfStyles.cameraBadge,
+                          { backgroundColor: theme.primary },
                         ]}
                       >
-                        {tab}
-                      </Text>
+                        {uploading ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <MaterialIcons
+                            name="camera-alt"
+                            size={14}
+                            color="#fff"
+                          />
+                        )}
+                      </View>
+                      {profile?.availability ? (
+                        <View
+                          style={[
+                            pfStyles.availDot,
+                            {
+                              backgroundColor:
+                                AVAILABILITY_CONFIG[profile.availability].color,
+                            },
+                          ]}
+                        />
+                      ) : null}
                     </Pressable>
-                  );
-                })}
-              </View>
-
-              {/* Animated Panel */}
-              <View
-                style={[
-                  pfStyles.panelOuter,
-                  isLargeLayout && pfStyles.desktopPanel,
-                ]}
-                onLayout={(e) => {
-                  const next = Math.round(e.nativeEvent.layout.width);
-                  if (next > 0 && next !== panelWidth) setPanelWidth(next);
-                }}
-              >
-                <Animated.View
-                  style={[
-                    pfStyles.panelInner,
-                    {
-                      width: panelWidth * 3,
-                      transform: [
-                        {
-                          translateX: slideAnim.interpolate({
-                            inputRange: [0, 1, 2],
-                            outputRange: [
-                              0,
-                              getCarouselTranslate(1, panelWidth),
-                              getCarouselTranslate(2, panelWidth),
-                            ],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  {/* Panel 0: Info */}
-                  <View style={{ width: panelWidth, paddingHorizontal: 20 }}>
-                    {profile ? (
-                      <ProfileInfoSection
-                        profile={profile}
-                        startEditing={startEditing}
-                        onDoneEditing={() => setStartEditing(false)}
-                      />
-                    ) : null}
                   </View>
 
-                  {/* Panel 1: Skills & Exp */}
-                  <View style={{ width: panelWidth, paddingHorizontal: 20 }}>
-                    {/* Skills */}
-                    {profile?.skills && profile.skills.length > 0 ? (
-                      <SectionCard title="Skills" theme={theme}>
-                        <View style={pfStyles.skillsGrid}>
-                          {profile.skills.map((skill) => (
-                            <View
-                              key={skill}
+                  <View
+                    style={[
+                      pfStyles.identityContent,
+                      isHeroWide && pfStyles.identityContentWide,
+                    ]}
+                  >
+                    <Text style={[pfStyles.displayName, { color: theme.text }]}>
+                      {profile?.displayName || "Scholar"}
+                    </Text>
+
+                    {profile?.headline ? (
+                      <Text
+                        style={[
+                          pfStyles.headline,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        {profile.headline}
+                      </Text>
+                    ) : null}
+
+                    {profile?.bio ? (
+                      <Text
+                        style={[
+                          pfStyles.bioBelowName,
+                          { color: theme.textSecondary },
+                        ]}
+                        numberOfLines={isHeroWide ? 4 : 3}
+                      >
+                        {profile.bio}
+                      </Text>
+                    ) : null}
+
+                    <View
+                      style={[
+                        pfStyles.metaRow,
+                        isHeroWide && pfStyles.metaRowWide,
+                      ]}
+                    >
+                      {profile?.location ? (
+                        <View style={pfStyles.metaItem}>
+                          <Ionicons
+                            name="location-outline"
+                            size={13}
+                            color={theme.textMuted}
+                          />
+                          <Text
+                            style={[
+                              pfStyles.metaText,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            {profile.location}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <AvailabilityBadge
+                      availability={profile?.availability}
+                      theme={theme}
+                    />
+
+                    <View
+                      style={[
+                        pfStyles.actionRow,
+                        isHeroWide && pfStyles.actionRowWide,
+                      ]}
+                    >
+                      <Pressable
+                        style={[
+                          pfStyles.editProfileBtn,
+                          {
+                            backgroundColor: theme.primary,
+                            borderColor: theme.primary,
+                          },
+                        ]}
+                        onPress={() => setStartEditing(true)}
+                      >
+                        <MaterialCommunityIcons
+                          name="account-edit-outline"
+                          size={16}
+                          color="#FFF"
+                        />
+                        <Text style={pfStyles.editProfileText}>
+                          Edit Profile
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        style={[
+                          pfStyles.secondaryActionBtn,
+                          {
+                            backgroundColor: theme.glass,
+                            borderColor: theme.borderLight,
+                          },
+                        ]}
+                        onPress={() => router.push("/settings")}
+                      >
+                        <MaterialCommunityIcons
+                          name="cog-outline"
+                          size={16}
+                          color={theme.text}
+                        />
+                        <Text
+                          style={[
+                            pfStyles.secondaryActionText,
+                            { color: theme.text },
+                          ]}
+                        >
+                          Settings
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+
+                {isWideProfileSummary ? (
+                  <View style={[pfStyles.summaryGrid, pfStyles.metricGridWide]}>
+                    <View
+                      style={[
+                        pfStyles.statsCard,
+                        {
+                          backgroundColor: theme.glass,
+                          borderColor: theme.borderLight,
+                        },
+                        pfStyles.desktopCard,
+                        pfStyles.summaryGridCard,
+                      ]}
+                    >
+                      <View style={pfStyles.statsHeader}>
+                        <Text
+                          style={[pfStyles.statsTitle, { color: theme.text }]}
+                        >
+                          Progress
+                        </Text>
+                        <View
+                          style={[
+                            pfStyles.pill,
+                            { backgroundColor: theme.primary + "18" },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              pfStyles.pillText,
+                              { color: theme.primary },
+                            ]}
+                          >
+                            Premium
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={pfStyles.statsRow}>
+                        <View style={pfStyles.statItem}>
+                          <Text
+                            style={[
+                              pfStyles.statValue,
+                              { color: theme.primary },
+                            ]}
+                          >
+                            {profile?.xp ?? 0}
+                          </Text>
+                          <Text
+                            style={[
+                              pfStyles.statLabel,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            XP
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            pfStyles.statDivider,
+                            { backgroundColor: theme.borderLight },
+                          ]}
+                        />
+                        <View style={pfStyles.statItem}>
+                          <Text
+                            style={[
+                              pfStyles.statValue,
+                              { color: theme.accent },
+                            ]}
+                          >
+                            {profile?.gamingLevel ?? 1}
+                          </Text>
+                          <Text
+                            style={[
+                              pfStyles.statLabel,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            Level
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            pfStyles.statDivider,
+                            { backgroundColor: theme.borderLight },
+                          ]}
+                        />
+                        <View style={pfStyles.statItem}>
+                          <Text
+                            style={[
+                              pfStyles.statValue,
+                              { color: theme.warning },
+                            ]}
+                          >
+                            {profile?.coins ?? 0}
+                          </Text>
+                          <Text
+                            style={[
+                              pfStyles.statLabel,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            Coins
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            pfStyles.statDivider,
+                            { backgroundColor: theme.borderLight },
+                          ]}
+                        />
+                        <View style={pfStyles.statItem}>
+                          <Text
+                            style={[
+                              pfStyles.statValue,
+                              { color: theme.success },
+                            ]}
+                          >
+                            {profile?.rank || "Spark"}
+                          </Text>
+                          <Text
+                            style={[
+                              pfStyles.statLabel,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            Rank
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={pfStyles.xpBarOuter}>
+                        <Animated.View
+                          style={[
+                            pfStyles.xpBarInner,
+                            {
+                              width: xpPercent,
+                              backgroundColor: theme.primary,
+                              shadowColor: theme.primary,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text
+                        style={[pfStyles.xpLabel, { color: theme.textMuted }]}
+                      >
+                        {xpForNext > 0
+                          ? `${xpProgress.toLocaleString()} / ${xpForNext.toLocaleString()} XP to next level`
+                          : "Max level reached"}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        pfStyles.completionCard,
+                        {
+                          backgroundColor: theme.glass,
+                          borderColor: theme.borderLight,
+                        },
+                        pfStyles.desktopCard,
+                        pfStyles.summaryGridCard,
+                      ]}
+                    >
+                      <View style={pfStyles.completionRow}>
+                        <View
+                          style={[
+                            pfStyles.completionRing,
+                            { borderColor: theme.primary },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              pfStyles.completionPctLabel,
+                              { color: theme.primary },
+                            ]}
+                          >
+                            {completionPct}%
+                          </Text>
+                        </View>
+                        <View style={pfStyles.completionInfo}>
+                          <Text
+                            style={[
+                              pfStyles.completionTitle,
+                              { color: theme.text },
+                            ]}
+                          >
+                            Profile {completionPct}% complete
+                          </Text>
+                          <Text
+                            style={[
+                              pfStyles.completionSub,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            {filledCount} of {PROFILE_FIELDS.length} fields
+                            filled
+                          </Text>
+                        </View>
+                      </View>
+                      <View
+                        style={[
+                          pfStyles.completionBarOuter,
+                          { backgroundColor: theme.border },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            pfStyles.completionBarInner,
+                            {
+                              width: `${completionPct}%`,
+                              backgroundColor: theme.primary,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <>
+                    <View
+                      style={[
+                        pfStyles.metricGrid,
+                        isLargeLayout && pfStyles.metricGridWide,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          pfStyles.statsCard,
+                          {
+                            backgroundColor: theme.glass,
+                            borderColor: theme.borderLight,
+                          },
+                          isLargeLayout && pfStyles.desktopCard,
+                        ]}
+                      >
+                        <View style={pfStyles.statsHeader}>
+                          <Text
+                            style={[pfStyles.statsTitle, { color: theme.text }]}
+                          >
+                            Progress
+                          </Text>
+                          <View
+                            style={[
+                              pfStyles.pill,
+                              { backgroundColor: theme.primary + "18" },
+                            ]}
+                          >
+                            <Text
                               style={[
-                                pfStyles.skillCard,
-                                {
-                                  backgroundColor: theme.surfaceAlt,
-                                  borderColor: theme.borderLight,
-                                },
+                                pfStyles.pillText,
+                                { color: theme.primary },
                               ]}
                             >
-                              <Text
+                              Premium
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={pfStyles.statsRow}>
+                          <View style={pfStyles.statItem}>
+                            <Text
+                              style={[
+                                pfStyles.statValue,
+                                { color: theme.primary },
+                              ]}
+                            >
+                              {profile?.xp ?? 0}
+                            </Text>
+                            <Text
+                              style={[
+                                pfStyles.statLabel,
+                                { color: theme.textMuted },
+                              ]}
+                            >
+                              XP
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              pfStyles.statDivider,
+                              { backgroundColor: theme.borderLight },
+                            ]}
+                          />
+                          <View style={pfStyles.statItem}>
+                            <Text
+                              style={[
+                                pfStyles.statValue,
+                                { color: theme.accent },
+                              ]}
+                            >
+                              {profile?.gamingLevel ?? 1}
+                            </Text>
+                            <Text
+                              style={[
+                                pfStyles.statLabel,
+                                { color: theme.textMuted },
+                              ]}
+                            >
+                              Level
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              pfStyles.statDivider,
+                              { backgroundColor: theme.borderLight },
+                            ]}
+                          />
+                          <View style={pfStyles.statItem}>
+                            <Text
+                              style={[
+                                pfStyles.statValue,
+                                { color: theme.warning },
+                              ]}
+                            >
+                              {profile?.coins ?? 0}
+                            </Text>
+                            <Text
+                              style={[
+                                pfStyles.statLabel,
+                                { color: theme.textMuted },
+                              ]}
+                            >
+                              Coins
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              pfStyles.statDivider,
+                              { backgroundColor: theme.borderLight },
+                            ]}
+                          />
+                          <View style={pfStyles.statItem}>
+                            <Text
+                              style={[
+                                pfStyles.statValue,
+                                { color: theme.success },
+                              ]}
+                            >
+                              {profile?.rank || "Spark"}
+                            </Text>
+                            <Text
+                              style={[
+                                pfStyles.statLabel,
+                                { color: theme.textMuted },
+                              ]}
+                            >
+                              Rank
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={pfStyles.xpBarOuter}>
+                          <Animated.View
+                            style={[
+                              pfStyles.xpBarInner,
+                              {
+                                width: xpPercent,
+                                backgroundColor: theme.primary,
+                                shadowColor: theme.primary,
+                              },
+                            ]}
+                          />
+                        </View>
+                        <Text
+                          style={[pfStyles.xpLabel, { color: theme.textMuted }]}
+                        >
+                          {xpForNext > 0
+                            ? `${xpProgress.toLocaleString()} / ${xpForNext.toLocaleString()} XP to next level`
+                            : "Max level reached"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View
+                      style={[
+                        pfStyles.completionCard,
+                        {
+                          backgroundColor: theme.glass,
+                          borderColor: theme.borderLight,
+                        },
+                        isLargeLayout && pfStyles.desktopCard,
+                      ]}
+                    >
+                      <View style={pfStyles.completionRow}>
+                        <View
+                          style={[
+                            pfStyles.completionRing,
+                            { borderColor: theme.primary },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              pfStyles.completionPctLabel,
+                              { color: theme.primary },
+                            ]}
+                          >
+                            {completionPct}%
+                          </Text>
+                        </View>
+                        <View style={pfStyles.completionInfo}>
+                          <Text
+                            style={[
+                              pfStyles.completionTitle,
+                              { color: theme.text },
+                            ]}
+                          >
+                            Profile {completionPct}% complete
+                          </Text>
+                          <Text
+                            style={[
+                              pfStyles.completionSub,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            {filledCount} of {PROFILE_FIELDS.length} fields
+                            filled
+                          </Text>
+                        </View>
+                      </View>
+                      <View
+                        style={[
+                          pfStyles.completionBarOuter,
+                          { backgroundColor: theme.border },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            pfStyles.completionBarInner,
+                            {
+                              width: `${completionPct}%`,
+                              backgroundColor: theme.primary,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {/* Tab Bar */}
+                <View
+                  style={[
+                    pfStyles.tabRow,
+                    isLargeLayout && pfStyles.desktopTabs,
+                    isLargeLayout && pfStyles.tabRowWide,
+                  ]}
+                >
+                  {tabs.map((tab, i) => {
+                    const active = activeTab === i;
+                    return (
+                      <Pressable
+                        key={tab}
+                        onPress={() => switchTab(i)}
+                        style={[
+                          pfStyles.tabPill,
+                          { borderColor: theme.border },
+                          active && {
+                            backgroundColor: theme.tabActive,
+                            borderColor: theme.tabActive,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            pfStyles.tabPillText,
+                            { color: active ? "#FFFFFF" : theme.tabInactive },
+                          ]}
+                        >
+                          {tab}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* Animated Panel */}
+                <View
+                  style={[
+                    pfStyles.panelOuter,
+                    isLargeLayout && pfStyles.desktopPanel,
+                    isLargeLayout && pfStyles.panelOuterWide,
+                  ]}
+                  onLayout={(e) => {
+                    const next = Math.round(e.nativeEvent.layout.width);
+                    if (next > 0 && next !== panelWidth) setPanelWidth(next);
+                  }}
+                >
+                  <Animated.View
+                    style={[
+                      pfStyles.panelInner,
+                      {
+                        width: panelWidth * 3,
+                        transform: [
+                          {
+                            translateX: slideAnim.interpolate({
+                              inputRange: [0, 1, 2],
+                              outputRange: [
+                                0,
+                                getCarouselTranslate(1, panelWidth),
+                                getCarouselTranslate(2, panelWidth),
+                              ],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    {/* Panel 0: Info */}
+                    <View style={{ width: panelWidth, paddingHorizontal: 20 }}>
+                      {profile ? (
+                        <ProfileInfoSection
+                          profile={profile}
+                          startEditing={startEditing}
+                          onDoneEditing={() => setStartEditing(false)}
+                        />
+                      ) : null}
+                    </View>
+
+                    {/* Panel 1: Skills & Exp */}
+                    <View style={{ width: panelWidth, paddingHorizontal: 20 }}>
+                      {/* Skills */}
+                      {profile?.skills && profile.skills.length > 0 ? (
+                        <SectionCard title="Skills" theme={theme}>
+                          <View style={pfStyles.skillsGrid}>
+                            {profile.skills.map((skill) => (
+                              <View
+                                key={skill}
                                 style={[
-                                  pfStyles.skillName,
-                                  { color: theme.text },
+                                  pfStyles.skillCard,
+                                  {
+                                    backgroundColor: theme.surfaceAlt,
+                                    borderColor: theme.borderLight,
+                                  },
                                 ]}
                               >
-                                {skill}
-                              </Text>
-                              <SkillDots
-                                level={getSkillLevel(skill)}
-                                color={theme.primary}
-                              />
-                            </View>
-                          ))}
-                        </View>
-                      </SectionCard>
-                    ) : null}
-
-                    {profile?.tradeSkills && profile.tradeSkills.length > 0 ? (
-                      <SectionCard title="Trade Skills" theme={theme}>
-                        <View style={pfStyles.skillsGrid}>
-                          {profile.tradeSkills.map((skill) => (
-                            <View
-                              key={skill}
-                              style={[
-                                pfStyles.skillCard,
-                                {
-                                  backgroundColor: theme.surfaceAlt,
-                                  borderColor: theme.borderLight,
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  pfStyles.skillName,
-                                  { color: theme.text },
-                                ]}
-                              >
-                                {skill}
-                              </Text>
-                              <SkillDots
-                                level={getSkillLevel(skill)}
-                                color={theme.accent}
-                              />
-                            </View>
-                          ))}
-                        </View>
-                      </SectionCard>
-                    ) : null}
-
-                    {profile?.workExperience &&
-                    profile.workExperience.length > 0 ? (
-                      <SectionCard title="Experience" theme={theme}>
-                        {profile.workExperience.map((exp: WorkExperience) => (
-                          <TimelineCard
-                            key={exp.id}
-                            title={exp.company}
-                            subtitle={exp.title}
-                            period={`${formatDate(exp.startDate)} — ${exp.isCurrent ? "Present" : formatDate(exp.endDate)}`}
-                            description={exp.description}
-                            color={theme.primary}
-                            icon="briefcase"
-                          />
-                        ))}
-                      </SectionCard>
-                    ) : null}
-
-                    {profile?.education && profile.education.length > 0 ? (
-                      <SectionCard title="Education" theme={theme}>
-                        {profile.education.map((edu: Education) => (
-                          <TimelineCard
-                            key={edu.id}
-                            title={edu.institution}
-                            subtitle={`${edu.degree}${edu.fieldOfStudy ? ` · ${edu.fieldOfStudy}` : ""}`}
-                            period={`${formatDate(edu.startDate)} — ${edu.isCurrent ? "Present" : formatDate(edu.endDate)}`}
-                            description={edu.description}
-                            color={theme.accent}
-                            icon="school"
-                          />
-                        ))}
-                      </SectionCard>
-                    ) : null}
-
-                    {profile?.certifications &&
-                    profile.certifications.length > 0 ? (
-                      <SectionCard title="Certifications" theme={theme}>
-                        <View style={pfStyles.certGrid}>
-                          {profile.certifications.map((cert: Certification) => (
-                            <View
-                              key={cert.id}
-                              style={[
-                                pfStyles.certCard,
-                                {
-                                  backgroundColor: theme.surfaceAlt,
-                                  borderColor: theme.borderLight,
-                                },
-                              ]}
-                            >
-                              <MaterialCommunityIcons
-                                name="certificate"
-                                size={20}
-                                color={theme.warning}
-                              />
-                              <View style={pfStyles.certInfo}>
                                 <Text
                                   style={[
-                                    pfStyles.certName,
+                                    pfStyles.skillName,
                                     { color: theme.text },
                                   ]}
                                 >
-                                  {cert.name}
+                                  {skill}
+                                </Text>
+                                <SkillDots
+                                  level={getSkillLevel(skill)}
+                                  color={theme.primary}
+                                />
+                              </View>
+                            ))}
+                          </View>
+                        </SectionCard>
+                      ) : null}
+
+                      {profile?.tradeSkills &&
+                      profile.tradeSkills.length > 0 ? (
+                        <SectionCard title="Trade Skills" theme={theme}>
+                          <View style={pfStyles.skillsGrid}>
+                            {profile.tradeSkills.map((skill) => (
+                              <View
+                                key={skill}
+                                style={[
+                                  pfStyles.skillCard,
+                                  {
+                                    backgroundColor: theme.surfaceAlt,
+                                    borderColor: theme.borderLight,
+                                  },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    pfStyles.skillName,
+                                    { color: theme.text },
+                                  ]}
+                                >
+                                  {skill}
+                                </Text>
+                                <SkillDots
+                                  level={getSkillLevel(skill)}
+                                  color={theme.accent}
+                                />
+                              </View>
+                            ))}
+                          </View>
+                        </SectionCard>
+                      ) : null}
+
+                      {profile?.workExperience &&
+                      profile.workExperience.length > 0 ? (
+                        <SectionCard title="Experience" theme={theme}>
+                          {profile.workExperience.map((exp: WorkExperience) => (
+                            <TimelineCard
+                              key={exp.id}
+                              title={exp.company}
+                              subtitle={exp.title}
+                              period={`${formatDate(exp.startDate)} — ${exp.isCurrent ? "Present" : formatDate(exp.endDate)}`}
+                              description={exp.description}
+                              color={theme.primary}
+                              icon="briefcase"
+                            />
+                          ))}
+                        </SectionCard>
+                      ) : null}
+
+                      {profile?.education && profile.education.length > 0 ? (
+                        <SectionCard title="Education" theme={theme}>
+                          {profile.education.map((edu: Education) => (
+                            <TimelineCard
+                              key={edu.id}
+                              title={edu.institution}
+                              subtitle={`${edu.degree}${edu.fieldOfStudy ? ` · ${edu.fieldOfStudy}` : ""}`}
+                              period={`${formatDate(edu.startDate)} — ${edu.isCurrent ? "Present" : formatDate(edu.endDate)}`}
+                              description={edu.description}
+                              color={theme.accent}
+                              icon="school"
+                            />
+                          ))}
+                        </SectionCard>
+                      ) : null}
+
+                      {profile?.certifications &&
+                      profile.certifications.length > 0 ? (
+                        <SectionCard title="Certifications" theme={theme}>
+                          <View style={pfStyles.certGrid}>
+                            {profile.certifications.map(
+                              (cert: Certification) => (
+                                <View
+                                  key={cert.id}
+                                  style={[
+                                    pfStyles.certCard,
+                                    {
+                                      backgroundColor: theme.surfaceAlt,
+                                      borderColor: theme.borderLight,
+                                    },
+                                  ]}
+                                >
+                                  <MaterialCommunityIcons
+                                    name="certificate"
+                                    size={20}
+                                    color={theme.warning}
+                                  />
+                                  <View style={pfStyles.certInfo}>
+                                    <Text
+                                      style={[
+                                        pfStyles.certName,
+                                        { color: theme.text },
+                                      ]}
+                                    >
+                                      {cert.name}
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        pfStyles.certIssuer,
+                                        { color: theme.textMuted },
+                                      ]}
+                                    >
+                                      {cert.issuer}
+                                    </Text>
+                                  </View>
+                                </View>
+                              ),
+                            )}
+                          </View>
+                        </SectionCard>
+                      ) : null}
+                    </View>
+
+                    {/* Panel 2: Progress */}
+                    <View style={{ width: panelWidth, paddingHorizontal: 20 }}>
+                      {/* Courses */}
+                      {profile?.courses && profile.courses.length > 0 ? (
+                        <View
+                          style={[
+                            pfStyles.sectionCard,
+                            {
+                              backgroundColor: theme.glass,
+                              borderColor: theme.borderLight,
+                            },
+                          ]}
+                        >
+                          <View style={pfStyles.sectionHeader}>
+                            <Text
+                              style={[
+                                pfStyles.sectionTitle,
+                                { color: theme.text },
+                              ]}
+                            >
+                              Courses
+                            </Text>
+                          </View>
+                          {profile.courses.map((course) => (
+                            <View
+                              key={course.id}
+                              style={[
+                                pfStyles.progressCourseCard,
+                                {
+                                  backgroundColor: theme.surfaceAlt,
+                                  borderColor: theme.borderLight,
+                                },
+                              ]}
+                            >
+                              <View style={pfStyles.progressCourseRow}>
+                                <MaterialCommunityIcons
+                                  name={(course.icon as any) || "book"}
+                                  size={18}
+                                  color={theme.primary}
+                                />
+                                <Text
+                                  style={[
+                                    pfStyles.progressCourseTitle,
+                                    { color: theme.text },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {course.title}
                                 </Text>
                                 <Text
                                   style={[
-                                    pfStyles.certIssuer,
-                                    { color: theme.textMuted },
+                                    pfStyles.progressCoursePct,
+                                    { color: theme.primary },
                                   ]}
                                 >
-                                  {cert.issuer}
+                                  {Math.round(course.progress ?? 0)}%
                                 </Text>
+                              </View>
+                              <View
+                                style={[
+                                  pfStyles.progressBarBg,
+                                  { backgroundColor: theme.border },
+                                ]}
+                              >
+                                <View
+                                  style={[
+                                    pfStyles.progressBarFill,
+                                    {
+                                      width: `${Math.round(course.progress ?? 0)}%`,
+                                      backgroundColor: theme.primary,
+                                    },
+                                  ]}
+                                />
                               </View>
                             </View>
                           ))}
                         </View>
-                      </SectionCard>
-                    ) : null}
-                  </View>
-
-                  {/* Panel 2: Progress */}
-                  <View style={{ width: panelWidth, paddingHorizontal: 20 }}>
-                    {/* Courses */}
-                    {profile?.courses && profile.courses.length > 0 ? (
-                      <View
-                        style={[
-                          pfStyles.sectionCard,
-                          {
-                            backgroundColor: theme.glass,
-                            borderColor: theme.borderLight,
-                          },
-                        ]}
-                      >
-                        <View style={pfStyles.sectionHeader}>
+                      ) : (
+                        <View
+                          style={[
+                            pfStyles.sectionCard,
+                            {
+                              backgroundColor: theme.glass,
+                              borderColor: theme.borderLight,
+                            },
+                          ]}
+                        >
                           <Text
                             style={[
-                              pfStyles.sectionTitle,
+                              pfStyles.emptyText,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            No courses yet
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Trophies & Streak */}
+                      <View style={pfStyles.progressMetaRow}>
+                        <View
+                          style={[
+                            pfStyles.progressMetaCard,
+                            {
+                              backgroundColor: theme.glass,
+                              borderColor: theme.borderLight,
+                            },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name="trophy"
+                            size={22}
+                            color={theme.warning}
+                          />
+                          <Text
+                            style={[
+                              pfStyles.progressMetaValue,
                               { color: theme.text },
                             ]}
                           >
-                            Courses
+                            {trophies.length}
                           </Text>
-                        </View>
-                        {profile.courses.map((course) => (
-                          <View
-                            key={course.id}
+                          <Text
                             style={[
-                              pfStyles.progressCourseCard,
-                              {
-                                backgroundColor: theme.surfaceAlt,
-                                borderColor: theme.borderLight,
-                              },
+                              pfStyles.progressMetaLabel,
+                              { color: theme.textMuted },
                             ]}
                           >
-                            <View style={pfStyles.progressCourseRow}>
-                              <MaterialCommunityIcons
-                                name={(course.icon as any) || "book"}
-                                size={18}
-                                color={theme.primary}
-                              />
-                              <Text
-                                style={[
-                                  pfStyles.progressCourseTitle,
-                                  { color: theme.text },
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {course.title}
-                              </Text>
-                              <Text
-                                style={[
-                                  pfStyles.progressCoursePct,
-                                  { color: theme.primary },
-                                ]}
-                              >
-                                {Math.round(course.progress ?? 0)}%
-                              </Text>
-                            </View>
-                            <View
-                              style={[
-                                pfStyles.progressBarBg,
-                                { backgroundColor: theme.border },
-                              ]}
-                            >
-                              <View
-                                style={[
-                                  pfStyles.progressBarFill,
-                                  {
-                                    width: `${Math.round(course.progress ?? 0)}%`,
-                                    backgroundColor: theme.primary,
-                                  },
-                                ]}
-                              />
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    ) : (
-                      <View
-                        style={[
-                          pfStyles.sectionCard,
-                          {
-                            backgroundColor: theme.glass,
-                            borderColor: theme.borderLight,
-                          },
-                        ]}
-                      >
-                        <Text
+                            Trophies
+                          </Text>
+                        </View>
+                        <View
                           style={[
-                            pfStyles.emptyText,
-                            { color: theme.textMuted },
+                            pfStyles.progressMetaCard,
+                            {
+                              backgroundColor: theme.glass,
+                              borderColor: theme.borderLight,
+                            },
                           ]}
                         >
-                          No courses yet
-                        </Text>
-                      </View>
-                    )}
-
-                    {/* Trophies & Streak */}
-                    <View style={pfStyles.progressMetaRow}>
-                      <View
-                        style={[
-                          pfStyles.progressMetaCard,
-                          {
-                            backgroundColor: theme.glass,
-                            borderColor: theme.borderLight,
-                          },
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          name="trophy"
-                          size={22}
-                          color={theme.warning}
-                        />
-                        <Text
+                          <MaterialCommunityIcons
+                            name="fire"
+                            size={22}
+                            color={theme.primary}
+                          />
+                          <Text
+                            style={[
+                              pfStyles.progressMetaValue,
+                              { color: theme.text },
+                            ]}
+                          >
+                            {checkInStreak}
+                          </Text>
+                          <Text
+                            style={[
+                              pfStyles.progressMetaLabel,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            Day Streak
+                          </Text>
+                        </View>
+                        <View
                           style={[
-                            pfStyles.progressMetaValue,
-                            { color: theme.text },
+                            pfStyles.progressMetaCard,
+                            {
+                              backgroundColor: theme.glass,
+                              borderColor: theme.borderLight,
+                            },
                           ]}
                         >
-                          {trophies.length}
-                        </Text>
-                        <Text
-                          style={[
-                            pfStyles.progressMetaLabel,
-                            { color: theme.textMuted },
-                          ]}
-                        >
-                          Trophies
-                        </Text>
-                      </View>
-                      <View
-                        style={[
-                          pfStyles.progressMetaCard,
-                          {
-                            backgroundColor: theme.glass,
-                            borderColor: theme.borderLight,
-                          },
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          name="fire"
-                          size={22}
-                          color={theme.primary}
-                        />
-                        <Text
-                          style={[
-                            pfStyles.progressMetaValue,
-                            { color: theme.text },
-                          ]}
-                        >
-                          {checkInStreak}
-                        </Text>
-                        <Text
-                          style={[
-                            pfStyles.progressMetaLabel,
-                            { color: theme.textMuted },
-                          ]}
-                        >
-                          Day Streak
-                        </Text>
-                      </View>
-                      <View
-                        style={[
-                          pfStyles.progressMetaCard,
-                          {
-                            backgroundColor: theme.glass,
-                            borderColor: theme.borderLight,
-                          },
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          name="star"
-                          size={22}
-                          color={theme.accent}
-                        />
-                        <Text
-                          style={[
-                            pfStyles.progressMetaValue,
-                            { color: theme.text },
-                          ]}
-                        >
-                          {profile?.gamingLevel ?? 1}
-                        </Text>
-                        <Text
-                          style={[
-                            pfStyles.progressMetaLabel,
-                            { color: theme.textMuted },
-                          ]}
-                        >
-                          Level
-                        </Text>
+                          <MaterialCommunityIcons
+                            name="star"
+                            size={22}
+                            color={theme.accent}
+                          />
+                          <Text
+                            style={[
+                              pfStyles.progressMetaValue,
+                              { color: theme.text },
+                            ]}
+                          >
+                            {profile?.gamingLevel ?? 1}
+                          </Text>
+                          <Text
+                            style={[
+                              pfStyles.progressMetaLabel,
+                              { color: theme.textMuted },
+                            ]}
+                          >
+                            Level
+                          </Text>
+                        </View>
                       </View>
                     </View>
-                  </View>
-                </Animated.View>
-              </View>
+                  </Animated.View>
+                </View>
 
-              {/* Sign Out */}
-              <View
-                style={[
-                  pfStyles.signOutWrap,
-                  isLargeLayout && pfStyles.desktopCard,
-                ]}
-              >
-                <Pressable style={pfStyles.signOutRow} onPress={handleSignOut}>
-                  <View
-                    style={[
-                      pfStyles.signOutIcon,
-                      { backgroundColor: theme.danger + "15" },
-                    ]}
+                {/* Sign Out */}
+                <View
+                  style={[
+                    pfStyles.signOutWrap,
+                    {
+                      backgroundColor: theme.glass,
+                      borderColor: theme.borderLight,
+                    },
+                    isLargeLayout && pfStyles.desktopCard,
+                  ]}
+                >
+                  <Pressable
+                    style={pfStyles.signOutRow}
+                    onPress={handleSignOut}
                   >
-                    <MaterialIcons
-                      name="logout"
-                      size={20}
-                      color={theme.danger}
-                    />
-                  </View>
-                  <Text style={[pfStyles.signOutText, { color: theme.text }]}>
-                    Sign Out
-                  </Text>
-                  <AntDesign name="right" size={16} color={theme.textMuted} />
-                </Pressable>
-              </View>
+                    <View
+                      style={[
+                        pfStyles.signOutIcon,
+                        { backgroundColor: theme.danger + "15" },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="logout"
+                        size={20}
+                        color={theme.danger}
+                      />
+                    </View>
+                    <Text style={[pfStyles.signOutText, { color: theme.text }]}>
+                      Sign Out
+                    </Text>
+                    <AntDesign name="right" size={16} color={theme.textMuted} />
+                  </Pressable>
+                </View>
 
-              <Text style={[pfStyles.versionText, { color: theme.textMuted }]}>
-                Version 1.0.0
-              </Text>
-              <View style={{ height: tabBarInset }} />
-            </>
-          )}
+                <Text
+                  style={[pfStyles.versionText, { color: theme.textMuted }]}
+                >
+                  Version 1.0.0
+                </Text>
+                <View style={{ height: tabBarInset }} />
+              </>
+            )}
+          </View>
         </ScrollView>
       </ScreenContainer>
     </ErrorBoundary>
@@ -1244,6 +1578,11 @@ export default function ProfileScreen() {
 
 const pfStyles = StyleSheet.create({
   scroll: { paddingBottom: 40 },
+  pageShell: {
+    width: "100%",
+    maxWidth: 1180,
+    alignSelf: "center",
+  },
   desktopScroll: {
     paddingHorizontal: 20,
     alignItems: "center",
@@ -1285,6 +1624,31 @@ const pfStyles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 24,
     paddingBottom: 16,
+    width: "100%",
+  },
+  identitySectionWide: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 24,
+    paddingTop: 72,
+    paddingBottom: 18,
+    maxWidth: 1180,
+    alignSelf: "center",
+  },
+  identityContent: {
+    width: "100%",
+    alignItems: "center",
+  },
+  identityContentWide: {
+    alignItems: "flex-start",
+    justifyContent: "center",
+    flex: 1,
+    maxWidth: 620,
+  },
+  avatarOuterWide: {
+    marginBottom: 0,
+    marginRight: 8,
   },
   settingsBtn: {
     position: "absolute",
@@ -1362,6 +1726,9 @@ const pfStyles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "center",
   },
+  metaRowWide: {
+    justifyContent: "flex-start",
+  },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { fontSize: 12, fontWeight: "500", fontFamily },
   availBadge: {
@@ -1382,6 +1749,11 @@ const pfStyles = StyleSheet.create({
     gap: 8,
     flexWrap: "wrap",
     width: "100%",
+    maxWidth: 420,
+  },
+  actionRowWide: {
+    justifyContent: "flex-start",
+    maxWidth: 520,
   },
   editProfileBtn: {
     flexDirection: "row",
@@ -1413,18 +1785,56 @@ const pfStyles = StyleSheet.create({
   },
   secondaryActionText: { fontSize: 13, fontWeight: "700", fontFamily },
 
-  statsCard: {
+  metricGrid: {
     marginHorizontal: 20,
+    marginBottom: 16,
+    gap: 12,
+    width: "100%",
+  },
+  metricGridWide: {
+    maxWidth: 960,
+    alignSelf: "center",
+    width: "100%",
+  },
+  summaryGrid: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    width: "100%",
+    maxWidth: 960,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 12,
+  },
+  summaryGridCard: {
+    flex: 1,
+  },
+  statsCard: {
     borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    marginBottom: 16,
+    width: "100%",
+    minWidth: 0,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.14,
     shadowRadius: 20,
     elevation: 8,
   },
+  statsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  statsTitle: { fontSize: 14, fontWeight: "800", fontFamily },
+  pill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+  },
+  pillText: { fontSize: 10, fontWeight: "700", fontFamily },
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1452,6 +1862,91 @@ const pfStyles = StyleSheet.create({
     elevation: 3,
   },
   xpLabel: { fontSize: 10, fontWeight: "500", textAlign: "center", fontFamily },
+
+  topUpCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 16,
+    width: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+    position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  topUpGlow: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.9,
+  },
+  topUpHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    zIndex: 1,
+  },
+  topUpEyebrow: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    fontFamily,
+  },
+  topUpTitle: { fontSize: 22, fontWeight: "800", fontFamily },
+  topUpBalanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+    zIndex: 1,
+  },
+  topUpBalance: { fontSize: 15, fontWeight: "700", fontFamily },
+  topUpOptions: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+    zIndex: 1,
+  },
+  topUpOption: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topUpOptionAmount: { fontSize: 15, fontWeight: "800", fontFamily },
+  topUpOptionCoins: {
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 2,
+    fontFamily,
+  },
+  topUpButton: {
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    elevation: 4,
+    zIndex: 1,
+  },
+  topUpButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
+    fontFamily,
+  },
 
   sectionCard: {
     marginHorizontal: 20,
@@ -1549,14 +2044,23 @@ const pfStyles = StyleSheet.create({
   certName: { fontSize: 13, fontWeight: "700", fontFamily },
   certIssuer: { fontSize: 11, fontWeight: "500", marginTop: 1, fontFamily },
 
-  signOutWrap: { marginHorizontal: 20, marginBottom: 4 },
+  signOutWrap: {
+    marginHorizontal: 20,
+    marginBottom: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+  },
   signOutRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 14,
     gap: 14,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
   },
   signOutIcon: {
     width: 40,
@@ -1573,6 +2077,13 @@ const pfStyles = StyleSheet.create({
     gap: 6,
     marginBottom: 16,
     flexWrap: "wrap",
+    width: "100%",
+    maxWidth: 760,
+    alignSelf: "center",
+  },
+  tabRowWide: {
+    maxWidth: 920,
+    paddingHorizontal: 12,
   },
   tabPill: {
     flex: 1,
@@ -1590,7 +2101,12 @@ const pfStyles = StyleSheet.create({
   },
   tabPillText: { fontSize: 12, fontWeight: "700", fontFamily },
 
-  panelOuter: { overflow: "hidden" },
+  panelOuter: { overflow: "hidden", width: "100%" },
+  panelOuterWide: {
+    maxWidth: 1200,
+    alignSelf: "center",
+    paddingHorizontal: 8,
+  },
   panelInner: { flexDirection: "row" },
 
   completionCard: {

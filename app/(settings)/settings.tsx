@@ -5,19 +5,20 @@ import { useRouter } from "expo-router";
 import type { ComponentProps } from "react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ModelDetailSheet from "../../component/ModelDetailSheet";
@@ -25,30 +26,30 @@ import ModelPickerSheet from "../../component/ModelPickerSheet";
 import OfflineAICard from "../../component/OfflineAICard";
 import type { CustomThemeColors } from "../../constants/themes";
 import {
-  THEME_IDS,
-  fontFamily,
-  themeModes,
-  themeNames,
-  themes,
+    fontFamily,
+    THEME_IDS,
+    themeModes,
+    themeNames,
+    themes,
 } from "../../constants/themes";
 import { useAuth } from "../../contexts/AuthContext";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import { useThemeColors } from "../../hooks/useTheme";
 import { api } from "../../lib/api";
 import {
-  LESSON_MOTION_OPTIONS,
-  type LessonMotionStyle,
+    LESSON_MOTION_OPTIONS,
+    type LessonMotionStyle,
 } from "../../lib/lesson/motion";
-import { resetUserData } from "../../lib/resetAppState";
 import {
-  AI_MODELS,
-  AI_PROVIDER_LABELS,
-  effectiveRating,
-  getModelOption,
-  sortModels,
-  type AiModelOption,
-  type AiProvider,
+    AI_MODELS,
+    AI_PROVIDER_LABELS,
+    effectiveRating,
+    getModelOption,
+    sortModels,
+    type AiModelOption,
+    type AiProvider,
 } from "../../lib/providers/modelRegistry";
+import { resetUserData } from "../../lib/resetAppState";
 import { AI_PROVIDERS, useAiKeysStore } from "../../store/aiKeysStore";
 import { useModelRatingStore } from "../../store/modelRatingStore";
 import { useModelStore } from "../../store/modelStore";
@@ -144,17 +145,20 @@ function SectionCard({
   icon,
   children,
   theme,
+  fullWidth = false,
 }: {
   title: string;
   icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
   children: React.ReactNode;
   theme: ReturnType<typeof useThemeColors>;
+  fullWidth?: boolean;
 }) {
   return (
     <View
       style={[
         st.card,
         { backgroundColor: theme.glass, borderColor: theme.borderLight },
+        fullWidth && { marginHorizontal: 0, flex: 1 },
       ]}
     >
       <View style={st.cardHeader}>
@@ -253,9 +257,7 @@ function MotionStyleOption({
         style={[
           st.motionOptionIcon,
           {
-            backgroundColor: isActive
-              ? theme.primary + "18"
-              : theme.surface,
+            backgroundColor: isActive ? theme.primary + "18" : theme.surface,
           },
         ]}
       >
@@ -270,10 +272,7 @@ function MotionStyleOption({
           {label}
         </Text>
         <Text
-          style={[
-            st.motionOptionDescription,
-            { color: theme.textSecondary },
-          ]}
+          style={[st.motionOptionDescription, { color: theme.textSecondary }]}
         >
           {description}
         </Text>
@@ -297,6 +296,8 @@ function MotionStyleOption({
 export default function SettingsScreen() {
   const router = useRouter();
   const theme = useThemeColors();
+  const { width: windowWidth } = useWindowDimensions();
+  const isWideSettingsLayout = windowWidth >= 960;
 
   const { themeId, setTheme, customTheme, saveCustomTheme, deleteCustomTheme } =
     useThemeStore();
@@ -636,211 +637,513 @@ export default function SettingsScreen() {
         <Text style={[st.groupKicker, { color: theme.textMuted }]}>
           Personalize
         </Text>
-        <SectionCard title="Appearance" icon="palette-outline" theme={theme}>
-          <Text style={[st.themeGroupLabel, { color: theme.textMuted }]}>
-            Dark
-          </Text>
-          <View style={st.themeRow}>
-            {THEME_IDS.filter((id) => themeModes[id] === "dark").map((id) => {
-              const t = themes[id];
-              const isActive = themeId === id;
-              return (
-                <ThemeTile
-                  key={id}
-                  label={themeNames[id]}
-                  isActive={isActive}
-                  onPress={() => setTheme(id)}
-                  checkColor={t.primary}
-                  checkColorOn="#FFF"
-                >
-                  <View style={[st.themePresetBody, { backgroundColor: t.bg }]}>
-                    <LinearGradient
-                      colors={[t.gradientStart, t.gradientMid, t.gradientEnd]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={st.themePreviewBar}
-                    />
-                    <View style={st.themePreviewDots}>
-                      <View
-                        style={[st.themeDot, { backgroundColor: t.primary }]}
-                      />
-                      <View
-                        style={[st.themeDot, { backgroundColor: t.accent }]}
-                      />
-                    </View>
-                  </View>
-                </ThemeTile>
-              );
-            })}
-          </View>
-          <View
-            style={[
-              st.themeGroupSpacer,
-              { backgroundColor: theme.borderLight },
-            ]}
-          />
-          <Text style={[st.themeGroupLabel, { color: theme.textMuted }]}>
-            Light
-          </Text>
-          <View style={st.themeRow}>
-            {THEME_IDS.filter((id) => themeModes[id] === "light").map((id) => {
-              const t = themes[id];
-              const isActive = themeId === id;
-              return (
-                <ThemeTile
-                  key={id}
-                  label={themeNames[id]}
-                  isActive={isActive}
-                  onPress={() => setTheme(id)}
-                  checkColor={t.primary}
-                  checkColorOn="#FFF"
-                >
-                  <View style={[st.themePresetBody, { backgroundColor: t.bg }]}>
-                    <LinearGradient
-                      colors={[t.gradientStart, t.gradientMid, t.gradientEnd]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={st.themePreviewBar}
-                    />
-                    <View style={st.themePreviewDots}>
-                      <View
-                        style={[st.themeDot, { backgroundColor: t.primary }]}
-                      />
-                      <View
-                        style={[st.themeDot, { backgroundColor: t.accent }]}
-                      />
-                    </View>
-                  </View>
-                </ThemeTile>
-              );
-            })}
-          </View>
-          <View style={st.themeRow}>
-            <ThemeTile
-              label={customTheme?.name || "Custom"}
-              isActive={themeId === "custom"}
-              onPress={() => {
-                setShowEditor(true);
-                if (!customTheme) {
-                  setEditColors({
-                    bg: theme.bg,
-                    surface: theme.surface,
-                    text: theme.text,
-                    textSecondary: theme.textSecondary,
-                    primary: theme.primary,
-                    accent: theme.accent,
-                    border: theme.border,
-                    tabActive: theme.tabActive,
-                  });
-                  setEditorName("My Theme");
-                }
-              }}
-              checkColor={theme.text}
-              checkColorOn={theme.bg}
+        {isWideSettingsLayout ? (
+          <View style={st.twoColumnGrid}>
+            <SectionCard
+              title="Appearance"
+              icon="palette-outline"
+              theme={theme}
+              fullWidth
             >
+              <Text style={[st.themeGroupLabel, { color: theme.textMuted }]}>
+                Dark
+              </Text>
+              <View style={st.themeRow}>
+                {THEME_IDS.filter((id) => themeModes[id] === "dark").map(
+                  (id) => {
+                    const t = themes[id];
+                    const isActive = themeId === id;
+                    return (
+                      <ThemeTile
+                        key={id}
+                        label={themeNames[id]}
+                        isActive={isActive}
+                        onPress={() => setTheme(id)}
+                        checkColor={t.primary}
+                        checkColorOn="#FFF"
+                      >
+                        <View
+                          style={[
+                            st.themePresetBody,
+                            { backgroundColor: t.bg },
+                          ]}
+                        >
+                          <LinearGradient
+                            colors={[
+                              t.gradientStart,
+                              t.gradientMid,
+                              t.gradientEnd,
+                            ]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={st.themePreviewBar}
+                          />
+                          <View style={st.themePreviewDots}>
+                            <View
+                              style={[
+                                st.themeDot,
+                                { backgroundColor: t.primary },
+                              ]}
+                            />
+                            <View
+                              style={[
+                                st.themeDot,
+                                { backgroundColor: t.accent },
+                              ]}
+                            />
+                          </View>
+                        </View>
+                      </ThemeTile>
+                    );
+                  },
+                )}
+              </View>
               <View
                 style={[
-                  st.themePresetBody,
-                  { backgroundColor: customTheme?.colors.bg ?? theme.bg },
+                  st.themeGroupSpacer,
+                  { backgroundColor: theme.borderLight },
+                ]}
+              />
+              <Text style={[st.themeGroupLabel, { color: theme.textMuted }]}>
+                Light
+              </Text>
+              <View style={st.themeRow}>
+                {THEME_IDS.filter((id) => themeModes[id] === "light").map(
+                  (id) => {
+                    const t = themes[id];
+                    const isActive = themeId === id;
+                    return (
+                      <ThemeTile
+                        key={id}
+                        label={themeNames[id]}
+                        isActive={isActive}
+                        onPress={() => setTheme(id)}
+                        checkColor={t.primary}
+                        checkColorOn="#FFF"
+                      >
+                        <View
+                          style={[
+                            st.themePresetBody,
+                            { backgroundColor: t.bg },
+                          ]}
+                        >
+                          <LinearGradient
+                            colors={[
+                              t.gradientStart,
+                              t.gradientMid,
+                              t.gradientEnd,
+                            ]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={st.themePreviewBar}
+                          />
+                          <View style={st.themePreviewDots}>
+                            <View
+                              style={[
+                                st.themeDot,
+                                { backgroundColor: t.primary },
+                              ]}
+                            />
+                            <View
+                              style={[
+                                st.themeDot,
+                                { backgroundColor: t.accent },
+                              ]}
+                            />
+                          </View>
+                        </View>
+                      </ThemeTile>
+                    );
+                  },
+                )}
+              </View>
+              <View style={st.themeRow}>
+                <ThemeTile
+                  label={customTheme?.name || "Custom"}
+                  isActive={themeId === "custom"}
+                  onPress={() => {
+                    setShowEditor(true);
+                    if (!customTheme) {
+                      setEditColors({
+                        bg: theme.bg,
+                        surface: theme.surface,
+                        text: theme.text,
+                        textSecondary: theme.textSecondary,
+                        primary: theme.primary,
+                        accent: theme.accent,
+                        border: theme.border,
+                        tabActive: theme.tabActive,
+                      });
+                      setEditorName("My Theme");
+                    }
+                  }}
+                  checkColor={theme.text}
+                  checkColorOn={theme.bg}
+                >
+                  <View
+                    style={[
+                      st.themePresetBody,
+                      { backgroundColor: customTheme?.colors.bg ?? theme.bg },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={
+                        customTheme
+                          ? [
+                              customTheme.colors.primary,
+                              customTheme.colors.accent,
+                            ]
+                          : [theme.primary, theme.accent]
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={st.themePreviewBar}
+                    />
+                    <View style={st.themePreviewDots}>
+                      <MaterialIcons
+                        name="palette"
+                        size={15}
+                        color={
+                          themeId === "custom"
+                            ? theme.text
+                            : theme.textSecondary
+                        }
+                      />
+                    </View>
+                  </View>
+                </ThemeTile>
+              </View>
+              {customTheme && (
+                <Pressable
+                  style={[st.deleteThemeBtn, { borderColor: theme.border }]}
+                  onPress={() => {
+                    Alert.alert(
+                      "Delete Custom Theme",
+                      `Delete "${customTheme.name}" and reset to Graphite?`,
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Delete",
+                          style: "destructive",
+                          onPress: deleteCustomTheme,
+                        },
+                      ],
+                    );
+                  }}
+                >
+                  <Text style={[st.deleteThemeText, { color: theme.danger }]}>
+                    Delete Custom Theme
+                  </Text>
+                </Pressable>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Lesson motion"
+              icon="animation-outline"
+              theme={theme}
+              fullWidth
+            >
+              <Text style={[st.motionIntro, { color: theme.textSecondary }]}>
+                Choose how lesson slides, narration, diagrams, and checkpoints
+                move.
+              </Text>
+              <View style={st.motionList}>
+                {LESSON_MOTION_OPTIONS.map((option) => (
+                  <MotionStyleOption
+                    key={option.id}
+                    style={option.id}
+                    label={option.label}
+                    description={option.description}
+                    isActive={motionStyle === option.id}
+                    onPress={() => setMotionStyle(option.id)}
+                  />
+                ))}
+              </View>
+              <View
+                style={[
+                  st.motionNote,
+                  {
+                    backgroundColor: reduceMotion
+                      ? theme.accent + "12"
+                      : theme.surfaceAlt,
+                    borderColor: reduceMotion
+                      ? theme.accent + "35"
+                      : theme.borderLight,
+                  },
                 ]}
               >
-                <LinearGradient
-                  colors={
-                    customTheme
-                      ? [customTheme.colors.primary, customTheme.colors.accent]
-                      : [theme.primary, theme.accent]
-                  }
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={st.themePreviewBar}
+                <MaterialCommunityIcons
+                  name="information-outline"
+                  size={15}
+                  color={reduceMotion ? theme.accent : theme.textMuted}
                 />
-                <View style={st.themePreviewDots}>
-                  <MaterialIcons
-                    name="palette"
-                    size={15}
-                    color={
-                      themeId === "custom" ? theme.text : theme.textSecondary
-                    }
-                  />
-                </View>
+                <Text
+                  style={[
+                    st.motionNoteText,
+                    { color: reduceMotion ? theme.accent : theme.textMuted },
+                  ]}
+                >
+                  {reduceMotion
+                    ? "System Reduce Motion is on. Lessons will keep motion minimal."
+                    : "Your device's Reduce Motion setting always takes priority."}
+                </Text>
               </View>
-            </ThemeTile>
+            </SectionCard>
           </View>
-          {customTheme && (
-            <Pressable
-              style={[st.deleteThemeBtn, { borderColor: theme.border }]}
-              onPress={() => {
-                Alert.alert(
-                  "Delete Custom Theme",
-                  `Delete "${customTheme.name}" and reset to Graphite?`,
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Delete",
-                      style: "destructive",
-                      onPress: deleteCustomTheme,
-                    },
-                  ],
-                );
-              }}
+        ) : (
+          <>
+            <SectionCard
+              title="Appearance"
+              icon="palette-outline"
+              theme={theme}
             >
-              <Text style={[st.deleteThemeText, { color: theme.danger }]}>
-                Delete Custom Theme
+              <Text style={[st.themeGroupLabel, { color: theme.textMuted }]}>
+                Dark
               </Text>
-            </Pressable>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title="Lesson motion"
-          icon="animation-outline"
-          theme={theme}
-        >
-          <Text style={[st.motionIntro, { color: theme.textSecondary }]}>
-            Choose how lesson slides, narration, diagrams, and checkpoints move.
-          </Text>
-          <View style={st.motionList}>
-            {LESSON_MOTION_OPTIONS.map((option) => (
-              <MotionStyleOption
-                key={option.id}
-                style={option.id}
-                label={option.label}
-                description={option.description}
-                isActive={motionStyle === option.id}
-                onPress={() => setMotionStyle(option.id)}
+              <View style={st.themeRow}>
+                {THEME_IDS.filter((id) => themeModes[id] === "dark").map(
+                  (id) => {
+                    const t = themes[id];
+                    const isActive = themeId === id;
+                    return (
+                      <ThemeTile
+                        key={id}
+                        label={themeNames[id]}
+                        isActive={isActive}
+                        onPress={() => setTheme(id)}
+                        checkColor={t.primary}
+                        checkColorOn="#FFF"
+                      >
+                        <View
+                          style={[
+                            st.themePresetBody,
+                            { backgroundColor: t.bg },
+                          ]}
+                        >
+                          <LinearGradient
+                            colors={[
+                              t.gradientStart,
+                              t.gradientMid,
+                              t.gradientEnd,
+                            ]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={st.themePreviewBar}
+                          />
+                          <View style={st.themePreviewDots}>
+                            <View
+                              style={[
+                                st.themeDot,
+                                { backgroundColor: t.primary },
+                              ]}
+                            />
+                            <View
+                              style={[
+                                st.themeDot,
+                                { backgroundColor: t.accent },
+                              ]}
+                            />
+                          </View>
+                        </View>
+                      </ThemeTile>
+                    );
+                  },
+                )}
+              </View>
+              <View
+                style={[
+                  st.themeGroupSpacer,
+                  { backgroundColor: theme.borderLight },
+                ]}
               />
-            ))}
-          </View>
-          <View
-            style={[
-              st.motionNote,
-              {
-                backgroundColor: reduceMotion
-                  ? theme.accent + "12"
-                  : theme.surfaceAlt,
-                borderColor: reduceMotion
-                  ? theme.accent + "35"
-                  : theme.borderLight,
-              },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="information-outline"
-              size={15}
-              color={reduceMotion ? theme.accent : theme.textMuted}
-            />
-            <Text
-              style={[
-                st.motionNoteText,
-                { color: reduceMotion ? theme.accent : theme.textMuted },
-              ]}
+              <Text style={[st.themeGroupLabel, { color: theme.textMuted }]}>
+                Light
+              </Text>
+              <View style={st.themeRow}>
+                {THEME_IDS.filter((id) => themeModes[id] === "light").map(
+                  (id) => {
+                    const t = themes[id];
+                    const isActive = themeId === id;
+                    return (
+                      <ThemeTile
+                        key={id}
+                        label={themeNames[id]}
+                        isActive={isActive}
+                        onPress={() => setTheme(id)}
+                        checkColor={t.primary}
+                        checkColorOn="#FFF"
+                      >
+                        <View
+                          style={[
+                            st.themePresetBody,
+                            { backgroundColor: t.bg },
+                          ]}
+                        >
+                          <LinearGradient
+                            colors={[
+                              t.gradientStart,
+                              t.gradientMid,
+                              t.gradientEnd,
+                            ]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={st.themePreviewBar}
+                          />
+                          <View style={st.themePreviewDots}>
+                            <View
+                              style={[
+                                st.themeDot,
+                                { backgroundColor: t.primary },
+                              ]}
+                            />
+                            <View
+                              style={[
+                                st.themeDot,
+                                { backgroundColor: t.accent },
+                              ]}
+                            />
+                          </View>
+                        </View>
+                      </ThemeTile>
+                    );
+                  },
+                )}
+              </View>
+              <View style={st.themeRow}>
+                <ThemeTile
+                  label={customTheme?.name || "Custom"}
+                  isActive={themeId === "custom"}
+                  onPress={() => {
+                    setShowEditor(true);
+                    if (!customTheme) {
+                      setEditColors({
+                        bg: theme.bg,
+                        surface: theme.surface,
+                        text: theme.text,
+                        textSecondary: theme.textSecondary,
+                        primary: theme.primary,
+                        accent: theme.accent,
+                        border: theme.border,
+                        tabActive: theme.tabActive,
+                      });
+                      setEditorName("My Theme");
+                    }
+                  }}
+                  checkColor={theme.text}
+                  checkColorOn={theme.bg}
+                >
+                  <View
+                    style={[
+                      st.themePresetBody,
+                      { backgroundColor: customTheme?.colors.bg ?? theme.bg },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={
+                        customTheme
+                          ? [
+                              customTheme.colors.primary,
+                              customTheme.colors.accent,
+                            ]
+                          : [theme.primary, theme.accent]
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={st.themePreviewBar}
+                    />
+                    <View style={st.themePreviewDots}>
+                      <MaterialIcons
+                        name="palette"
+                        size={15}
+                        color={
+                          themeId === "custom"
+                            ? theme.text
+                            : theme.textSecondary
+                        }
+                      />
+                    </View>
+                  </View>
+                </ThemeTile>
+              </View>
+              {customTheme && (
+                <Pressable
+                  style={[st.deleteThemeBtn, { borderColor: theme.border }]}
+                  onPress={() => {
+                    Alert.alert(
+                      "Delete Custom Theme",
+                      `Delete "${customTheme.name}" and reset to Graphite?`,
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Delete",
+                          style: "destructive",
+                          onPress: deleteCustomTheme,
+                        },
+                      ],
+                    );
+                  }}
+                >
+                  <Text style={[st.deleteThemeText, { color: theme.danger }]}>
+                    Delete Custom Theme
+                  </Text>
+                </Pressable>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Lesson motion"
+              icon="animation-outline"
+              theme={theme}
             >
-              {reduceMotion
-                ? "System Reduce Motion is on. Lessons will keep motion minimal."
-                : "Your device's Reduce Motion setting always takes priority."}
-            </Text>
-          </View>
-        </SectionCard>
+              <Text style={[st.motionIntro, { color: theme.textSecondary }]}>
+                Choose how lesson slides, narration, diagrams, and checkpoints
+                move.
+              </Text>
+              <View style={st.motionList}>
+                {LESSON_MOTION_OPTIONS.map((option) => (
+                  <MotionStyleOption
+                    key={option.id}
+                    style={option.id}
+                    label={option.label}
+                    description={option.description}
+                    isActive={motionStyle === option.id}
+                    onPress={() => setMotionStyle(option.id)}
+                  />
+                ))}
+              </View>
+              <View
+                style={[
+                  st.motionNote,
+                  {
+                    backgroundColor: reduceMotion
+                      ? theme.accent + "12"
+                      : theme.surfaceAlt,
+                    borderColor: reduceMotion
+                      ? theme.accent + "35"
+                      : theme.borderLight,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="information-outline"
+                  size={15}
+                  color={reduceMotion ? theme.accent : theme.textMuted}
+                />
+                <Text
+                  style={[
+                    st.motionNoteText,
+                    { color: reduceMotion ? theme.accent : theme.textMuted },
+                  ]}
+                >
+                  {reduceMotion
+                    ? "System Reduce Motion is on. Lessons will keep motion minimal."
+                    : "Your device's Reduce Motion setting always takes priority."}
+                </Text>
+              </View>
+            </SectionCard>
+          </>
+        )}
 
         {/* AI & Models */}
         <Text style={[st.groupKicker, { color: theme.textMuted }]}>
@@ -1517,6 +1820,13 @@ const st = StyleSheet.create({
   versionChipText: { fontSize: 11, fontWeight: "700", fontFamily },
 
   scroll: { paddingTop: 18, paddingBottom: 40 },
+  twoColumnGrid: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 20,
+    marginHorizontal: 20,
+    marginBottom: 20,
+  },
 
   hero: {
     marginHorizontal: 20,
