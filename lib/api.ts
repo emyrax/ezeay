@@ -17,7 +17,28 @@ import type {
 import type { CollarType, Availability, Education, WorkExperience, Certification } from "../types/user";
 import type { StudyMaterial, StudyQuiz, QuizAttempt, StudySuggestion } from "../types/study";
 import type { Flashcard, FlashcardQuality, FlashcardReviewResult } from "../types/flashcard";
-import type { CommunityOverview, CommunityFeed, CommunityPost, CommunityPostComment, CommunityPostsResponse } from "../types/community";
+import type {
+  CommunityOverview,
+  CommunityFeed,
+  CommunityPost,
+  CommunityPostComment,
+  CommunityPostsResponse,
+  ExploreResourcePost,
+  ReelHookMeta,
+} from "../types/community";
+import type {
+  ReelChallengeResponse,
+  ReelDailyProgress,
+} from "../types/reel";
+import type {
+  ChapterThreadResponse,
+  ThreadChallengeResponse,
+  ThreadCommentListResponse,
+  ThreadFeedPage,
+  ThreadFollowResponse,
+  ThreadLikeResponse,
+  ThreadProfileResponse,
+} from "../types/thread";
 import { useModelStore } from "../store/modelStore";
 import { useAiKeysStore } from "../store/aiKeysStore";
 import {
@@ -603,11 +624,40 @@ export const api = {
     overview: (token: string) =>
       apiFetch<CommunityOverview>(`/api/community/overview`, { token }),
 
-    feed: (token: string, limit = 20, includeMine = false, offset = 0) =>
+    feed: (
+      token: string,
+      limit = 20,
+      includeMine = false,
+      offset = 0,
+      cursor?: string | null,
+    ) =>
       apiFetch<CommunityFeed>(
-        `/api/community/feed?limit=${limit}&includeMine=${includeMine ? "1" : "0"}&offset=${offset}`,
+        `/api/community/feed?limit=${limit}&includeMine=${includeMine ? "1" : "0"}&offset=${offset}${
+          cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""
+        }`,
         { token },
       ),
+
+    challenge: (
+      courseId: string,
+      data: {
+        chapterIndex: number;
+        subtopicIndex: number;
+        selectedIndex: number;
+      },
+      token: string,
+    ) =>
+      apiFetch<ReelChallengeResponse>(
+        `/api/community/feed/${encodeURIComponent(courseId)}/challenge`,
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+          token,
+        },
+      ),
+
+    daily: (token: string) =>
+      apiFetch<ReelDailyProgress>("/api/reels/daily", { token }),
 
     feedLike: (courseId: string, token: string) =>
       apiFetch<{ liked: boolean; likeCount: number }>(
@@ -619,6 +669,73 @@ export const api = {
       apiFetch<{ viewCount: number }>(
         `/api/community/feed/${courseId}/view`,
         { method: "POST", token },
+      ),
+
+    subtopicFeed: (
+      token: string,
+      params: { limit?: number; offset?: number; includeMine?: boolean; seed?: number } = {},
+    ) => {
+      const limit = params.limit ?? 20;
+      const offset = params.offset ?? 0;
+      const query = [`limit=${limit}`, `offset=${offset}`];
+      if (params.includeMine) query.push("includeMine=1");
+      if (params.seed) query.push(`seed=${params.seed}`);
+      return apiFetch<ThreadFeedPage>(
+        `/api/community/subtopic-feed?${query.join("&")}`,
+        { token },
+      );
+    },
+
+    chapterThread: (chapterId: string, token: string) =>
+      apiFetch<ChapterThreadResponse>(
+        `/api/community/chapters/${encodeURIComponent(chapterId)}/thread`,
+        { token },
+      ),
+
+    threadProfile: (userId: string, token: string) =>
+      apiFetch<ThreadProfileResponse>(
+        `/api/community/users/${encodeURIComponent(userId)}/thread-profile`,
+        { token },
+      ),
+
+    followUser: (userId: string, token: string) =>
+      apiFetch<ThreadFollowResponse>(
+        `/api/community/users/${encodeURIComponent(userId)}/follow`,
+        { method: "POST", token },
+      ),
+
+    unfollowUser: (userId: string, token: string) =>
+      apiFetch<ThreadFollowResponse>(
+        `/api/community/users/${encodeURIComponent(userId)}/follow`,
+        { method: "DELETE", token },
+      ),
+
+    challengeUser: (userId: string, token: string, postId?: string) =>
+      apiFetch<ThreadChallengeResponse>(
+        `/api/community/users/${encodeURIComponent(userId)}/challenge`,
+        {
+          method: "POST",
+          body: JSON.stringify(postId ? { postId } : {}),
+          token,
+        },
+      ),
+
+    likeThreadPost: (postId: string, token: string) =>
+      apiFetch<ThreadLikeResponse>(
+        `/api/community/threads/${encodeURIComponent(postId)}/like`,
+        { method: "POST", token },
+      ),
+
+    threadComments: (postId: string, token: string, limit = 50) =>
+      apiFetch<ThreadCommentListResponse>(
+        `/api/community/threads/${encodeURIComponent(postId)}/comments?limit=${limit}`,
+        { token },
+      ),
+
+    addThreadComment: (postId: string, body: string, token: string) =>
+      apiFetch<{ comment: ThreadCommentListResponse["comments"][number] }>(
+        `/api/community/threads/${encodeURIComponent(postId)}/comments`,
+        { method: "POST", body: JSON.stringify({ body }), token },
       ),
 
     posts: {
@@ -646,6 +763,49 @@ export const api = {
           `/api/community/posts/${postId}/comments`,
           { method: "POST", body: JSON.stringify({ body }), token },
         ),
+    },
+
+    resources: {
+      create: (
+        data: {
+          title: string;
+          summary: string;
+          hook: string;
+          challengeType: string;
+          challengePrompt: string;
+          challengeOptions: string[];
+          correctChoiceIndex?: number;
+          revealText: string;
+          shareCopy: string;
+          resourceType: string;
+          fileName: string;
+          fileSizeBytes: number;
+          mimeType: string;
+          storageUrl: string;
+          previewUrl?: string;
+          previewText?: string;
+          tags?: string[];
+          difficulty?: string;
+        },
+        token: string,
+      ) =>
+        apiFetch<{ post: ExploreResourcePost }>('/api/community/resources', {
+          method: 'POST',
+          body: JSON.stringify(data),
+          token,
+        }),
+
+      generateChallenge: (
+        data: { title: string; summary: string; resourceType: string },
+        token: string,
+      ) =>
+        apiFetch<ReelHookMeta>('/api/community/resources/challenge-preview', {
+          method: 'POST',
+          body: JSON.stringify(data),
+          token,
+          headers: aiModelHeaders(),
+          timeoutMs: 30_000,
+        }),
     },
   },
 

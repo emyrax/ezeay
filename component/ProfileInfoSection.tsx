@@ -3,9 +3,11 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, Modal, Alert, ActivityIndicator, Pressable, Linking, Switch, Platform,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Clipboard from "expo-clipboard";
 import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { eventBus } from "../lib/eventBus";
 import { useThemeColors } from "../hooks/useTheme";
 import { bodyFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
@@ -121,9 +123,9 @@ function GroupCard({ theme, children }: {
 }
 
 export default function ProfileInfoSection({
-  profile, startEditing, onDoneEditing,
+  profile, startEditing, onDoneEditing, wide = false,
 }: {
-  profile: UserProfile; startEditing: boolean; onDoneEditing: () => void;
+  profile: UserProfile; startEditing: boolean; onDoneEditing: () => void; wide?: boolean;
 }) {
   const theme = useThemeColors();
   const { getToken } = useAuth();
@@ -589,7 +591,7 @@ export default function ProfileInfoSection({
 
   if (editMode) {
     return (
-      <View>
+      <View style={infoStyles.editShell}>
         <View style={infoStyles.editActions}>
           <TouchableOpacity onPress={handleCancel} style={[infoStyles.xBtn, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]} hitSlop={8}>
             <MaterialCommunityIcons name="close" size={20} color={theme.textSecondary} />
@@ -872,20 +874,39 @@ export default function ProfileInfoSection({
     );
   }
 
-  return (
-    <View>
+  const basicGroup = (
+    <>
       <GroupHeader title="Basic Info" theme={theme} />
       <GroupCard theme={theme}>
         <ViewRow icon="account" label="Name" value={profile.displayName || profile.email?.split("@")[0] || "Scholar"} theme={theme} />
         <ViewRow icon="cake" label="Birthday" value={profile.birthday ? new Date(profile.birthday).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : undefined} theme={theme} tint={theme.accent} />
-        <ViewRow icon="email" label="Email" value={profile.email} theme={theme} tint={theme.info} />
+        <ViewRow
+          icon="email"
+          label="Email"
+          value={profile.email}
+          theme={theme}
+          tint={theme.info}
+          onPress={
+            profile.email
+              ? () => {
+                  void Clipboard.setStringAsync(profile.email ?? "").then(() =>
+                    eventBus.emit("toast:success", { title: "Email copied" }),
+                  );
+                }
+              : undefined
+          }
+        />
         <ViewRow icon="map-marker" label="Location" value={profile.location} theme={theme} tint={theme.accent} />
         <ViewRow icon="layers" label="Department" value={profile.department} theme={theme} />
         <ViewRow icon="link" label="Website" value={profile.website} theme={theme} tint={theme.accent} onPress={openUrl(profile.website)} />
         <ViewRow icon="linkedin" label="LinkedIn" value={profile.linkedInUrl ? "View Profile" : undefined} theme={theme} tint={theme.info} onPress={openUrl(profile.linkedInUrl)} />
         <ViewRow icon="calendar" label="Member Since" value={profile.createdAt ? new Date(profile.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "Unknown"} theme={theme} tint={theme.info} />
       </GroupCard>
+    </>
+  );
 
+  const learningGroup = (
+    <>
       <GroupHeader title="Learning Profile" theme={theme} />
       <GroupCard theme={theme}>
         <ViewRow
@@ -909,23 +930,52 @@ export default function ProfileInfoSection({
           tint={theme.accent}
         />
       </GroupCard>
+    </>
+  );
 
-      {profile.professionalInfoEnabled !== false && (
-        <>
-          <GroupHeader title="Professional Info" theme={theme} />
-          <GroupCard theme={theme}>
-            <ViewRow icon="domain" label="Industry" value={profile.industry} theme={theme} tint={theme.accent} />
-            <ViewRow icon="briefcase" label="Job Title" value={profile.jobTitle} theme={theme} tint={theme.accent} />
-            <ViewRow icon="domain" label="Company" value={profile.company} theme={theme} tint={theme.accent} />
-            <ViewRow icon="tie" label="Collar Type" value={profile.collarType ? profile.collarType.replace("_", " ") : undefined} theme={theme} tint={theme.accent} />
-          </GroupCard>
-        </>
-      )}
+  const professionalGroup =
+    profile.professionalInfoEnabled !== false ? (
+      <>
+        <GroupHeader title="Professional Info" theme={theme} />
+        <GroupCard theme={theme}>
+          <ViewRow icon="domain" label="Industry" value={profile.industry} theme={theme} tint={theme.accent} />
+          <ViewRow icon="briefcase" label="Job Title" value={profile.jobTitle} theme={theme} tint={theme.accent} />
+          <ViewRow icon="domain" label="Company" value={profile.company} theme={theme} tint={theme.accent} />
+          <ViewRow icon="tie" label="Collar Type" value={profile.collarType ? profile.collarType.replace("_", " ") : undefined} theme={theme} tint={theme.accent} />
+        </GroupCard>
+      </>
+    ) : null;
 
+  const availabilityGroup = (
+    <>
       <GroupHeader title="Availability" theme={theme} />
       <GroupCard theme={theme}>
         <ViewRow icon="checkbox-marked-circle" label="Status" value={profile.availability ? AVAILABILITY_LABELS[profile.availability] || profile.availability : undefined} theme={theme} tint={theme.success} />
       </GroupCard>
+    </>
+  );
+
+  if (wide) {
+    return (
+      <View style={infoStyles.wideColumns}>
+        <View style={infoStyles.wideColumn}>
+          {basicGroup}
+          {availabilityGroup}
+        </View>
+        <View style={infoStyles.wideColumn}>
+          {learningGroup}
+          {professionalGroup}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      {basicGroup}
+      {learningGroup}
+      {professionalGroup}
+      {availabilityGroup}
     </View>
   );
 }
@@ -1017,6 +1067,9 @@ function CertModal({ certification, onSave, onClose }: { certification: Certific
 }
 
 const infoStyles = StyleSheet.create({
+  editShell: { width: "100%", maxWidth: 780, alignSelf: "center" },
+  wideColumns: { flexDirection: "row", alignItems: "flex-start", gap: 20 },
+  wideColumn: { flex: 1, minWidth: 0 },
   groupHeader: {
     fontFamily: bodyFont,
     fontSize: 13,

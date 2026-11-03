@@ -30,10 +30,10 @@ export const TAB_ITEMS: TabItem[] = [
   },
   {
     name: "stats",
-    title: "EXPLORE",
-    iconName: "compass-outline",
+    title: "THREADS",
+    iconName: "message-text-outline",
     href: "/stats",
-    accessibilityLabel: "Navigate to Explore Courses Screen",
+    accessibilityLabel: "Navigate to Threads Feed",
   },
   {
     name: "profile",

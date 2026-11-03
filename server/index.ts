@@ -13,7 +13,7 @@ import crypto from "crypto";
 import { verifyToken } from "@clerk/backend";
 import { neon, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { eq, and, or, inArray, gte, desc, asc, isNull, isNotNull, ne, ilike, sql as drizzleSql, count, sum, gt } from "drizzle-orm";
+import { eq, and, or, inArray, gte, desc, asc, isNull, isNotNull, ne, ilike, sql as drizzleSql, count, sum, gt, lt } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { initGemini, generateCourseContent, generateJsonContent, generateQuizQuestions, generateDailyBounties, generateThumbnailImage, generateTextWithFile, generateEmbedding, generateLessonScript, generateSpeech, TTS_MODEL, TTS_VOICE } from "../lib/gemini";
 import type { GeminiBounty } from "../lib/gemini";
@@ -40,10 +40,16 @@ import {
   communityPostReactions,
   communityPostComments,
   courseFeedLikes,
+  reelChallengeAttempts,
+  reelDailyProgress,
   lessonScripts,
+  userFollows,
+  userChallenges,
+  threadPostLikes,
+  threadPostComments,
 } from "../db/schema";
 import { generateFallbackBounties } from "./bountyTemplates";
-import { buildCourseGenerationPrompt, buildThumbnailGenerationPrompt } from "./prompts/courseGeneration";
+import { buildCourseGenerationPrompt, buildThumbnailGenerationPrompt, buildResourceChallengePrompt } from "./prompts/courseGeneration";
 import { buildQuizGenerationPrompt } from "./prompts/quizGeneration";
 import { buildStudyExtractionPrompt } from "./prompts/studyProcessing";
 import { buildStudyCheatsheetPrompt, buildFlashcardsPrompt, buildStudySuggestPrompt } from "./prompts/studyGeneration";
@@ -64,6 +70,23 @@ import { lessonSourceHash } from "../lib/lesson/validateLessonScript";
 import type { Course } from "../types/course";
 import type { AudioClip, NoteImage } from "../types/note";
 import type { Chapter, Subtopic } from "../types/chapter";
+import type { ReelChallengeType } from "../types/community";
+import type { SubtopicThreadPost, ThreadComment, ThreadUser } from "../types/thread";
+import {
+  MAX_THREAD_ATTACHMENT_BYTES,
+  buildChapterId,
+  deriveHandle,
+  deriveIqScore,
+  flattenChapterSubtopics,
+  flattenCourseSubtopics,
+  mapResourceToThreadItem,
+  normalizeSeed,
+  parseChapterId,
+  parseChapters,
+  parseThreadPostId,
+  seededRank,
+} from "./threadFeed";
+import type { BaseThreadItem } from "./threadFeed";
 import type {
   LessonAudioClip,
   LessonExplainAction,
@@ -106,7 +129,7 @@ for (const level of ["error", "warn"] as const) {
 let errorCounter = 0;
 
 const app = express();
-app.use(express.json({ limit: "25mb" }));
+app.use(express.json({ limit: "50mb" }));
 app.use(helmet());
 
 const isProd = process.env.NODE_ENV === "production";
@@ -471,7 +494,7 @@ const sql = Object.assign(
 ) as typeof rawSql;
 
 const db = drizzle(sql, {
-  schema: { users, levels, trophies, courses, courseEnrollments, userTrophies, studyMaterials, studyFlashcards, quizAttempts, knowledgeChunks, noteChats, notes, bountyClaims, spinClaims, userDailyActivity, communityPosts, communityPostReactions, communityPostComments },
+  schema: { users, levels, trophies, courses, courseEnrollments, userTrophies, studyMaterials, studyFlashcards, quizAttempts, knowledgeChunks, noteChats, notes, bountyClaims, spinClaims, userDailyActivity, communityPosts, communityPostReactions, communityPostComments, reelChallengeAttempts, reelDailyProgress },
 });
 
 app.get("/api/health", async (_req, res) => {
@@ -1122,7 +1145,15 @@ app.get("/api/community/feed", async (req, res) => {
     const offsetRaw = Number(req.query.offset);
     const offset =
       Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
+    const cursorRaw =
+      typeof req.query.cursor === "string" ? req.query.cursor.trim() : "";
+    const cursorDate = cursorRaw ? new Date(cursorRaw) : null;
+    if (cursorDate && Number.isNaN(cursorDate.getTime())) {
+      res.status(400).json({ error: "Invalid cursor" });
+      return;
+    }
     const whereConds: (SQL | undefined)[] = [];
+    if (cursorDate) whereConds.push(lt(courses.sharedAt, cursorDate));
 
     if (includeMine) {
       whereConds.push(
@@ -1165,8 +1196,8 @@ app.get("/api/community/feed", async (req, res) => {
       .from(courses)
       .where(and(...whereConds))
       .orderBy(desc(courses.sharedAt))
-      .offset(offset)
-      .limit(limit);
+      .offset(cursorDate ? 0 : offset)
+      .limit(limit + 1);
 
     const courseIds = rows.map((r) => r.id);
     const [likeAggRows, myLikeRows] =
@@ -1204,9 +1235,20 @@ app.get("/api/community/feed", async (req, res) => {
               order: ci,
               isPrivate: !!ch?.isPrivate,
               subtopics: Array.isArray(ch?.subtopics)
-                ? ch.subtopics.map((sub, si) => ({
+                ? ch.subtopics.map((sub: any, si: number) => ({
                     title: sub?.title || "",
                     order: si,
+                    hook: sub?.hook || ("The key insight in " + (sub?.title || "this topic")),
+                    hookTone: sub?.hookTone || "curious",
+                    challengeType: sub?.challengeType || "multiple-choice",
+                    challengePrompt: sub?.challengePrompt || ("What is the core principle behind " + (sub?.title || "this concept") + "?"),
+                    challengeOptions: Array.isArray(sub?.challengeOptions) && sub.challengeOptions.length > 0
+                      ? sub.challengeOptions
+                      : ["Master fundamentals", "Skip the basics", "Guess and check"],
+                    correctChoiceIndex: typeof sub?.correctChoiceIndex === "number" ? sub.correctChoiceIndex : 0,
+                    revealText: sub?.revealText || ((sub?.title || "This concept") + " is best mastered through active practice and recall."),
+                    shareCopy: sub?.shareCopy || ("Game-changing takeaway on " + (sub?.title || "this topic") + "!"),
+                    xpReward: typeof sub?.xpReward === "number" ? sub.xpReward : 20,
                   }))
                 : [],
             }));
@@ -1236,13 +1278,1290 @@ app.get("/api/community/feed", async (req, res) => {
       };
     });
 
-    res.json({ posts, refreshedAt: new Date().toISOString(), hasMore: rows.length === limit });
+        // Fetch user-uploaded resource posts
+    let resourceFeedPosts: any[] = [];
+    try {
+      const resourceRows = await db
+        .select({
+          id: communityPosts.id,
+          body: communityPosts.body,
+          challengeType: communityPosts.challengeType,
+          createdAt: communityPosts.createdAt,
+          userId: communityPosts.userId,
+          authorName: users.displayName,
+          authorPhoto: users.photoUrl,
+        })
+        .from(communityPosts)
+        .innerJoin(users, eq(communityPosts.userId, users.id))
+        .where(
+          and(
+            eq(communityPosts.challengeType, "resource"),
+            cursorDate ? lt(communityPosts.createdAt, cursorDate) : undefined,
+          ),
+        )
+        .orderBy(desc(communityPosts.createdAt))
+        .offset(cursorDate ? 0 : offset)
+        .limit(limit + 1);
+
+      resourceFeedPosts = resourceRows.map((r) => {
+        let data: any = {};
+        try {
+          data = JSON.parse(r.body);
+        } catch {
+          data = { title: "Study Resource", summary: r.body };
+        }
+        const icon =
+          data.resourceType === "handwritten"
+            ? "draw"
+            : data.resourceType === "pdf"
+              ? "file-pdf-box"
+              : data.resourceType === "image"
+                ? "image"
+                : data.resourceType === "audio"
+                  ? "file-music"
+                  : "file-document";
+
+        return {
+          id: r.id,
+          title: data.title || "Community Resource",
+          description: data.summary || "",
+          category: data.resourceType || "resource",
+          difficulty: data.difficulty || "All Levels",
+          totalChapters: 1,
+          rewardXp: data.xpReward || 20,
+          icon,
+          creatorId: r.userId,
+          creatorName: r.authorName || "Scholar",
+          creatorAvatar: r.authorPhoto || undefined,
+          thumbnailUrl: data.previewUrl || data.storageUrl,
+          sharedAt: r.createdAt.toISOString(),
+          isMine: r.userId === claims.sub,
+          likeCount: 0,
+          likedByMe: false,
+          viewCount: data.views || 0,
+          chapterIndex: [
+            {
+              title: data.title || "Resource",
+              order: 0,
+              isPrivate: false,
+              subtopics: [
+                {
+                  title: data.title || "Resource",
+                  order: 0,
+                  hook: data.hook || ("Take a look at this " + (data.resourceType || "study") + " resource"),
+                  hookTone: data.hookTone || "curious",
+                  challengeType: data.challengeType || "multiple-choice",
+                  challengePrompt: data.challengePrompt || "What is the key takeaway from this resource?",
+                  challengeOptions: Array.isArray(data.challengeOptions) && data.challengeOptions.length > 0
+                    ? data.challengeOptions
+                    : ["Core concept pattern", "Passive memorization", "Trial and error"],
+                  correctChoiceIndex: typeof data.correctChoiceIndex === "number" ? data.correctChoiceIndex : 0,
+                  revealText: data.revealText || data.summary || "Peer study resources accelerate high-retention learning.",
+                  shareCopy: data.shareCopy || "Awesome study resource on Yuinx!",
+                  xpReward: 20,
+                },
+              ],
+            },
+          ],
+          resourcePost: {
+            id: r.id,
+            authorId: r.userId,
+            authorName: r.authorName || "Scholar",
+            authorAvatar: r.authorPhoto || undefined,
+            createdAt: r.createdAt.toISOString(),
+            type: "resource",
+            title: data.title || "Resource",
+            summary: data.summary || "",
+            hook: data.hook || "",
+            hookTone: data.hookTone,
+            challengeType: data.challengeType || "multiple-choice",
+            challengePrompt: data.challengePrompt || "",
+            challengeOptions: data.challengeOptions || [],
+            correctChoiceIndex: data.correctChoiceIndex ?? 0,
+            revealText: data.revealText || "",
+            shareCopy: data.shareCopy || "",
+            resourceType: data.resourceType || "other",
+            fileName: data.fileName || "resource",
+            fileSizeBytes: data.fileSizeBytes || 0,
+            mimeType: data.mimeType || "application/octet-stream",
+            storageUrl: data.storageUrl || "",
+            previewUrl: data.previewUrl,
+            previewText: data.previewText,
+            isPublic: true,
+            tags: data.tags || [],
+            likes: 0,
+            saves: 0,
+            shares: 0,
+            views: data.views || 0,
+            difficulty: data.difficulty,
+            xpReward: data.xpReward || 20,
+          },
+        };
+      });
+    } catch (e) {
+      console.warn("[Server] Resource feed fetch warning:", e);
+    }
+
+    const allPosts = [...posts, ...resourceFeedPosts].sort(
+      (a, b) => new Date(b.sharedAt).getTime() - new Date(a.sharedAt).getTime(),
+    );
+    const hasMore = allPosts.length > limit;
+    const page = allPosts.slice(0, limit);
+    const nextCursor =
+      hasMore && page.length > 0 ? page[page.length - 1].sharedAt : null;
+
+    res.json({
+      posts: page,
+      refreshedAt: new Date().toISOString(),
+      hasMore,
+      nextCursor,
+    });
   } catch (err: any) {
     if (isTokenError(err)) {
       res.status(401).json({ error: "Invalid token" });
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/feed failed");
+  }
+});
+
+interface ThreadAuthorProfile {
+  id: string;
+  displayName: string;
+  photoUrl: string | null;
+  bio: string | null;
+  xp: number;
+}
+
+interface ThreadAuthorContext {
+  profiles: Map<string, ThreadAuthorProfile>;
+  followers: Map<string, number>;
+  following: Map<string, number>;
+  followingSet: Set<string>;
+  challengedSet: Set<string>;
+}
+
+async function loadThreadAuthorContext(
+  viewerId: string,
+  authorIds: string[],
+): Promise<ThreadAuthorContext> {
+  const uniqueIds = Array.from(new Set(authorIds.filter(Boolean)));
+  if (uniqueIds.length === 0) {
+    return {
+      profiles: new Map(),
+      followers: new Map(),
+      following: new Map(),
+      followingSet: new Set(),
+      challengedSet: new Set(),
+    };
+  }
+
+  const [profileRows, followerRows, followingRows, viewerFollowRows, viewerChallengeRows] =
+    await Promise.all([
+      db
+        .select({
+          id: users.id,
+          displayName: users.displayName,
+          photoUrl: users.photoUrl,
+          bio: users.bio,
+          xp: users.xp,
+        })
+        .from(users)
+        .where(inArray(users.id, uniqueIds)),
+      db
+        .select({ id: userFollows.followingId, value: count() })
+        .from(userFollows)
+        .where(inArray(userFollows.followingId, uniqueIds))
+        .groupBy(userFollows.followingId),
+      db
+        .select({ id: userFollows.followerId, value: count() })
+        .from(userFollows)
+        .where(inArray(userFollows.followerId, uniqueIds))
+        .groupBy(userFollows.followerId),
+      db
+        .select({ id: userFollows.followingId })
+        .from(userFollows)
+        .where(
+          and(
+            eq(userFollows.followerId, viewerId),
+            inArray(userFollows.followingId, uniqueIds),
+          ),
+        ),
+      db
+        .select({ id: userChallenges.challengedUserId })
+        .from(userChallenges)
+        .where(
+          and(
+            eq(userChallenges.challengerId, viewerId),
+            inArray(userChallenges.challengedUserId, uniqueIds),
+          ),
+        ),
+    ]);
+
+  return {
+    profiles: new Map(profileRows.map((row) => [row.id, row])),
+    followers: new Map(followerRows.map((row) => [row.id, Number(row.value)])),
+    following: new Map(followingRows.map((row) => [row.id, Number(row.value)])),
+    followingSet: new Set(viewerFollowRows.map((row) => row.id)),
+    challengedSet: new Set(viewerChallengeRows.map((row) => row.id)),
+  };
+}
+
+function buildThreadUser(
+  id: string,
+  context: ThreadAuthorContext,
+  fallbackName?: string | null,
+  fallbackAvatar?: string | null,
+): ThreadUser {
+  const profile = context.profiles.get(id);
+  const displayName = profile?.displayName ?? fallbackName ?? null;
+  return {
+    id,
+    name: displayName,
+    avatarUrl: profile?.photoUrl ?? fallbackAvatar ?? null,
+    handle: deriveHandle(displayName, id),
+    bio: profile?.bio ?? null,
+    iqScore: deriveIqScore(profile?.xp ?? 0),
+    followersCount: context.followers.get(id) ?? 0,
+    followingCount: context.following.get(id) ?? 0,
+    isFollowing: context.followingSet.has(id),
+    isChallenged: context.challengedSet.has(id),
+  };
+}
+
+async function enrichThreadItems(
+  items: BaseThreadItem[],
+  viewerId: string,
+): Promise<SubtopicThreadPost[]> {
+  if (items.length === 0) return [];
+
+  const postIds = Array.from(new Set(items.map((item) => item.id)));
+  const [authorContext, likeRows, myLikeRows, commentRows] = await Promise.all([
+    loadThreadAuthorContext(
+      viewerId,
+      items.map((item) => item.authorId),
+    ),
+    db
+      .select({ id: threadPostLikes.postId, value: count() })
+      .from(threadPostLikes)
+      .where(inArray(threadPostLikes.postId, postIds))
+      .groupBy(threadPostLikes.postId),
+    db
+      .select({ id: threadPostLikes.postId })
+      .from(threadPostLikes)
+      .where(
+        and(eq(threadPostLikes.userId, viewerId), inArray(threadPostLikes.postId, postIds)),
+      ),
+    db
+      .select({ id: threadPostComments.postId, value: count() })
+      .from(threadPostComments)
+      .where(inArray(threadPostComments.postId, postIds))
+      .groupBy(threadPostComments.postId),
+  ]);
+
+  const likeMap = new Map(likeRows.map((row) => [row.id, Number(row.value)]));
+  const commentMap = new Map(commentRows.map((row) => [row.id, Number(row.value)]));
+  const myLikeSet = new Set(myLikeRows.map((row) => row.id));
+
+  return items.map((item) => ({
+    ...item,
+    author: buildThreadUser(
+      item.authorId,
+      authorContext,
+      item.authorName,
+      item.authorAvatar,
+    ),
+    likesCount: likeMap.get(item.id) ?? 0,
+    commentsCount: commentMap.get(item.id) ?? 0,
+    isLikedByMe: myLikeSet.has(item.id),
+  }));
+}
+
+async function resolveThreadPostRecord(
+  viewerId: string,
+  postId: string,
+): Promise<BaseThreadItem | null> {
+  const parsed = parseThreadPostId(postId);
+  if (!parsed) return null;
+
+  if (parsed.kind === "subtopic") {
+    const courseId = parsed.courseId as string;
+    const chapterIndex = parsed.chapterIndex as number;
+    const subtopicIndex = parsed.subtopicIndex as number;
+    const [course] = await db
+      .select({
+        id: courses.id,
+        title: courses.title,
+        category: courses.category,
+        creatorId: courses.creatorId,
+        creatorName: courses.creatorName,
+        creatorAvatar: courses.creatorAvatar,
+        chapters: courses.chapters,
+        sharedAt: courses.sharedAt,
+        isPublic: courses.isPublic,
+        deletedAt: courses.deletedAt,
+      })
+      .from(courses)
+      .where(eq(courses.id, courseId))
+      .limit(1);
+
+    if (!course || course.deletedAt) return null;
+    const isOwner = course.creatorId === viewerId;
+    if (!isOwner && (!course.isPublic || !course.sharedAt)) return null;
+
+    const chapters = parseChapters(course.chapters);
+    const chapter = chapters[chapterIndex];
+    if (!chapter) return null;
+    if (chapter.isPrivate && !isOwner) return null;
+
+    const chapterItems = flattenChapterSubtopics(
+      {
+        id: course.id,
+        title: course.title,
+        category: course.category ?? null,
+        creatorId: course.creatorId,
+        creatorName: course.creatorName ?? null,
+        creatorAvatar: course.creatorAvatar ?? null,
+        chapters: course.chapters,
+        sharedAt: course.sharedAt,
+      },
+      chapter,
+      chapterIndex,
+    );
+
+    return chapterItems[subtopicIndex] ?? null;
+  }
+
+  const resourceId = parsed.resourceId as string;
+  const [row] = await db
+    .select({
+      id: communityPosts.id,
+      userId: communityPosts.userId,
+      body: communityPosts.body,
+      createdAt: communityPosts.createdAt,
+      authorName: users.displayName,
+      authorAvatar: users.photoUrl,
+    })
+    .from(communityPosts)
+    .innerJoin(users, eq(communityPosts.userId, users.id))
+    .where(
+      and(eq(communityPosts.id, resourceId), eq(communityPosts.challengeType, "resource")),
+    )
+    .limit(1);
+
+  if (!row) return null;
+  return mapResourceToThreadItem(row);
+}
+
+app.get("/api/community/subtopic-feed", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const limitRaw = Number(req.query.limit);
+    const limit =
+      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 50) : 20;
+    const offsetRaw = Number(req.query.offset);
+    const offset =
+      Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
+    const includeMine = req.query.includeMine === "1" || req.query.includeMine === "true";
+    const seed = normalizeSeed(req.query.seed);
+
+    const courseWheres: (SQL | undefined)[] = [
+      isNull(courses.deletedAt),
+      eq(courses.isPublic, true),
+      isNotNull(courses.sharedAt),
+    ];
+    if (!includeMine) courseWheres.push(ne(courses.creatorId, claims.sub));
+
+    const resourceWheres: (SQL | undefined)[] = [
+      eq(communityPosts.challengeType, "resource"),
+    ];
+    if (!includeMine) resourceWheres.push(ne(communityPosts.userId, claims.sub));
+
+    const [courseRows, resourceRows] = await Promise.all([
+      db
+        .select({
+          id: courses.id,
+          title: courses.title,
+          category: courses.category,
+          creatorId: courses.creatorId,
+          creatorName: courses.creatorName,
+          creatorAvatar: courses.creatorAvatar,
+          chapters: courses.chapters,
+          sharedAt: courses.sharedAt,
+        })
+        .from(courses)
+        .where(and(...courseWheres))
+        .orderBy(desc(courses.sharedAt))
+        .limit(500),
+      db
+        .select({
+          id: communityPosts.id,
+          userId: communityPosts.userId,
+          body: communityPosts.body,
+          createdAt: communityPosts.createdAt,
+          authorName: users.displayName,
+          authorAvatar: users.photoUrl,
+        })
+        .from(communityPosts)
+        .innerJoin(users, eq(communityPosts.userId, users.id))
+        .where(and(...resourceWheres))
+        .orderBy(desc(communityPosts.createdAt))
+        .limit(300),
+    ]);
+
+    const courseItems = courseRows.flatMap((course) =>
+      flattenCourseSubtopics(course, { viewerId: claims.sub, includeMine }),
+    );
+    const resourceItems = resourceRows
+      .map(mapResourceToThreadItem)
+      .filter((item): item is BaseThreadItem => item !== null);
+
+    const allItems = [...courseItems, ...resourceItems].sort(
+      (a, b) =>
+        seededRank(seed, a.id) - seededRank(seed, b.id) || a.id.localeCompare(b.id),
+    );
+
+    const total = allItems.length;
+    const page = allItems.slice(offset, offset + limit);
+    const items = await enrichThreadItems(page, claims.sub);
+    const nextOffset = offset + limit < total ? offset + limit : null;
+
+    res.json({
+      items,
+      seed,
+      offset,
+      limit,
+      total,
+      hasMore: nextOffset !== null,
+      nextOffset,
+      refreshedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] GET /api/community/subtopic-feed failed");
+  }
+});
+
+app.get("/api/community/chapters/:chapterKey/thread", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    let chapterKey: string;
+    try {
+      chapterKey = decodeURIComponent(req.params.chapterKey);
+    } catch {
+      res.status(400).json({ error: "Invalid chapter key" });
+      return;
+    }
+
+    if (chapterKey.startsWith("resource:")) {
+      const resourceId = chapterKey.slice("resource:".length);
+      if (!resourceId) {
+        res.status(400).json({ error: "Invalid chapter key" });
+        return;
+      }
+      const [row] = await db
+        .select({
+          id: communityPosts.id,
+          userId: communityPosts.userId,
+          body: communityPosts.body,
+          createdAt: communityPosts.createdAt,
+          authorName: users.displayName,
+          authorAvatar: users.photoUrl,
+        })
+        .from(communityPosts)
+        .innerJoin(users, eq(communityPosts.userId, users.id))
+        .where(
+          and(eq(communityPosts.id, resourceId), eq(communityPosts.challengeType, "resource")),
+        )
+        .limit(1);
+      const item = row ? mapResourceToThreadItem(row) : null;
+      if (!item) {
+        res.status(404).json({ error: "Chapter not found" });
+        return;
+      }
+      const [enriched] = await enrichThreadItems([item], claims.sub);
+      res.json({
+        items: [enriched],
+        courseId: item.courseId,
+        courseTitle: item.chapterTitle,
+        chapterId: item.chapterId,
+        chapterTitle: item.chapterTitle,
+        chapterIndex: 0,
+        refreshedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const parsed = parseChapterId(chapterKey);
+    if (!parsed) {
+      res.status(400).json({ error: "Invalid chapter key" });
+      return;
+    }
+
+    const [course] = await db
+      .select({
+        id: courses.id,
+        title: courses.title,
+        category: courses.category,
+        creatorId: courses.creatorId,
+        creatorName: courses.creatorName,
+        creatorAvatar: courses.creatorAvatar,
+        chapters: courses.chapters,
+        sharedAt: courses.sharedAt,
+        isPublic: courses.isPublic,
+        deletedAt: courses.deletedAt,
+      })
+      .from(courses)
+      .where(eq(courses.id, parsed.courseId))
+      .limit(1);
+
+    if (!course || course.deletedAt) {
+      res.status(404).json({ error: "Chapter not found" });
+      return;
+    }
+    const isOwner = course.creatorId === claims.sub;
+    if (!isOwner && (!course.isPublic || !course.sharedAt)) {
+      res.status(404).json({ error: "Chapter not found" });
+      return;
+    }
+
+    const chapters = parseChapters(course.chapters);
+    const chapter = chapters[parsed.chapterIndex];
+    if (!chapter || (chapter.isPrivate && !isOwner)) {
+      res.status(404).json({ error: "Chapter not found" });
+      return;
+    }
+
+    const baseItems = flattenChapterSubtopics(
+      {
+        id: course.id,
+        title: course.title,
+        category: course.category ?? null,
+        creatorId: course.creatorId,
+        creatorName: course.creatorName ?? null,
+        creatorAvatar: course.creatorAvatar ?? null,
+        chapters: course.chapters,
+        sharedAt: course.sharedAt,
+      },
+      chapter,
+      parsed.chapterIndex,
+    );
+    const items = await enrichThreadItems(baseItems, claims.sub);
+
+    res.json({
+      items,
+      courseId: course.id,
+      courseTitle: course.title,
+      chapterId: buildChapterId(course.id, parsed.chapterIndex),
+      chapterTitle: items[0]?.chapterTitle ?? course.title,
+      chapterIndex: parsed.chapterIndex,
+      refreshedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] GET /api/community/chapters/:chapterKey/thread failed");
+  }
+});
+
+app.get("/api/community/users/:id/thread-profile", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const targetId = req.params.id;
+    const context = await loadThreadAuthorContext(claims.sub, [targetId]);
+    const profile = context.profiles.get(targetId);
+    if (!profile) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json({ user: buildThreadUser(targetId, context) });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] GET /api/community/users/:id/thread-profile failed");
+  }
+});
+
+app.post("/api/community/users/:id/follow", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const targetId = req.params.id;
+    if (targetId === claims.sub) {
+      res.status(400).json({ error: "You cannot follow yourself" });
+      return;
+    }
+    const [target] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, targetId))
+      .limit(1);
+    if (!target) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    await db
+      .insert(userFollows)
+      .values({
+        id: `follow_${claims.sub}_${targetId}`,
+        followerId: claims.sub,
+        followingId: targetId,
+      })
+      .onConflictDoNothing();
+
+    const [agg] = await db
+      .select({ value: count() })
+      .from(userFollows)
+      .where(eq(userFollows.followingId, targetId));
+
+    res.json({ following: true, followersCount: Number(agg?.value ?? 0) });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/users/:id/follow failed");
+  }
+});
+
+app.delete("/api/community/users/:id/follow", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const targetId = req.params.id;
+
+    await db
+      .delete(userFollows)
+      .where(
+        and(eq(userFollows.followerId, claims.sub), eq(userFollows.followingId, targetId)),
+      );
+
+    const [agg] = await db
+      .select({ value: count() })
+      .from(userFollows)
+      .where(eq(userFollows.followingId, targetId));
+
+    res.json({ following: false, followersCount: Number(agg?.value ?? 0) });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] DELETE /api/community/users/:id/follow failed");
+  }
+});
+
+app.post("/api/community/users/:id/challenge", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const targetId = req.params.id;
+    if (targetId === claims.sub) {
+      res.status(400).json({ error: "You cannot challenge yourself" });
+      return;
+    }
+    const [target] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, targetId))
+      .limit(1);
+    if (!target) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const postIdRaw = typeof req.body?.postId === "string" ? req.body.postId.trim() : "";
+    if (postIdRaw) {
+      const resolved = await resolveThreadPostRecord(claims.sub, postIdRaw);
+      if (!resolved) {
+        res.status(400).json({ error: "Invalid postId" });
+        return;
+      }
+    }
+
+    const challengeId = `challenge_${claims.sub}_${targetId}`;
+    await db
+      .insert(userChallenges)
+      .values({
+        id: challengeId,
+        challengerId: claims.sub,
+        challengedUserId: targetId,
+        postId: postIdRaw || null,
+      })
+      .onConflictDoNothing();
+
+    res.json({ challenged: true, challengeId });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/users/:id/challenge failed");
+  }
+});
+
+app.post("/api/community/threads/:postId/like", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const postId = req.params.postId;
+    const resolved = await resolveThreadPostRecord(claims.sub, postId);
+    if (!resolved) {
+      res.status(404).json({ error: "Post not found" });
+      return;
+    }
+
+    const [existing] = await db
+      .select({ id: threadPostLikes.id })
+      .from(threadPostLikes)
+      .where(
+        and(eq(threadPostLikes.postId, postId), eq(threadPostLikes.userId, claims.sub)),
+      )
+      .limit(1);
+
+    if (existing) {
+      await db.delete(threadPostLikes).where(eq(threadPostLikes.id, existing.id));
+    } else {
+      await db.insert(threadPostLikes).values({
+        id: `thread_like_${crypto.randomUUID()}`,
+        postId,
+        userId: claims.sub,
+      });
+    }
+
+    const [agg] = await db
+      .select({ value: count() })
+      .from(threadPostLikes)
+      .where(eq(threadPostLikes.postId, postId));
+
+    res.json({ liked: !existing, likesCount: Number(agg?.value ?? 0) });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/threads/:postId/like failed");
+  }
+});
+
+app.get("/api/community/threads/:postId/comments", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const postId = req.params.postId;
+    const resolved = await resolveThreadPostRecord(claims.sub, postId);
+    if (!resolved) {
+      res.status(404).json({ error: "Post not found" });
+      return;
+    }
+
+    const limitRaw = Number(req.query.limit);
+    const limit =
+      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 100) : 50;
+
+    const rows = await db
+      .select({
+        id: threadPostComments.id,
+        body: threadPostComments.body,
+        createdAt: threadPostComments.createdAt,
+        userId: threadPostComments.userId,
+      })
+      .from(threadPostComments)
+      .where(eq(threadPostComments.postId, postId))
+      .orderBy(asc(threadPostComments.createdAt))
+      .limit(limit);
+
+    const context = await loadThreadAuthorContext(
+      claims.sub,
+      rows.map((row) => row.userId),
+    );
+    const comments: ThreadComment[] = rows.map((row) => ({
+      id: row.id,
+      body: row.body,
+      createdAt: row.createdAt.toISOString(),
+      author: buildThreadUser(row.userId, context),
+    }));
+
+    res.json({ comments });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] GET /api/community/threads/:postId/comments failed");
+  }
+});
+
+app.post("/api/community/threads/:postId/comments", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const postId = req.params.postId;
+    const resolved = await resolveThreadPostRecord(claims.sub, postId);
+    if (!resolved) {
+      res.status(404).json({ error: "Post not found" });
+      return;
+    }
+
+    const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+    if (!body) {
+      res.status(400).json({ error: "Comment cannot be empty" });
+      return;
+    }
+    if (body.length > 1000) {
+      res.status(400).json({ error: "Comment is too long" });
+      return;
+    }
+
+    const commentId = `thread_comment_${crypto.randomUUID()}`;
+    const [inserted] = await db
+      .insert(threadPostComments)
+      .values({ id: commentId, postId, userId: claims.sub, body })
+      .returning({ createdAt: threadPostComments.createdAt });
+
+    const context = await loadThreadAuthorContext(claims.sub, [claims.sub]);
+    const comment: ThreadComment = {
+      id: commentId,
+      body,
+      createdAt: (inserted?.createdAt ?? new Date()).toISOString(),
+      author: buildThreadUser(claims.sub, context),
+    };
+
+    res.status(201).json({ comment });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/threads/:postId/comments failed");
+  }
+});
+
+const REEL_DAILY_GOAL = 3;
+const REEL_DAILY_BONUS_AT = 5;
+const REEL_DAILY_XP_CAP = 100;
+const REEL_DAILY_BONUS_XP = 25;
+const REEL_CHALLENGE_TYPES: ReelChallengeType[] = [
+  "prediction",
+  "vote",
+  "multiple-choice",
+  "misconception",
+];
+
+function reelDate(offsetDays = 0): string {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeChallengeOptions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function normalizeChallengeIndex(value: unknown, length: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.min(Math.max(0, Math.floor(value)), Math.max(0, length - 1));
+}
+
+async function readReelDailyProgress(userId: string) {
+  const today = reelDate();
+  const yesterday = reelDate(-1);
+  const rows = await db
+    .select({
+      date: reelDailyProgress.date,
+      challengesAnswered: reelDailyProgress.challengesAnswered,
+      xpEarned: reelDailyProgress.xpEarned,
+      streak: reelDailyProgress.streak,
+      goalMet: reelDailyProgress.goalMet,
+      bonusAwarded: reelDailyProgress.bonusAwarded,
+    })
+    .from(reelDailyProgress)
+    .where(
+      and(
+        eq(reelDailyProgress.userId, userId),
+        inArray(reelDailyProgress.date, [today, yesterday]),
+      ),
+    );
+
+  const todayRow = rows.find((row) => row.date === today);
+  const yesterdayRow = rows.find((row) => row.date === yesterday);
+  const answered = todayRow?.challengesAnswered ?? 0;
+
+  return {
+    date: today,
+    answered,
+    goal: REEL_DAILY_GOAL,
+    streak: todayRow?.goalMet
+      ? todayRow.streak
+      : yesterdayRow?.goalMet
+        ? yesterdayRow.streak
+        : 0,
+    goalMet: !!todayRow?.goalMet,
+    bonusUnlocked: answered >= REEL_DAILY_BONUS_AT,
+    xpToday: todayRow?.xpEarned ?? 0,
+    dailyXpCap: REEL_DAILY_XP_CAP,
+    bonusXp: REEL_DAILY_BONUS_XP,
+  };
+}
+
+async function applyReelDailyProgress(userId: string, xpAwarded: number) {
+  const today = reelDate();
+  const yesterday = reelDate(-1);
+  const [todayRow] = await db
+    .select({
+      id: reelDailyProgress.id,
+      challengesAnswered: reelDailyProgress.challengesAnswered,
+      xpEarned: reelDailyProgress.xpEarned,
+      streak: reelDailyProgress.streak,
+      goalMet: reelDailyProgress.goalMet,
+      bonusAwarded: reelDailyProgress.bonusAwarded,
+    })
+    .from(reelDailyProgress)
+    .where(
+      and(eq(reelDailyProgress.userId, userId), eq(reelDailyProgress.date, today)),
+    )
+    .limit(1);
+
+  const answered = (todayRow?.challengesAnswered ?? 0) + 1;
+  const goalMet = !!todayRow?.goalMet || answered >= REEL_DAILY_GOAL;
+  const bonusXp =
+    !todayRow?.bonusAwarded && answered >= REEL_DAILY_BONUS_AT
+      ? REEL_DAILY_BONUS_XP
+      : 0;
+
+  let streak = todayRow?.streak ?? 0;
+  if (goalMet && !todayRow?.goalMet) {
+    const [yesterdayRow] = await db
+      .select({
+        streak: reelDailyProgress.streak,
+        goalMet: reelDailyProgress.goalMet,
+      })
+      .from(reelDailyProgress)
+      .where(
+        and(
+          eq(reelDailyProgress.userId, userId),
+          eq(reelDailyProgress.date, yesterday),
+        ),
+      )
+      .limit(1);
+    streak = yesterdayRow?.goalMet ? yesterdayRow.streak + 1 : 1;
+  }
+
+  const xpEarned = (todayRow?.xpEarned ?? 0) + xpAwarded + bonusXp;
+
+  if (todayRow) {
+    await db
+      .update(reelDailyProgress)
+      .set({
+        challengesAnswered: answered,
+        xpEarned,
+        streak,
+        goalMet,
+        bonusAwarded: !!todayRow.bonusAwarded || bonusXp > 0,
+        updatedAt: new Date(),
+      })
+      .where(eq(reelDailyProgress.id, todayRow.id));
+  } else {
+    await db.insert(reelDailyProgress).values({
+      id: `rdp_${userId}_${today}`,
+      userId,
+      date: today,
+      challengesAnswered: 1,
+      xpEarned: xpAwarded + bonusXp,
+      streak,
+      goalMet,
+      bonusAwarded: bonusXp > 0,
+    });
+  }
+
+  return bonusXp;
+}
+
+async function resolveReelChallengeTarget(
+  userId: string,
+  courseId: string,
+  chapterIndex: number,
+  subtopicIndex: number,
+) {
+  const [course] = await db
+    .select({
+      creatorId: courses.creatorId,
+      isPublic: courses.isPublic,
+      sharedAt: courses.sharedAt,
+      deletedAt: courses.deletedAt,
+      chapters: courses.chapters,
+    })
+    .from(courses)
+    .where(eq(courses.id, courseId))
+    .limit(1);
+
+  if (course) {
+    const canView =
+      course.creatorId === userId ||
+      (course.isPublic && !!course.sharedAt && !course.deletedAt);
+    if (!canView) return null;
+
+    let chapters: Chapter[] = [];
+    try {
+      const parsed = JSON.parse(course.chapters) as Chapter[];
+      if (Array.isArray(parsed)) chapters = parsed;
+    } catch {
+      return null;
+    }
+
+    const subtopic = chapters[chapterIndex]?.subtopics?.[subtopicIndex];
+    if (!subtopic) return null;
+
+    const options = normalizeChallengeOptions(subtopic.challengeOptions);
+    const safeOptions = options.length >= 2 ? options : ["Focus on principles", "Memorize raw answers", "Guess and move on"];
+    const challengeType = REEL_CHALLENGE_TYPES.includes(
+      subtopic.challengeType as ReelChallengeType,
+    )
+      ? (subtopic.challengeType as ReelChallengeType)
+      : "multiple-choice";
+    const xpReward =
+      typeof subtopic.xpReward === "number" && Number.isFinite(subtopic.xpReward)
+        ? Math.min(30, Math.max(10, Math.floor(subtopic.xpReward)))
+        : 20;
+
+    return {
+      challengeType,
+      challengePrompt:
+        typeof subtopic.challengePrompt === "string" && subtopic.challengePrompt.trim()
+          ? subtopic.challengePrompt.trim()
+          : "What is the core principle here?",
+      options: safeOptions,
+      correctChoiceIndex: normalizeChallengeIndex(
+        subtopic.correctChoiceIndex,
+        safeOptions.length,
+      ),
+      revealText:
+        typeof subtopic.revealText === "string" && subtopic.revealText.trim()
+          ? subtopic.revealText.trim()
+          : "Active practice beats passive review.",
+      xpReward,
+    };
+  }
+
+  if (chapterIndex !== 0 || subtopicIndex !== 0) return null;
+
+  const [resource] = await db
+    .select({ body: communityPosts.body })
+    .from(communityPosts)
+    .where(
+      and(
+        eq(communityPosts.id, courseId),
+        eq(communityPosts.challengeType, "resource"),
+      ),
+    )
+    .limit(1);
+  if (!resource) return null;
+
+  let data: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(resource.body) as unknown;
+    if (parsed && typeof parsed === "object") {
+      data = parsed as Record<string, unknown>;
+    }
+  } catch {
+    data = {};
+  }
+
+  const options = normalizeChallengeOptions(data.challengeOptions);
+  const safeOptions = options.length >= 2 ? options : ["Focus on principles", "Memorize raw answers", "Guess and move on"];
+  const challengeType = REEL_CHALLENGE_TYPES.includes(
+    data.challengeType as ReelChallengeType,
+  )
+    ? (data.challengeType as ReelChallengeType)
+    : "multiple-choice";
+
+  return {
+    challengeType,
+    challengePrompt:
+      typeof data.challengePrompt === "string" && data.challengePrompt.trim()
+        ? data.challengePrompt.trim()
+        : "What is the key takeaway from this resource?",
+    options: safeOptions,
+    correctChoiceIndex: normalizeChallengeIndex(
+      data.correctChoiceIndex,
+      safeOptions.length,
+    ),
+    revealText:
+      typeof data.revealText === "string" && data.revealText.trim()
+        ? data.revealText.trim()
+        : "Peer study resources accelerate high-retention learning.",
+    xpReward:
+      typeof data.xpReward === "number" && Number.isFinite(data.xpReward)
+        ? Math.min(30, Math.max(10, Math.floor(data.xpReward)))
+        : 20,
+  };
+}
+
+app.get("/api/reels/daily", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    res.json(await readReelDailyProgress(claims.sub));
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] GET /api/reels/daily failed");
+  }
+});
+
+app.post("/api/community/feed/:courseId/challenge", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const courseId = String(req.params.courseId);
+    const chapterIndex = Number(req.body?.chapterIndex);
+    const subtopicIndex = Number(req.body?.subtopicIndex);
+    const selectedIndex = Number(req.body?.selectedIndex);
+
+    if (
+      !Number.isInteger(chapterIndex) ||
+      chapterIndex < 0 ||
+      !Number.isInteger(subtopicIndex) ||
+      subtopicIndex < 0
+    ) {
+      res.status(400).json({ error: "Invalid chapter or subtopic index" });
+      return;
+    }
+
+    const target = await resolveReelChallengeTarget(
+      claims.sub,
+      courseId,
+      chapterIndex,
+      subtopicIndex,
+    );
+    if (!target) {
+      res.status(404).json({ error: "Challenge not found" });
+      return;
+    }
+    if (
+      !Number.isInteger(selectedIndex) ||
+      selectedIndex < 0 ||
+      selectedIndex >= target.options.length
+    ) {
+      res.status(400).json({ error: "Invalid answer choice" });
+      return;
+    }
+
+    const dailyBefore = await readReelDailyProgress(claims.sub);
+    const xpRemaining = Math.max(0, REEL_DAILY_XP_CAP - dailyBefore.xpToday);
+    const correct = selectedIndex === target.correctChoiceIndex;
+    const xpAwarded = correct ? Math.min(target.xpReward, xpRemaining) : 0;
+    const attemptId = `rca_${claims.sub}_${courseId}_${chapterIndex}_${subtopicIndex}`;
+
+    const inserted = await db
+      .insert(reelChallengeAttempts)
+      .values({
+        id: attemptId,
+        userId: claims.sub,
+        courseId,
+        chapterIndex,
+        subtopicIndex,
+        challengeType: target.challengeType,
+        selectedIndex,
+        correct,
+        xpAwarded,
+      })
+      .onConflictDoNothing()
+      .returning({
+        id: reelChallengeAttempts.id,
+        selectedIndex: reelChallengeAttempts.selectedIndex,
+        correct: reelChallengeAttempts.correct,
+        xpAwarded: reelChallengeAttempts.xpAwarded,
+      });
+
+    let attempt = inserted[0];
+    let alreadyAnswered = false;
+    let bonusXp = 0;
+
+    if (!attempt) {
+      alreadyAnswered = true;
+      const [existing] = await db
+        .select({
+          selectedIndex: reelChallengeAttempts.selectedIndex,
+          correct: reelChallengeAttempts.correct,
+          xpAwarded: reelChallengeAttempts.xpAwarded,
+        })
+        .from(reelChallengeAttempts)
+        .where(eq(reelChallengeAttempts.id, attemptId))
+        .limit(1);
+      if (!existing) {
+        res.status(409).json({ error: "Could not record answer" });
+        return;
+      }
+      attempt = { id: attemptId, ...existing };
+    } else {
+      bonusXp = await applyReelDailyProgress(claims.sub, xpAwarded);
+      const totalXp = xpAwarded + bonusXp;
+      if (totalXp > 0) {
+        await db
+          .update(users)
+          .set({
+            xp: drizzleSql`${users.xp} + ${totalXp}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, claims.sub));
+      }
+    }
+
+    const distributionRows = await db
+      .select({
+        selectedIndex: reelChallengeAttempts.selectedIndex,
+        count: count(),
+      })
+      .from(reelChallengeAttempts)
+      .where(
+        and(
+          eq(reelChallengeAttempts.courseId, courseId),
+          eq(reelChallengeAttempts.chapterIndex, chapterIndex),
+          eq(reelChallengeAttempts.subtopicIndex, subtopicIndex),
+        ),
+      )
+      .groupBy(reelChallengeAttempts.selectedIndex);
+
+    const distribution = target.options.map(
+      (_, index) =>
+        Number(
+          distributionRows.find((row) => row.selectedIndex === index)?.count ?? 0,
+        ),
+    );
+    const totalAnswers = distribution.reduce((total, value) => total + value, 0);
+
+    res.json({
+      attempt: {
+        courseId,
+        chapterIndex,
+        subtopicIndex,
+        challengeType: target.challengeType,
+        selectedIndex: attempt.selectedIndex,
+        correct: attempt.correct,
+        correctChoiceIndex: target.correctChoiceIndex,
+        revealText: target.revealText,
+        xpAwarded: attempt.xpAwarded,
+        bonusXp,
+        alreadyAnswered,
+      },
+      distribution,
+      totalAnswers,
+      daily: await readReelDailyProgress(claims.sub),
+    });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/feed/:courseId/challenge failed");
   }
 });
 
@@ -1351,6 +2670,231 @@ app.post("/api/community/feed/:id/view", async (req, res) => {
     sendRouteError(res, err, "[Server] POST /api/community/feed/:id/view failed");
   }
 });
+
+// --- Community Resource Endpoints ---
+
+const RESOURCE_TYPES = new Set([
+  "handwritten",
+  "pdf",
+  "text",
+  "image",
+  "audio",
+  "other",
+]);
+
+app.post("/api/community/thread-uploads", async (req, res) => {
+  try {
+    await verifyClerkToken(req.headers.authorization);
+    const { base64, filename } = req.body ?? {};
+    if (typeof base64 !== "string" || !base64 || typeof filename !== "string" || !filename) {
+      res.status(400).json({ error: "Missing required fields: base64, filename" });
+      return;
+    }
+
+    const saved = await saveUploadBuffer(
+      base64,
+      filename,
+      MAX_THREAD_ATTACHMENT_BYTES,
+    );
+    res.json({ url: saved.path, size: saved.size });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    if (err?.statusCode) {
+      res.status(err.statusCode).json({ error: err.message });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/thread-uploads failed");
+  }
+});
+
+app.post("/api/community/thread-uploads/image", async (req, res) => {
+  try {
+    await verifyClerkToken(req.headers.authorization);
+    const { base64, mimeType } = req.body ?? {};
+    if (typeof base64 !== "string" || !base64) {
+      res.status(400).json({ error: "Missing required field: base64" });
+      return;
+    }
+    if (Buffer.byteLength(base64, "base64") > MAX_THREAD_ATTACHMENT_BYTES) {
+      res.status(413).json({ error: "Thread attachments are limited to 5 MB." });
+      return;
+    }
+
+    const secure_url = await uploadToCloudinary(
+      base64,
+      typeof mimeType === "string" && mimeType ? mimeType : undefined,
+    );
+    res.json({ secure_url });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/thread-uploads/image failed");
+  }
+});
+
+app.post("/api/community/resources/challenge-preview", async (req, res) => {
+  try {
+    await verifyClerkToken(req.headers.authorization);
+    const { title, summary, resourceType } = req.body ?? {};
+    if (!title || !summary) {
+      res.status(400).json({ error: "Missing title or summary" });
+      return;
+    }
+    const ai = aiRequestOptions(req);
+    const prompt = buildResourceChallengePrompt({
+      title: String(title).slice(0, 200),
+      summary: String(summary).slice(0, 1000),
+      resourceType: String(resourceType || "other"),
+    });
+    const parsed = await generateJsonContent<{
+      hook: string;
+      hookTone?: "curious" | "challenge" | "misconception" | "fast-win";
+      challengeType?: "prediction" | "vote" | "multiple-choice" | "misconception";
+      challengePrompt: string;
+      challengeOptions: string[];
+      correctChoiceIndex?: number;
+      revealText: string;
+      shareCopy: string;
+    }>(ai.modelRef, prompt, ai.apiKey);
+
+    res.json(parsed);
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/resources/challenge-preview failed");
+  }
+});
+
+app.post("/api/community/resources", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const body = req.body ?? {};
+    const {
+      title,
+      summary,
+      hook,
+      challengeType,
+      challengePrompt,
+      challengeOptions,
+      correctChoiceIndex,
+      revealText,
+      shareCopy,
+      resourceType,
+      fileName,
+      fileSizeBytes,
+      mimeType,
+      storageUrl,
+      previewUrl,
+      previewText,
+      tags,
+      difficulty,
+    } = body;
+
+    const normalizedResourceType =
+      typeof resourceType === "string" && RESOURCE_TYPES.has(resourceType)
+        ? resourceType
+        : "other";
+    const isTextResource = normalizedResourceType === "text";
+    if (!title || (!storageUrl && !isTextResource)) {
+      res.status(400).json({
+        error: "Missing required fields (title, storageUrl)",
+      });
+      return;
+    }
+    if (isTextResource && !previewText && !summary) {
+      res.status(400).json({ error: "Text resources need a summary or preview" });
+      return;
+    }
+
+    const now = new Date();
+    const id = "resource_" + claims.sub + "_" + now.getTime();
+
+    const [author] = await db
+      .select({
+        displayName: users.displayName,
+        photoURL: users.photoUrl,
+        isPro: users.isPro,
+      })
+      .from(users)
+      .where(eq(users.id, claims.sub))
+      .limit(1);
+
+    const normalizedSize =
+      typeof fileSizeBytes === "number" && Number.isFinite(fileSizeBytes)
+        ? Math.max(0, Math.floor(fileSizeBytes))
+        : 0;
+    if (normalizedSize > MAX_THREAD_ATTACHMENT_BYTES) {
+      res.status(413).json({
+        error: "Thread attachments are limited to 5 MB.",
+      });
+      return;
+    }
+    if (normalizedResourceType === "audio" && !author?.isPro) {
+      res.status(403).json({
+        error: "Audio lecture recordings are a Pro feature.",
+      });
+      return;
+    }
+
+    const postData = {
+      id,
+      authorId: claims.sub,
+      authorName: author?.displayName ?? "Scholar",
+      authorAvatar: author?.photoURL ?? undefined,
+      createdAt: now.toISOString(),
+      type: "resource",
+      title: String(title).slice(0, 200),
+      summary: String(summary || "").slice(0, 1000),
+      hook: String(hook || "").slice(0, 200),
+      challengeType: challengeType || "multiple-choice",
+      challengePrompt: String(challengePrompt || "").slice(0, 300),
+      challengeOptions: Array.isArray(challengeOptions) ? challengeOptions.slice(0, 4) : [],
+      correctChoiceIndex: typeof correctChoiceIndex === "number" ? correctChoiceIndex : 0,
+      revealText: String(revealText || "").slice(0, 500),
+      shareCopy: String(shareCopy || "").slice(0, 200),
+      resourceType: normalizedResourceType,
+      fileName: String(fileName || "resource").slice(0, 150),
+      fileSizeBytes: normalizedSize,
+      mimeType: String(
+        mimeType || (isTextResource ? "text/plain" : "application/octet-stream"),
+      ),
+      storageUrl: storageUrl ? String(storageUrl) : "",
+      previewUrl: previewUrl ? String(previewUrl) : undefined,
+      previewText: previewText ? String(previewText).slice(0, 500) : undefined,
+      isPublic: true,
+      tags: Array.isArray(tags) ? tags : [],
+      likes: 0,
+      saves: 0,
+      shares: 0,
+      views: 0,
+      difficulty: difficulty || "All Levels",
+    };
+
+    await db.insert(communityPosts).values({
+      id,
+      userId: claims.sub,
+      body: JSON.stringify(postData),
+      challengeType: "resource",
+      createdAt: now,
+    });
+
+    res.status(201).json({ post: postData });
+  } catch (err: any) {
+    if (isTokenError(err)) {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/community/resources failed");
+  }
+});
+
 
 // --- Community Social Routes ---
 
@@ -4099,6 +5643,7 @@ function decodeBase64Payload(value: string): Buffer {
 async function saveUploadBuffer(
   base64: string,
   filename: string,
+  maxBytes = MAX_FILE_BYTES,
 ): Promise<{ filename: string; path: string; size: number }> {
   const ext = path.extname(filename).toLowerCase();
   if (!ext || !ALLOWED_UPLOAD_EXTS.has(ext)) {
@@ -4107,7 +5652,9 @@ async function saveUploadBuffer(
 
   const buffer = decodeBase64Payload(base64);
   if (buffer.length === 0) failUpload("Empty file", 400);
-  if (buffer.length > MAX_FILE_BYTES) failUpload("File too large (max 25 MB)", 413);
+  if (buffer.length > maxBytes) {
+    failUpload(`File too large (max ${Math.floor(maxBytes / (1024 * 1024))} MB)`, 413);
+  }
 
   const safeName = `${crypto.randomUUID()}${ext}`;
   await fs.promises.writeFile(path.join(UPLOADS_DIR, safeName), buffer);

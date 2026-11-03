@@ -1,40 +1,49 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  FlatList,
-  Platform,
-  Pressable,
-  RefreshControl,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  type LayoutChangeEvent,
-  type ViewToken,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    FlatList,
+    Platform,
+    Pressable,
+    RefreshControl,
+    Share,
+    Linking,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+    type LayoutChangeEvent,
+    type ViewToken,
 } from "react-native";
 import { EXPLORE, type Breakpoint } from "../constants/layout";
 import { useAuth } from "../contexts/AuthContext";
 import { useResponsive, useTabBarInset } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
 import { api } from "../lib/api";
+import {
+  normalizeReelChallenge,
+  normalizeResourceChallenge,
+  type NormalizedReelChallenge,
+} from "../lib/reels/challenge";
 import { getExploreLayout } from "../lib/responsive";
-import { useCourseStore } from "../store/courseStore";
 import { useEnrollmentStore } from "../store/courseEnrollmentStore";
 import { useProgressStore } from "../store/courseProgressStore";
+import { useCourseStore } from "../store/courseStore";
+import { useReelStore } from "../store/reelStore";
 import type { Chapter } from "../types/chapter";
-import type { Course } from "../types/course";
 import type { CommunityFeedPost } from "../types/community";
+import type { Course } from "../types/course";
+import type { ReelChallengeAttempt } from "../types/reel";
 import CommunityAvatar from "./CommunityAvatar";
 import ExploreUpNextPanel from "./ExploreUpNextPanel";
+import ResourceUploadSheet from "./ResourceUploadSheet";
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Beginner: "#4CAF50",
@@ -74,7 +83,8 @@ function formatSharedAt(value: string): string {
 }
 
 function formatCount(value: number): string {
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (value >= 1000000)
+    return `${(value / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
   if (value >= 1000) return `${(value / 1000).toFixed(1).replace(/\.0$/, "")}K`;
   return String(value);
 }
@@ -99,6 +109,7 @@ interface ReelItem {
   isPrivate: boolean;
   subtopicOrder: number;
   subtopicTitle: string;
+  challenge: NormalizedReelChallenge;
 }
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<ReelItem>);
@@ -106,19 +117,33 @@ const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<ReelItem>);
 function flattenFeed(posts: CommunityFeedPost[]): ReelItem[] {
   const items: ReelItem[] = [];
   for (const post of posts) {
-    (post.chapterIndex ?? []).forEach((chapter, ci) => {
-      (chapter.subtopics ?? []).forEach((sub, si) => {
-        items.push({
-          key: `${post.id}_${ci}_${si}`,
-          post,
-          chapterOrder: chapter.order,
-          chapterTitle: chapter.title,
-          isPrivate: !!chapter.isPrivate,
-          subtopicOrder: sub.order,
-          subtopicTitle: sub.title,
+    if (post.resourcePost) {
+      items.push({
+        key: `resource_${post.id}`,
+        post,
+        chapterOrder: 0,
+        chapterTitle: (post.resourcePost.resourceType || "resource").toUpperCase(),
+        isPrivate: false,
+        subtopicOrder: 0,
+        subtopicTitle: post.resourcePost.title,
+        challenge: normalizeResourceChallenge(post.resourcePost),
+      });
+    } else {
+      (post.chapterIndex ?? []).forEach((chapter, ci) => {
+        (chapter.subtopics ?? []).forEach((sub, si) => {
+          items.push({
+            key: `${post.id}_${ci}_${si}`,
+            post,
+            chapterOrder: chapter.order,
+            chapterTitle: chapter.title,
+            isPrivate: !!chapter.isPrivate,
+            subtopicOrder: sub.order,
+            subtopicTitle: sub.title,
+            challenge: normalizeReelChallenge(sub, sub.title),
+          });
         });
       });
-    });
+    }
   }
   return items;
 }
@@ -130,6 +155,9 @@ function ReelCard({
   onLike,
   onShare,
   onToggleEnroll,
+  onChallenge,
+  onNext,
+  attempt,
   enrolled,
   completed,
   variant,
@@ -145,6 +173,12 @@ function ReelCard({
   onLike: (item: ReelItem) => void;
   onShare: (item: ReelItem) => void;
   onToggleEnroll: (item: ReelItem, enrolled: boolean) => void;
+  onChallenge: (
+    item: ReelItem,
+    selectedIndex: number,
+  ) => Promise<ReelChallengeAttempt | null>;
+  onNext: (item: ReelItem) => void;
+  attempt?: ReelChallengeAttempt;
   enrolled: boolean;
   completed: boolean;
   variant: Breakpoint;
@@ -166,10 +200,18 @@ function ReelCard({
   );
   const chapter = chapters[item.chapterOrder];
   const subtopic = chapter?.subtopics?.[item.subtopicOrder];
-  const content = subtopic?.content;
+  const resource = item.post.resourcePost;
+  const isResource = !!resource;
+  const content = isResource
+    ? resource?.previewText || resource?.summary || "Open this resource to explore it."
+    : subtopic?.content;
+  const challenge = item.challenge;
+  const answered = !!attempt;
+  const selectedChallenge = attempt?.selectedIndex ?? null;
 
   const difficultyColor = DIFFICULTY_COLORS[item.post.difficulty] || "#888";
   const gradientColors = pickReelGradient(item.post);
+  const [submitting, setSubmitting] = useState(false);
   const subtopicCount = (item.post.chapterIndex ?? []).reduce(
     (sum, ch) => sum + ch.subtopics.length,
     0,
@@ -294,14 +336,23 @@ function ReelCard({
   }, []);
 
   const like = useCallback(() => {
-    if (item.post.isMine) return;
+    if (item.post.isMine || isResource) return;
     animateHeart();
     bumpRailHeart();
     bumpCount();
     spawnBurst();
     buzz();
     onLike(item);
-  }, [animateHeart, bumpRailHeart, bumpCount, spawnBurst, buzz, item, onLike]);
+  }, [
+    animateHeart,
+    bumpRailHeart,
+    bumpCount,
+    spawnBurst,
+    buzz,
+    item,
+    isResource,
+    onLike,
+  ]);
 
   const bumpShare = useCallback(() => {
     shareScale.setValue(1);
@@ -369,6 +420,27 @@ function ReelCard({
       lastTap.current = null;
     }, DOUBLE_PRESS_DELAY);
   }, [disabled, like, item, onOpenChapter]);
+
+  const handleAnswer = useCallback(
+    async (index: number) => {
+      if (answered || submitting) return;
+      buzz();
+      setSubmitting(true);
+      try {
+        const result = await onChallenge(item, index);
+        if (result && Platform.OS !== "web") {
+          Haptics.notificationAsync(
+            result.correct
+              ? Haptics.NotificationFeedbackType.Success
+              : Haptics.NotificationFeedbackType.Error,
+          ).catch(() => {});
+        }
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [answered, submitting, buzz, onChallenge, item],
+  );
 
   return (
     <View style={{ flex: 1 }}>
@@ -482,6 +554,161 @@ function ReelCard({
               </View>
             )}
 
+            <View
+              style={[
+                styles.hookBlock,
+                {
+                  backgroundColor: "rgba(255,255,255,0.09)",
+                  borderColor: "rgba(255,255,255,0.12)",
+                },
+              ]}
+            >
+              <View style={styles.hookMetaRow}>
+                <Text style={[styles.hookTone, { color: theme.primary }]}>
+                  {challenge.toneLabel}
+                </Text>
+                <Text style={[styles.hookDivider, { color: theme.textMuted }]}>
+                  ·
+                </Text>
+                <Text style={[styles.hookType, { color: theme.textMuted }]}>
+                  {challenge.challengeLabel}
+                </Text>
+              </View>
+              <Text
+                style={[styles.hookText, { color: theme.text }]}
+                numberOfLines={veryShort ? 2 : 3}
+              >
+                {challenge.hook}
+              </Text>
+            </View>
+
+            <View style={styles.challengeChoiceStack}>
+              <Text style={[styles.challengePrompt, { color: theme.text }]}>
+                {challenge.challengePrompt}
+              </Text>
+              <View style={styles.challengeChoiceRow}>
+                {challenge.options.map((option, index) => {
+                  const isSelected = selectedChallenge === index;
+                  const isCorrect = answered && index === challenge.correctChoiceIndex;
+                  const isWrong =
+                    answered && isSelected && index !== challenge.correctChoiceIndex;
+                  const borderColor = isCorrect
+                    ? theme.success
+                    : isWrong
+                      ? theme.danger
+                      : isSelected
+                        ? theme.primary
+                        : "rgba(255,255,255,0.1)";
+                  const textColor = isCorrect
+                    ? theme.success
+                    : isWrong
+                      ? theme.danger
+                      : isSelected
+                        ? theme.primary
+                        : theme.text;
+                  return (
+                    <Pressable
+                      key={option}
+                      disabled={answered || submitting}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        handleAnswer(index);
+                      }}
+                      style={[
+                        styles.challengeChoiceButton,
+                        {
+                          backgroundColor:
+                            isCorrect || isWrong || isSelected
+                              ? borderColor + "18"
+                              : "rgba(255,255,255,0.04)",
+                          borderColor,
+                          opacity: answered && !isSelected && !isCorrect ? 0.55 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.challengeChoiceText,
+                          {
+                            color: textColor,
+                            fontWeight: isSelected || isCorrect ? "800" : "700",
+                          },
+                        ]}
+                      >
+                        {option}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {submitting && (
+                <View style={styles.answerStatus}>
+                  <ActivityIndicator size="small" color={theme.primary} />
+                  <Text style={[styles.answerStatusText, { color: theme.textMuted }]}>
+                    Checking your answer…
+                  </Text>
+                </View>
+              )}
+
+              {attempt && (
+                <View
+                  style={[
+                    styles.revealCard,
+                    {
+                      backgroundColor: attempt.correct
+                        ? theme.success + "18"
+                        : theme.danger + "18",
+                      borderColor: attempt.correct ? theme.success : theme.danger,
+                    },
+                  ]}
+                >
+                  <View style={styles.revealTopRow}>
+                    <MaterialCommunityIcons
+                      name={attempt.correct ? "check-circle" : "close-circle"}
+                      size={16}
+                      color={attempt.correct ? theme.success : theme.danger}
+                    />
+                    <Text
+                      style={[
+                        styles.revealTitle,
+                        { color: attempt.correct ? theme.success : theme.danger },
+                      ]}
+                    >
+                      {attempt.correct ? "Correct" : "Not quite"}
+                    </Text>
+                    {attempt.xpAwarded > 0 && (
+                      <Text style={[styles.revealXp, { color: theme.primary }]}>
+                        +{attempt.xpAwarded} XP
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={[styles.revealText, { color: theme.text }]}>
+                    {attempt.revealText || challenge.revealText}
+                  </Text>
+                  {attempt.bonusXp > 0 && (
+                    <Text style={[styles.revealBonus, { color: theme.warning }]}>
+                      Bonus +{attempt.bonusXp} XP
+                    </Text>
+                  )}
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      onNext(item);
+                    }}
+                    style={[styles.nextReelButton, { backgroundColor: theme.primary }]}
+                  >
+                    <Text style={styles.nextReelText}>Next reel</Text>
+                    <MaterialCommunityIcons
+                      name="arrow-right"
+                      size={14}
+                      color="#FFFFFF"
+                    />
+                  </Pressable>
+                </View>
+              )}
+            </View>
+
             <Text
               style={[
                 styles.subtopicTitle,
@@ -503,7 +730,9 @@ function ReelCard({
                   compactHeight && styles.contentTextShort,
                   { color: theme.textSecondary },
                 ]}
-                numberOfLines={veryShort ? 2 : compactHeight ? 4 : isWide ? 6 : 7}
+                numberOfLines={
+                  veryShort ? 2 : compactHeight ? 4 : isWide ? 6 : 7
+                }
               >
                 {content}
               </Text>
@@ -529,7 +758,9 @@ function ReelCard({
             )}
           </View>
 
-          <View style={[styles.reelBottomRow, isWide && styles.reelBottomRowWide]}>
+          <View
+            style={[styles.reelBottomRow, isWide && styles.reelBottomRowWide]}
+          >
             <View style={{ flex: 1, gap: 6 }}>
               {completed && (
                 <View style={styles.completedRow}>
@@ -673,38 +904,40 @@ function ReelCard({
           </BlurView>
         )}
 
-        <BlurView
-          intensity={72}
-          tint="dark"
-          style={[styles.railPill, compactHeight && styles.railPillCompact]}
-        >
-          <Pressable
-            onPress={like}
-            accessibilityRole="button"
-            accessibilityLabel={liked ? "Unlike this course" : "Like this course"}
-            hitSlop={8}
-            style={({ pressed }) => pressed && styles.railActionPressed}
+        {!isResource && (
+          <BlurView
+            intensity={72}
+            tint="dark"
+            style={[styles.railPill, compactHeight && styles.railPillCompact]}
           >
-            <Animated.View
-              style={{ transform: [{ scale: railHeartScale }] }}
+            <Pressable
+              onPress={like}
+              accessibilityRole="button"
+              accessibilityLabel={
+                liked ? "Unlike this course" : "Like this course"
+              }
+              hitSlop={8}
+              style={({ pressed }) => pressed && styles.railActionPressed}
             >
-              <MaterialCommunityIcons
-                name={liked ? "heart" : "heart-outline"}
-                size={compactHeight ? 20 : isWide ? 28 : 26}
-                color={liked ? theme.primary : "#FFFFFF"}
-              />
-            </Animated.View>
-          </Pressable>
-          <Animated.Text
-            style={[
-              styles.railCount,
-              compactHeight && styles.railCountCompact,
-              { color: "#FFFFFF", transform: [{ scale: countPop }] },
-            ]}
-          >
-            {item.post.likeCount}
-          </Animated.Text>
-        </BlurView>
+              <Animated.View style={{ transform: [{ scale: railHeartScale }] }}>
+                <MaterialCommunityIcons
+                  name={liked ? "heart" : "heart-outline"}
+                  size={compactHeight ? 20 : isWide ? 28 : 26}
+                  color={liked ? theme.primary : "#FFFFFF"}
+                />
+              </Animated.View>
+            </Pressable>
+            <Animated.Text
+              style={[
+                styles.railCount,
+                compactHeight && styles.railCountCompact,
+                { color: "#FFFFFF", transform: [{ scale: countPop }] },
+              ]}
+            >
+              {item.post.likeCount}
+            </Animated.Text>
+          </BlurView>
+        )}
 
         <BlurView
           intensity={72}
@@ -737,36 +970,71 @@ function ReelCard({
           </Text>
         </BlurView>
 
-        <BlurView
-          intensity={72}
-          tint="dark"
-          style={[styles.railPill, compactHeight && styles.railPillCompact]}
-        >
-          <Pressable
-            onPress={toggleEnroll}
-            accessibilityRole="button"
-            accessibilityLabel={enrolled ? "Remove from Enrolled" : "Add to Enrolled"}
-            hitSlop={8}
-            style={({ pressed }) => pressed && styles.railActionPressed}
+        {isResource && (
+          <BlurView
+            intensity={72}
+            tint="dark"
+            style={[styles.railPill, compactHeight && styles.railPillCompact]}
           >
-            <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+            <Pressable
+              onPress={() => onOpenChapter(item)}
+              accessibilityRole="button"
+              accessibilityLabel="Open resource"
+              hitSlop={8}
+              style={({ pressed }) => pressed && styles.railActionPressed}
+            >
               <MaterialCommunityIcons
-                name={enrolled ? "bookmark" : "bookmark-outline"}
+                name="open-in-new"
                 size={compactHeight ? 19 : isWide ? 26 : 24}
-                color={enrolled ? theme.primary : "#FFFFFF"}
+                color="#FFFFFF"
               />
-            </Animated.View>
-          </Pressable>
-          <Text
-            style={[
-              styles.railCount,
-              compactHeight && styles.railCountCompact,
-              { color: enrolled ? theme.primary : "#FFFFFF" },
-            ]}
+            </Pressable>
+            <Text
+              style={[
+                styles.railCount,
+                compactHeight && styles.railCountCompact,
+                { color: "#FFFFFF" },
+              ]}
+            >
+              Open
+            </Text>
+          </BlurView>
+        )}
+
+        {!isResource && (
+          <BlurView
+            intensity={72}
+            tint="dark"
+            style={[styles.railPill, compactHeight && styles.railPillCompact]}
           >
-            {enrolled ? "Enrolled" : "Save"}
-          </Text>
-        </BlurView>
+            <Pressable
+              onPress={toggleEnroll}
+              accessibilityRole="button"
+              accessibilityLabel={
+                enrolled ? "Remove from Enrolled" : "Add to Enrolled"
+              }
+              hitSlop={8}
+              style={({ pressed }) => pressed && styles.railActionPressed}
+            >
+              <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+                <MaterialCommunityIcons
+                  name={enrolled ? "bookmark" : "bookmark-outline"}
+                  size={compactHeight ? 19 : isWide ? 26 : 24}
+                  color={enrolled ? theme.primary : "#FFFFFF"}
+                />
+              </Animated.View>
+            </Pressable>
+            <Text
+              style={[
+                styles.railCount,
+                compactHeight && styles.railCountCompact,
+                { color: enrolled ? theme.primary : "#FFFFFF" },
+              ]}
+            >
+              {enrolled ? "Enrolled" : "Save"}
+            </Text>
+          </BlurView>
+        )}
 
         {!compactHeight && (
           <BlurView intensity={72} tint="dark" style={styles.railPill}>
@@ -827,83 +1095,83 @@ function FeedSkeleton({
           { height, marginHorizontal: inset, borderRadius: radius, padding },
         ]}
       >
-      <View
-        style={[
-          styles.skeletonLine,
-          { backgroundColor: theme.border, width: "30%", height: 14 },
-        ]}
-      />
-      <View style={styles.reelBody}>
-        <View
-          style={[styles.skeletonCircle, { backgroundColor: theme.border }]}
-        />
         <View
           style={[
             styles.skeletonLine,
-            {
-              backgroundColor: theme.border,
-              width: "80%",
-              height: 18,
-              marginTop: 14,
-            },
+            { backgroundColor: theme.border, width: "30%", height: 14 },
           ]}
         />
-        <View
-          style={[
-            styles.skeletonLine,
-            {
-              backgroundColor: theme.border,
-              width: "50%",
-              height: 12,
-              marginTop: 10,
-            },
-          ]}
-        />
-        <View
-          style={[
-            styles.skeletonLine,
-            {
-              backgroundColor: theme.border,
-              width: "92%",
-              height: 28,
-              marginTop: 22,
-            },
-          ]}
-        />
-        <View
-          style={[
-            styles.skeletonLine,
-            {
-              backgroundColor: theme.border,
-              width: "100%",
-              height: 12,
-              marginTop: 16,
-            },
-          ]}
-        />
-        <View
-          style={[
-            styles.skeletonLine,
-            {
-              backgroundColor: theme.border,
-              width: "88%",
-              height: 12,
-              marginTop: 8,
-            },
-          ]}
-        />
-        <View
-          style={[
-            styles.skeletonLine,
-            {
-              backgroundColor: theme.border,
-              width: "60%",
-              height: 12,
-              marginTop: 8,
-            },
-          ]}
-        />
-      </View>
+        <View style={styles.reelBody}>
+          <View
+            style={[styles.skeletonCircle, { backgroundColor: theme.border }]}
+          />
+          <View
+            style={[
+              styles.skeletonLine,
+              {
+                backgroundColor: theme.border,
+                width: "80%",
+                height: 18,
+                marginTop: 14,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonLine,
+              {
+                backgroundColor: theme.border,
+                width: "50%",
+                height: 12,
+                marginTop: 10,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonLine,
+              {
+                backgroundColor: theme.border,
+                width: "92%",
+                height: 28,
+                marginTop: 22,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonLine,
+              {
+                backgroundColor: theme.border,
+                width: "100%",
+                height: 12,
+                marginTop: 16,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonLine,
+              {
+                backgroundColor: theme.border,
+                width: "88%",
+                height: 12,
+                marginTop: 8,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonLine,
+              {
+                backgroundColor: theme.border,
+                width: "60%",
+                height: 12,
+                marginTop: 8,
+              },
+            ]}
+          />
+        </View>
       </LinearGradient>
     </Animated.View>
   );
@@ -944,6 +1212,8 @@ export default function ExploreReels({
   const theme = useThemeColors();
   const router = useRouter();
   const { getToken, profile } = useAuth();
+  const attempts = useReelStore((s) => s.attempts);
+  const submitReelChallenge = useReelStore((s) => s.submitChallenge);
   const { breakpoint, height, gutter, isWeb } = useResponsive();
   const tabBarInset = useTabBarInset(80);
   const layout = getExploreLayout(breakpoint);
@@ -982,12 +1252,16 @@ export default function ExploreReels({
   const [feedLoading, setFeedLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [uploadVisible, setUploadVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [reelHeight, setReelHeight] = useState(0);
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [enrollOverrides, setEnrollOverrides] = useState<Record<string, boolean>>({});
+  const [enrollOverrides, setEnrollOverrides] = useState<
+    Record<string, boolean>
+  >({});
 
   const flatListRef = useRef<FlatList<ReelItem>>(null);
   const fetchingIds = useRef<Set<string>>(new Set());
@@ -1020,6 +1294,7 @@ export default function ExploreReels({
         const feed = await api.community.feed(token, FEED_PAGE_SIZE, false, 0);
         setPosts(feed.posts);
         setHasMore(!!feed.hasMore);
+        setNextCursor(feed.nextCursor ?? null);
         setError(null);
       } catch (err) {
         console.error("[ExploreReels] feed fetch failed:", err);
@@ -1044,16 +1319,19 @@ export default function ExploreReels({
         token,
         FEED_PAGE_SIZE,
         false,
-        postsRef.current.length,
+        nextCursor ? 0 : postsRef.current.length,
+        nextCursor,
       );
       const fresh = feed.posts.filter(
         (p) => !postsRef.current.some((existing) => existing.id === p.id),
       );
       if (fresh.length === 0) {
         setHasMore(false);
+        setNextCursor(null);
       } else {
         setPosts((prev) => [...prev, ...fresh]);
         setHasMore(!!feed.hasMore);
+        setNextCursor(feed.nextCursor ?? null);
       }
     } catch (err) {
       console.error("[ExploreReels] feed pagination failed:", err);
@@ -1061,7 +1339,7 @@ export default function ExploreReels({
       loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [getToken, hasMore]);
+  }, [getToken, hasMore, nextCursor]);
 
   useEffect(() => {
     if (refreshKey > 0) loadFeed(true);
@@ -1129,16 +1407,41 @@ export default function ExploreReels({
       const first = viewableItems[0];
       if (first?.item) {
         setActiveKey(first.item.key);
-        trackView(first.item.post.id);
+        if (!first.item.post.resourcePost) trackView(first.item.post.id);
       }
       for (const v of viewableItems.slice(0, 3)) {
-        ensureCourse(v.item.post);
+        if (!v.item.post.resourcePost) ensureCourse(v.item.post);
       }
     },
   ).current;
 
+  const openResource = useCallback(async (item: ReelItem) => {
+    const resource = item.post.resourcePost;
+    if (!resource) return;
+    const url = resource.storageUrl || resource.previewUrl;
+    if (!url) {
+      Alert.alert(
+        resource.title || "Resource",
+        resource.previewText ||
+          resource.summary ||
+          "This resource is text-only. Its summary is shown in the reel.",
+      );
+      return;
+    }
+    try {
+      await Linking.openURL(url);
+    } catch (err) {
+      console.error("[ExploreReels] resource open failed:", err);
+      Alert.alert("Couldn't open resource", "Please try again.");
+    }
+  }, []);
+
   const openChapter = useCallback(
     async (item: ReelItem) => {
+      if (item.post.resourcePost) {
+        await openResource(item);
+        return;
+      }
       if (openingRef.current) return;
       openingRef.current = true;
       setOpeningId(item.key);
@@ -1161,11 +1464,12 @@ export default function ExploreReels({
         openingRef.current = false;
       }
     },
-    [ensureCourse, router, trackView],
+    [ensureCourse, openResource, router, trackView],
   );
 
   const toggleLike = useCallback(
     async (item: ReelItem) => {
+      if (item.post.resourcePost) return;
       const id = item.post.id;
       if (likingIds.current.has(id)) return;
 
@@ -1193,14 +1497,18 @@ export default function ExploreReels({
         const res = await api.community.feedLike(id, token);
         setPosts((prev) =>
           prev.map((p) =>
-            p.id === id ? { ...p, likedByMe: res.liked, likeCount: res.likeCount } : p,
+            p.id === id
+              ? { ...p, likedByMe: res.liked, likeCount: res.likeCount }
+              : p,
           ),
         );
       } catch (err) {
         console.error("[ExploreReels] like failed:", err);
         setPosts((prev) =>
           prev.map((p) =>
-            p.id === id ? { ...p, likedByMe: prevLiked, likeCount: prevCount } : p,
+            p.id === id
+              ? { ...p, likedByMe: prevLiked, likeCount: prevCount }
+              : p,
           ),
         );
       } finally {
@@ -1225,7 +1533,7 @@ export default function ExploreReels({
 
   const toggleEnroll = useCallback(
     async (item: ReelItem, currentlyEnrolled: boolean) => {
-      if (!profile) return;
+      if (!profile || item.post.resourcePost) return;
       const id = item.post.id;
       if (pendingEnroll.current.has(id)) return;
 
@@ -1256,7 +1564,10 @@ export default function ExploreReels({
             .enroll(profile.uid, id, getToken);
           if (!res.success) {
             clearOverride();
-            Alert.alert("Couldn't save course", res.error ?? "Please try again.");
+            Alert.alert(
+              "Couldn't save course",
+              res.error ?? "Please try again.",
+            );
           }
         } else {
           const enrollment = enrollments.find((e) => e.courseId === id);
@@ -1269,7 +1580,10 @@ export default function ExploreReels({
             .unenroll(enrollment.id, getToken);
           if (!res.success) {
             clearOverride();
-            Alert.alert("Couldn't remove course", res.error ?? "Please try again.");
+            Alert.alert(
+              "Couldn't remove course",
+              res.error ?? "Please try again.",
+            );
           }
         }
       } catch (err) {
@@ -1283,22 +1597,50 @@ export default function ExploreReels({
   );
 
   const shareReel = useCallback(async (item: ReelItem) => {
+    const resource = item.post.resourcePost;
+    const resourceUrl = resource?.storageUrl || resource?.previewUrl || "";
+    const message = resource
+      ? [item.challenge.shareCopy, resource.title, resourceUrl]
+          .filter(Boolean)
+          .join("\n\n")
+      : `${item.challenge.shareCopy}\n\n${item.post.title} — ${item.subtopicTitle}\n\nhttps://yuinx.app/(course)/${item.post.id}/chapter/${item.chapterOrder}?subtopic=${item.subtopicOrder}`;
+
     if (Platform.OS === "web") {
-      Alert.alert(
-        "Share",
-        `/(course)/${item.post.id}/chapter/${item.chapterOrder}?subtopic=${item.subtopicOrder}`,
-      );
+      Alert.alert("Share", message);
       return;
     }
     try {
-      const message = `${item.post.title} — ${item.subtopicTitle}`;
-      await Share.share({
-        message: `${message}\n\nhttps://yuinx.app/(course)/${item.post.id}/chapter/${item.chapterOrder}?subtopic=${item.subtopicOrder}`,
-      });
+      await Share.share({ message });
     } catch (err) {
       console.error("[ExploreReels] share failed:", err);
     }
   }, []);
+
+  const handleChallenge = useCallback(
+    async (item: ReelItem, selectedIndex: number) => {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert("Not signed in", "Sign in to answer and earn XP.");
+        return null;
+      }
+      const attempt = await submitReelChallenge(
+        token,
+        item.key,
+        item.post.id,
+        item.chapterOrder,
+        item.subtopicOrder,
+        selectedIndex,
+      );
+      if (!attempt) {
+        Alert.alert(
+          "Couldn't save your answer",
+          "Check your connection and try again.",
+        );
+      }
+      return attempt;
+    },
+    [getToken, submitReelChallenge],
+  );
 
   const handleShareCourse = useCallback(() => {
     const own = profile ? useCourseStore.getState().myCourses(profile.uid) : [];
@@ -1312,10 +1654,7 @@ export default function ExploreReels({
     }
   }, [profile, router]);
 
-  const items = useMemo(
-    () => flattenFeed(posts),
-    [posts],
-  );
+  const items = useMemo(() => flattenFeed(posts), [posts]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1369,6 +1708,23 @@ export default function ExploreReels({
     [filtered, reelHeight],
   );
 
+  const goNext = useCallback(
+    (item: ReelItem) => {
+      const index = filtered.findIndex((entry) => entry.key === item.key);
+      if (index >= 0 && index + 1 < filtered.length && reelHeight > 0) {
+        const next = filtered[index + 1];
+        setActiveKey(next.key);
+        flatListRef.current?.scrollToOffset({
+          offset: (index + 1) * reelHeight,
+          animated: true,
+        });
+        return;
+      }
+      if (hasMore) loadMore();
+    },
+    [filtered, reelHeight, hasMore, loadMore],
+  );
+
   const jumpToFirstLesson = useCallback(() => {
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
     if (filtered[0]) setActiveKey(filtered[0].key);
@@ -1418,6 +1774,28 @@ export default function ExploreReels({
               EXPLORE THE CAMP
             </Text>
           </View>
+          <Pressable
+            onPress={() => setUploadVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Share a resource"
+            style={({ pressed }) => [
+              styles.shareResourceButton,
+              {
+                backgroundColor: theme.primary + "18",
+                borderColor: theme.primary + "55",
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="plus-circle-outline"
+              size={16}
+              color={theme.primary}
+            />
+            <Text style={[styles.shareResourceText, { color: theme.primary }]}>
+              Share
+            </Text>
+          </Pressable>
         </View>
 
         <View
@@ -1525,9 +1903,7 @@ export default function ExploreReels({
                     styles.stack,
                     {
                       height:
-                        reelHeight > 0
-                          ? reelHeight
-                          : FEED_SKELETON_FALLBACK,
+                        reelHeight > 0 ? reelHeight : FEED_SKELETON_FALLBACK,
                     },
                   ]}
                 >
@@ -1579,6 +1955,9 @@ export default function ExploreReels({
                       onLike={toggleLike}
                       onShare={shareReel}
                       onToggleEnroll={toggleEnroll}
+                      onChallenge={handleChallenge}
+                      onNext={goNext}
+                      attempt={attempts[item.key]}
                       enrolled={
                         enrollOverrides[item.post.id] ??
                         enrolledIds.has(item.post.id)
@@ -1692,6 +2071,16 @@ export default function ExploreReels({
           />
         )}
       </View>
+
+      <ResourceUploadSheet
+        visible={uploadVisible}
+        onClose={() => setUploadVisible(false)}
+        onSuccess={() => {
+          setUploadVisible(false);
+          loadFeed(true);
+          setTimeout(scrollToTop, 120);
+        }}
+      />
     </View>
   );
 }
@@ -1730,12 +2119,30 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
   headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
     paddingHorizontal: 16,
     marginTop: 16,
     marginBottom: 5,
   },
   headerTitleBlock: {
+    flex: 1,
     gap: 2,
+  },
+  shareResourceButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  shareResourceText: {
+    fontSize: 11,
+    fontWeight: "800",
   },
   sectionTitle: {
     fontSize: 18,
@@ -1984,6 +2391,151 @@ const styles = StyleSheet.create({
   sharedAt: {
     fontSize: 11,
     fontWeight: "500",
+  },
+  hookBlock: {
+    alignSelf: "stretch",
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginTop: 2,
+    marginBottom: 2,
+    gap: 4,
+  },
+  hookMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  hookTone: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+  },
+  hookDivider: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  hookType: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+  },
+  hookText: {
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 19,
+  },
+  challengePrompt: {
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 17,
+  },
+  answerStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 4,
+  },
+  answerStatusText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  revealCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    gap: 6,
+    marginTop: 2,
+  },
+  revealTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  revealTitle: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  revealXp: {
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  revealText: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "600",
+  },
+  revealBonus: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  nextReelButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  nextReelText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  challengeHook: {
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  challengeTag: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  challengeCopy: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  challengeChoiceStack: {
+    gap: 7,
+    marginTop: 2,
+  },
+  challengeVoteLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  challengeChoiceRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  challengeChoiceButton: {
+    flexGrow: 1,
+    flexBasis: "42%",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  challengeChoiceText: {
+    fontSize: 11,
+    textAlign: "center",
   },
   subtopicTitle: {
     fontSize: 26,

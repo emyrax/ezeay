@@ -85,6 +85,20 @@
       "when": 1793196967243,
       "tag": "0011_mysterious_tyrannus",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793650182609,
+      "tag": "0012_slim_goblin_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793693264610,
+      "tag": "0013_flowery_iceman",
+      "breakpoints": true
     }
   ]
 }

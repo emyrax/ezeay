@@ -6,13 +6,14 @@ export async function uploadFile(
   filename: string,
   mimeType: string,
   getToken: () => Promise<string | null>,
+  options: { endpoint?: string } = {},
 ): Promise<string> {
   const token = await getToken();
   if (!token) throw new Error("Not authenticated");
 
   const base64 = await readFileAsBase64(fileUri);
 
-  const res = await fetch(`${API_BASE}/api/study/upload`, {
+  const res = await fetch(`${API_BASE}${options.endpoint ?? "/api/study/upload"}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

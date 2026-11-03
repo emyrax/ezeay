@@ -42,6 +42,23 @@ Rules for content:
 - The course should be completable within ${input.weeks} weeks
 - Chapter order should follow a logical learning progression
 
+Retention metadata for each subtopic:
+Every subtopic must include retention-ready fields for the Explore feed:
+- hook: 1 punchy line that creates curiosity or reveals a misconception (max 15 words)
+- hookTone: one of "curious" | "challenge" | "misconception" | "fast-win"
+- challengeType: one of "prediction" | "vote" | "multiple-choice" | "misconception"
+- challengePrompt: a short question or prompt relevant to the subtopic concept (max 20 words)
+- challengeOptions: array of 2-4 short answer choices (5 words max each)
+- correctChoiceIndex: 0-based index of the correct/best choice
+- revealText: 1-2 sentence explanation of why the correct choice is right
+- shareCopy: 1 shareable insight sentence a learner would want to send to a friend
+- xpReward: integer between 10 and 30
+
+Hook design rules:
+- Create tension, trigger curiosity, surface a misconception, or frame a clear win
+- Never just restate the subtopic title
+- Make the learner want to answer immediately
+
 Also generate a detailed thumbnail prompt following these guidelines:
 - "Fantasy RPG card art style"
 - "Bold neon colors on dark gradient background (#0f0f1a to #1a1a2e)"
@@ -64,7 +81,16 @@ Return ONLY valid JSON with this exact structure:
         {
           "title": "Subtopic title",
           "content": "2-3 sentences of learning content explaining this subtopic",
-          "order": 1
+          "order": 1,
+          "hook": "Short punchy hook line that creates curiosity",
+          "hookTone": "curious",
+          "challengeType": "multiple-choice",
+          "challengePrompt": "Which approach leads to faster mastery?",
+          "challengeOptions": ["Spaced repetition", "Marathon sessions", "Passive reading", "Highlighters only"],
+          "correctChoiceIndex": 0,
+          "revealText": "Spaced repetition triggers stronger memory consolidation each session.",
+          "shareCopy": "Spacing your learning beats cramming by 2x — every time.",
+          "xpReward": 20
         }
       ]
     }
@@ -79,4 +105,42 @@ export function buildThumbnailGenerationPrompt(
   return `${thumbnailPrompt}
 
 IMPORTANT: Return ONLY the generated image. No text. No markdown. No JSON.`;
+}
+
+export function buildResourceChallengePrompt(input: {
+  title: string;
+  summary: string;
+  resourceType: string;
+}): string {
+  return `You are a learning challenge designer for Yuinx, a gamified learning app.
+
+A user has shared a study resource. Generate retention metadata for the Explore feed.
+
+Resource title: "${input.title}"
+Resource type: "${input.resourceType}"
+Summary: "${input.summary}"
+
+Generate a hook and micro-challenge for this resource.
+
+Rules:
+- hook: 1 punchy line that creates curiosity about the resource (max 15 words)
+- hookTone: one of "curious" | "challenge" | "misconception" | "fast-win"
+- challengeType: one of "prediction" | "vote" | "multiple-choice" | "misconception"
+- challengePrompt: a short question relevant to the resource (max 20 words)
+- challengeOptions: 2-4 short answer options (5 words max each)
+- correctChoiceIndex: 0-based index of the correct/best answer
+- revealText: 1-2 sentences explaining the correct choice
+- shareCopy: 1 shareable insight sentence
+
+Return ONLY valid JSON:
+{
+  "hook": "...",
+  "hookTone": "curious",
+  "challengeType": "multiple-choice",
+  "challengePrompt": "...",
+  "challengeOptions": ["Option A", "Option B", "Option C"],
+  "correctChoiceIndex": 0,
+  "revealText": "...",
+  "shareCopy": "..."
+}`;
 }

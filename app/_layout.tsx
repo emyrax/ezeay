@@ -125,6 +125,7 @@ function NavigationGuard() {
     const inAuthGroup = segments[0] === "(auth)";
     const inTabsGroup = segments[0] === "(tabs)";
     const inSettingsGroup = segments[0] === "(settings)";
+    const inExploreGroup = segments[0] === "explore";
 
     if (becameReady) {
       strayArmedRef.current = true;
@@ -153,7 +154,12 @@ function NavigationGuard() {
       return;
     }
 
-    if (!inTabsGroup && !inSettingsGroup && (becameReady || isPublicPage || strayArmedRef.current)) {
+    if (
+      !inTabsGroup &&
+      !inSettingsGroup &&
+      !inExploreGroup &&
+      (becameReady || isPublicPage || strayArmedRef.current)
+    ) {
       // dismissAll dispatches POP_TO_TOP unconditionally. During cold start the
       // navigator (and its stack) may not be mounted/registered yet, so the
       // action has no handler and warns. canDismiss() returns false in that

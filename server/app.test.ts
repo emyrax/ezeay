@@ -89,10 +89,56 @@ test("spin validates auth before touching the database", async () => {
   assert.equal(res.body.code, "unauthorized");
 });
 
+test("reel daily progress is auth-gated", async () => {
+  const res = await request(app).get("/api/reels/daily");
+  assert.equal(res.status, 401);
+  assert.equal(res.body.code, "unauthorized");
+});
+
+test("reel challenge submissions are auth-gated", async () => {
+  const res = await request(app)
+    .post("/api/community/feed/course-1/challenge")
+    .send({ chapterIndex: 0, subtopicIndex: 0, selectedIndex: 1 });
+  assert.equal(res.status, 401);
+  assert.equal(res.body.code, "unauthorized");
+});
+
+test("community feed accepts cursor pagination params", async () => {
+  const res = await request(app).get(
+    "/api/community/feed?limit=5&offset=0&cursor=2026-01-01T00:00:00.000Z",
+  );
+  assert.equal(res.status, 401);
+  assert.equal(res.body.error, "Invalid token");
+});
+
 test("animated lesson reads are auth-gated", async () => {
   const res = await request(app).get("/api/courses/course-1/lessons/0/0");
   assert.equal(res.status, 401);
   assert.equal(res.body.error, "Invalid token");
+});
+
+test("thread feed routes are auth-gated", async () => {
+  const [feed, chapter, like, comment, upload] = await Promise.all([
+    request(app).get("/api/community/subtopic-feed?limit=5&offset=0&seed=42"),
+    request(app).get("/api/community/chapters/course-1%3A0/thread"),
+    request(app).post("/api/community/threads/subtopic%3Acourse-1%3A0%3A0/like"),
+    request(app).post("/api/community/threads/subtopic%3Acourse-1%3A0%3A0/comments"),
+    request(app).post("/api/community/thread-uploads"),
+  ]);
+  for (const res of [feed, chapter, like, comment, upload]) {
+    assert.equal(res.status, 401);
+  }
+});
+
+test("social thread routes are auth-gated", async () => {
+  const [profile, follow, challenge] = await Promise.all([
+    request(app).get("/api/community/users/user-2/thread-profile"),
+    request(app).post("/api/community/users/user-2/follow"),
+    request(app).post("/api/community/users/user-2/challenge"),
+  ]);
+  for (const res of [profile, follow, challenge]) {
+    assert.equal(res.status, 401);
+  }
 });
 
 test("animated lesson generation is auth-gated", async () => {

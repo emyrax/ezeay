@@ -53,7 +53,28 @@ export interface WeeklyChallenge {
   progress: number;
 }
 
-export interface FeedSubtopic {
+// ─── Reel retention metadata ───────────────────────────────────────────────────
+export type ReelHookTone = "curious" | "challenge" | "misconception" | "fast-win";
+export type ReelChallengeType =
+  | "prediction"
+  | "vote"
+  | "multiple-choice"
+  | "misconception";
+
+export interface ReelHookMeta {
+  hook?: string;
+  hookTone?: ReelHookTone;
+  challengeType?: ReelChallengeType;
+  challengePrompt?: string;
+  challengeOptions?: string[];
+  correctChoiceIndex?: number;
+  revealText?: string;
+  shareCopy?: string;
+  xpReward?: number;
+  streakReward?: number;
+}
+
+export interface FeedSubtopic extends ReelHookMeta {
   title: string;
   order: number;
 }
@@ -63,6 +84,43 @@ export interface FeedChapter {
   order: number;
   isPrivate?: boolean;
   subtopics: FeedSubtopic[];
+}
+
+// ─── Resource upload post ──────────────────────────────────────────────────────
+export type ResourceType = "handwritten" | "pdf" | "text" | "image" | "audio" | "other";
+
+export interface ExploreResourcePost {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar?: string;
+  createdAt: string;
+  type: "resource";
+  title: string;
+  summary: string;
+  hook: string;
+  hookTone?: ReelHookTone;
+  challengeType: ReelChallengeType;
+  challengePrompt: string;
+  challengeOptions: string[];
+  correctChoiceIndex?: number;
+  revealText: string;
+  shareCopy: string;
+  resourceType: ResourceType;
+  fileName: string;
+  fileSizeBytes: number;
+  mimeType: string;
+  storageUrl: string;
+  previewUrl?: string;
+  previewText?: string;
+  isPublic: boolean;
+  tags: string[];
+  likes: number;
+  saves: number;
+  shares: number;
+  views: number;
+  difficulty?: string;
+  xpReward?: number;
 }
 
 export interface CommunityFeedPost {
@@ -84,12 +142,15 @@ export interface CommunityFeedPost {
   likedByMe: boolean;
   viewCount: number;
   chapterIndex: FeedChapter[];
+  /** Populated for resource posts from ExploreResourcePost */
+  resourcePost?: ExploreResourcePost;
 }
 
 export interface CommunityFeed {
   posts: CommunityFeedPost[];
   refreshedAt: string;
   hasMore?: boolean;
+  nextCursor?: string | null;
 }
 
 export interface UserComment {

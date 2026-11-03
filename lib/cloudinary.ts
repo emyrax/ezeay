@@ -4,6 +4,7 @@ import { readFileAsBase64 } from "./fileAccess";
 export async function uploadImage(
   fileUri: string,
   getToken: () => Promise<string | null>,
+  options: { endpoint?: string } = {},
 ): Promise<string> {
   const token = await getToken();
   if (!token) throw new Error("Not authenticated");
@@ -14,14 +15,17 @@ export async function uploadImage(
 
   const base64 = await readFileAsBase64(fileUri);
 
-  const res = await fetch(`${API_BASE}/api/uploads/cloudinary`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+  const res = await fetch(
+    `${API_BASE}${options.endpoint ?? "/api/uploads/cloudinary"}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ base64, mimeType }),
     },
-    body: JSON.stringify({ base64, mimeType }),
-  });
+  );
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Upload failed" }));

@@ -1,3 +1,5 @@
+import type { ReelHookMeta } from "./community";
+
 export interface Chapter {
   title: string;
   description: string;
@@ -6,7 +8,7 @@ export interface Chapter {
   isPrivate?: boolean;
 }
 
-export interface Subtopic {
+export interface Subtopic extends ReelHookMeta {
   title: string;
   content: string;
   order: number;

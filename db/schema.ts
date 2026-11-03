@@ -414,6 +414,62 @@ export const communityPostComments = pgTable(
   }),
 );
 
+export const reelChallengeAttempts = pgTable(
+  "reel_challenge_attempts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    courseId: text("course_id").notNull(),
+    chapterIndex: integer("chapter_index").notNull(),
+    subtopicIndex: integer("subtopic_index").notNull(),
+    challengeType: text("challenge_type").notNull().default("multiple-choice"),
+    selectedIndex: integer("selected_index").notNull(),
+    correct: boolean("correct").notNull().default(false),
+    xpAwarded: integer("xp_awarded").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueReelAttempt: unique().on(
+      table.userId,
+      table.courseId,
+      table.chapterIndex,
+      table.subtopicIndex,
+    ),
+    reelAttemptCourseIdx: index("reel_challenge_attempts_course_idx").on(
+      table.courseId,
+      table.chapterIndex,
+      table.subtopicIndex,
+    ),
+  }),
+);
+
+export const reelDailyProgress = pgTable(
+  "reel_daily_progress",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    reelsViewed: integer("reels_viewed").notNull().default(0),
+    challengesAnswered: integer("challenges_answered").notNull().default(0),
+    xpEarned: integer("xp_earned").notNull().default(0),
+    streak: integer("streak").notNull().default(0),
+    goalMet: boolean("goal_met").notNull().default(false),
+    bonusAwarded: boolean("bonus_awarded").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueReelDaily: unique().on(table.userId, table.date),
+    reelDailyUserDateIdx: index("reel_daily_progress_user_date_idx").on(
+      table.userId,
+      table.date,
+    ),
+  }),
+);
+
 export const courseFeedLikes = pgTable(
   "course_feed_likes",
   {
@@ -452,5 +508,74 @@ export const notes = pgTable(
   (table) => ({
     notesUserUpdatedIdx: index("notes_user_updated_idx").on(table.userId, table.updatedAt),
     notesUserSourceIdx: uniqueIndex("notes_user_source_idx").on(table.userId, table.sourceNoteId),
+  }),
+);
+
+export const userFollows = pgTable(
+  "user_follows",
+  {
+    id: text("id").primaryKey(),
+    followerId: text("follower_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    followingId: text("following_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueFollow: unique().on(table.followerId, table.followingId),
+    followFollowingIdx: index("user_follows_following_idx").on(table.followingId),
+  }),
+);
+
+export const userChallenges = pgTable(
+  "user_challenges",
+  {
+    id: text("id").primaryKey(),
+    challengerId: text("challenger_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    challengedUserId: text("challenged_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    postId: text("post_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueChallenge: unique().on(table.challengerId, table.challengedUserId),
+    challengeChallengedIdx: index("user_challenges_challenged_idx").on(table.challengedUserId),
+  }),
+);
+
+export const threadPostLikes = pgTable(
+  "thread_post_likes",
+  {
+    id: text("id").primaryKey(),
+    postId: text("post_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueThreadLike: unique().on(table.postId, table.userId),
+    threadLikePostIdx: index("thread_post_likes_post_idx").on(table.postId),
+  }),
+);
+
+export const threadPostComments = pgTable(
+  "thread_post_comments",
+  {
+    id: text("id").primaryKey(),
+    postId: text("post_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    threadCommentPostIdx: index("thread_post_comments_post_idx").on(table.postId),
   }),
 );
