@@ -43,6 +43,7 @@ export default function LandingPage() {
   const { width } = useWindowDimensions();
   const isWide = width >= 980;
   const isCompact = width < 720;
+  const glowScale = Math.max(0.42, Math.min(1, width / 1180));
   const fade = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(22)).current;
   const [hovered, setHovered] = useState<string | null>(null);
@@ -88,8 +89,30 @@ export default function LandingPage() {
         locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFill}
       />
-      <View style={styles.heroGlowOne} />
-      <View style={styles.heroGlowTwo} />
+      <View
+        style={[
+          styles.heroGlowOne,
+          {
+            width: 620 * glowScale,
+            height: 620 * glowScale,
+            borderRadius: 310 * glowScale,
+            top: -220 * glowScale,
+            right: -160 * glowScale,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.heroGlowTwo,
+          {
+            width: 520 * glowScale,
+            height: 520 * glowScale,
+            borderRadius: 260 * glowScale,
+            top: 520 * glowScale,
+            left: -220 * glowScale,
+          },
+        ]}
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -362,6 +385,7 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
     backgroundColor: landingColors.bg,
+    overflow: "hidden",
   },
   scroll: {
     flex: 1,
@@ -371,20 +395,10 @@ const styles = StyleSheet.create({
   },
   heroGlowOne: {
     position: "absolute",
-    top: -220,
-    right: -160,
-    width: 620,
-    height: 620,
-    borderRadius: 310,
     backgroundColor: "rgba(47,124,255,0.13)",
   },
   heroGlowTwo: {
     position: "absolute",
-    top: 520,
-    left: -220,
-    width: 520,
-    height: 520,
-    borderRadius: 260,
     backgroundColor: "rgba(124,108,255,0.08)",
   },
   navWrap: {

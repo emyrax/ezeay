@@ -315,7 +315,10 @@ export default function VisualLessonModal({
           onReplayAudio={session.replayAudio}
           onPrevious={session.previous}
           onNext={session.next}
-          onAnswerCheckpoint={() => setCheckpointOpen(true)}
+          onAnswerCheckpoint={() => {
+            session.pause();
+            setCheckpointOpen(true);
+          }}
           onReplayLesson={handleReplayLesson}
           onStartQuiz={handleStartQuiz}
           onNextLesson={handleNextLesson}

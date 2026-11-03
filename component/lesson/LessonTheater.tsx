@@ -270,288 +270,288 @@ export function LessonTheaterView({
     <LessonThemeProvider theme={lessonTheaterTheme}>
       <StatusBar hidden />
       <View style={styles.root}>
-          <MotionBackdrop
-            preset={motion}
-            color="#FFFFFF"
-            accent="#A1A1AA"
-          />
-          <LinearGradient
-            pointerEvents="none"
-            colors={[
-              "rgba(0, 0, 0, 0.72)",
-              "transparent",
-              "transparent",
-              "rgba(0, 0, 0, 0.96)",
-            ]}
-            locations={[0, 0.2, 0.68, 1]}
-            style={StyleSheet.absoluteFill}
-          />
-          <View pointerEvents="none" style={styles.grid}>
-            {Array.from({ length: 3 }, (_, line) => (
-              <View
-                key={`v-${line}`}
-                style={[styles.gridLine, { left: `${(line + 1) * 25}%` }]}
-              />
-            ))}
-            {Array.from({ length: 2 }, (_, line) => (
-              <View
-                key={`h-${line}`}
-                style={[
-                  styles.gridLineHorizontal,
-                  { top: `${(line + 1) * 33.33}%` },
-                ]}
-              />
-            ))}
-          </View>
+        <MotionBackdrop
+          preset={motion}
+          color="#FFFFFF"
+          accent="#A1A1AA"
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={[
+            "rgba(0, 0, 0, 0.72)",
+            "transparent",
+            "transparent",
+            "rgba(0, 0, 0, 0.96)",
+          ]}
+          locations={[0, 0.2, 0.68, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View pointerEvents="none" style={styles.grid}>
+          {Array.from({ length: 3 }, (_, line) => (
+            <View
+              key={`v-${line}`}
+              style={[styles.gridLine, { left: `${(line + 1) * 25}%` }]}
+            />
+          ))}
+          {Array.from({ length: 2 }, (_, line) => (
+            <View
+              key={`h-${line}`}
+              style={[
+                styles.gridLineHorizontal,
+                { top: `${(line + 1) * 33.33}%` },
+              ]}
+            />
+          ))}
+        </View>
 
+        <View
+          style={[
+            styles.topBar,
+            { paddingTop: Math.max(insets.top, 12) + 4 },
+          ]}
+        >
+          <View style={styles.topCopy}>
+            <Text style={styles.slideLabel}>
+              Slide {String(index + 1).padStart(2, "0")} /{" "}
+              {String(total).padStart(2, "0")}
+            </Text>
+            <Text style={styles.lessonTitle} numberOfLines={1}>
+              {lessonTitle}
+            </Text>
+          </View>
+          <View style={styles.topActions}>
+            <IconButton
+              icon={mode === "visual" ? "text-outline" : "albums-outline"}
+              label={
+                mode === "visual"
+                  ? "Switch to narration only"
+                  : "Switch to visual and narration"
+              }
+              onPress={toggleMode}
+              selected={mode === "text"}
+            />
+            <IconButton
+              icon="refresh"
+              label="Replay narration"
+              onPress={onReplayAudio}
+              disabled={!clipReady}
+            />
+            {onMinimize ? (
+              <IconButton
+                icon="chevron-down"
+                label="Minimize lesson"
+                onPress={onMinimize}
+              />
+            ) : null}
+            <IconButton icon="close" label={closeLabel ?? "Exit full screen"} onPress={onClose} />
+          </View>
+        </View>
+
+        <View style={styles.slideTrack}>
           <View
             style={[
-              styles.topBar,
-              { paddingTop: Math.max(insets.top, 12) + 4 },
+              styles.slideFill,
+              { width: `${slideProgress * 100}%` as `${number}%` },
             ]}
-          >
-            <View style={styles.topCopy}>
-              <Text style={styles.slideLabel}>
-                Slide {String(index + 1).padStart(2, "0")} /{" "}
-                {String(total).padStart(2, "0")}
-              </Text>
-              <Text style={styles.lessonTitle} numberOfLines={1}>
-                {lessonTitle}
-              </Text>
-            </View>
-            <View style={styles.topActions}>
-              <IconButton
-                icon={mode === "visual" ? "text-outline" : "albums-outline"}
-                label={
-                  mode === "visual"
-                    ? "Switch to narration only"
-                    : "Switch to visual and narration"
-                }
-                onPress={toggleMode}
-                selected={mode === "text"}
-              />
-              <IconButton
-                icon="refresh"
-                label="Replay narration"
-                onPress={onReplayAudio}
-                disabled={!clipReady}
-              />
-              {onMinimize ? (
-                <IconButton
-                  icon="chevron-down"
-                  label="Minimize lesson"
-                  onPress={onMinimize}
-                />
-              ) : null}
-              <IconButton icon="close" label={closeLabel ?? "Exit full screen"} onPress={onClose} />
-            </View>
-          </View>
+          />
+        </View>
 
-          <View style={styles.slideTrack}>
-            <View
-              style={[
-                styles.slideFill,
-                { width: `${slideProgress * 100}%` as `${number}%` },
-              ]}
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.body,
+            mode === "text" && styles.bodyText,
+          ]}
+          showsVerticalScrollIndicator={false}
+          onLayout={(event) => {
+            scrollViewportRef.current = event.nativeEvent.layout.height;
+            reapplyLastWordLayout();
+          }}
+          onContentSizeChange={(_, height) => {
+            scrollContentRef.current = height;
+            reapplyLastWordLayout();
+          }}
+          onScroll={(event) => {
+            scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+          }}
+          onScrollBeginDrag={handleScrollBeginDrag}
+          scrollEventThrottle={16}
+        >
+          {mode === "visual" ? (
+            <View style={styles.stageWrap}>
+              <LessonStage
+                key={`theater-stage-${slide.id}`}
+                slide={slide}
+                index={index}
+                total={total}
+                presentation
+              />
+            </View>
+          ) : (
+            <View style={styles.textEyebrowRow}>
+              <View style={styles.eyebrowRule} />
+              <Text style={styles.textEyebrow}>Narration</Text>
+              <View style={styles.eyebrowRule} />
+            </View>
+          )}
+
+          <View
+            style={styles.narrationWrap}
+            onLayout={(event) => {
+              narrationTopRef.current = event.nativeEvent.layout.y;
+              reapplyLastWordLayout();
+            }}
+          >
+            <SyncedNarration
+              key={`theater-narration-${slide.id}`}
+              text={slide.narration}
+              progress={progress}
+              preset={motion}
+              variant={mode}
+              follow={followNarration}
+              onActiveWordLayout={handleNarrationWordLayout}
             />
           </View>
 
-          <ScrollView
-            ref={scrollRef}
-            style={styles.scroll}
-            contentContainerStyle={[
-              styles.body,
-              mode === "text" && styles.bodyText,
-            ]}
-            showsVerticalScrollIndicator={false}
-            onLayout={(event) => {
-              scrollViewportRef.current = event.nativeEvent.layout.height;
-              reapplyLastWordLayout();
-            }}
-            onContentSizeChange={(_, height) => {
-              scrollContentRef.current = height;
-              reapplyLastWordLayout();
-            }}
-            onScroll={(event) => {
-              scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
-            }}
-            onScrollBeginDrag={handleScrollBeginDrag}
-            scrollEventThrottle={16}
-          >
-            {mode === "visual" ? (
-              <View style={styles.stageWrap}>
-                <LessonStage
-                  key={`theater-stage-${slide.id}`}
-                  slide={slide}
-                  index={index}
-                  total={total}
-                  presentation
-                />
-              </View>
-            ) : (
-              <View style={styles.textEyebrowRow}>
-                <View style={styles.eyebrowRule} />
-                <Text style={styles.textEyebrow}>Narration</Text>
-                <View style={styles.eyebrowRule} />
-              </View>
-            )}
-
-            <View
-              style={styles.narrationWrap}
-              onLayout={(event) => {
-                narrationTopRef.current = event.nativeEvent.layout.y;
-                reapplyLastWordLayout();
-              }}
-            >
-              <SyncedNarration
-                key={`theater-narration-${slide.id}`}
-                text={slide.narration}
-                progress={progress}
-                preset={motion}
-                variant={mode}
-                follow={followNarration}
-                onActiveWordLayout={handleNarrationWordLayout}
-              />
-            </View>
-
-            {audioLoading ? (
-              <View style={styles.statusRow}>
-                <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.statusText}>Preparing narration...</Text>
-              </View>
-            ) : null}
-
-            {audioError ? (
-              <View style={styles.statusRow}>
-                <Ionicons name="volume-mute-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.statusText}>{audioError}</Text>
-              </View>
-            ) : null}
-
-            {canAdvance ? null : (
-              <TouchableOpacity
-                style={styles.checkpointButton}
-                onPress={onAnswerCheckpoint}
-                accessibilityRole="button"
-              >
-                <Ionicons name="help-circle-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.checkpointText}>
-                  Answer the checkpoint to continue
-                </Text>
-              </TouchableOpacity>
-            )}
-          </ScrollView>
-
-          <View
-            style={[
-              styles.controls,
-              { paddingBottom: Math.max(insets.bottom, 12) + 4 },
-            ]}
-          >
-            <View style={styles.timelineRow}>
-              <Text style={styles.timeText}>{formatTimecode(currentTimeMs)}</Text>
-              <View style={styles.timelineTrack}>
-                <View
-                  style={[
-                    styles.timelineFill,
-                    {
-                      width: `${Math.min(1, Math.max(0, progress)) * 100}%` as `${number}%`,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.timeText}>{formatTimecode(durationMs)}</Text>
-            </View>
-
-            <View style={styles.controlRow}>
-              <IconButton
-                icon="chevron-back"
-                label="Previous slide"
-                onPress={onPrevious}
-                disabled={index <= 0}
-              />
-              <TouchableOpacity
-                style={styles.playButton}
-                onPress={onPlayPause}
-                disabled={audioLoading}
-                accessibilityRole="button"
-                accessibilityLabel={playing ? "Pause narration" : "Play narration"}
-                accessibilityState={{ disabled: audioLoading }}
-              >
-                {audioLoading ? (
-                  <ActivityIndicator size="small" color="#000000" />
-                ) : (
-                  <Ionicons
-                    name={playing ? "pause" : "play"}
-                    size={24}
-                    color="#000000"
-                    style={!playing ? styles.playIcon : undefined}
-                  />
-                )}
-              </TouchableOpacity>
-              <IconButton
-                icon="chevron-forward"
-                label={isLast ? "Finish lesson" : "Next slide"}
-                onPress={onNext}
-                disabled={!canAdvance}
-              />
-            </View>
-          </View>
-
-          {finished ? (
-            <View style={styles.completeOverlay}>
-              <View style={styles.completeIcon}>
-                <Ionicons name="checkmark" size={30} color="#000000" />
-              </View>
-              <Text style={styles.completeTitle}>Lesson complete</Text>
-              <Text style={styles.completeText}>
-                You made it through every slide.
-              </Text>
-              <View style={styles.completeActions}>
-                <TouchableOpacity
-                  style={styles.completePrimary}
-                  onPress={onStartQuiz ?? onReplayLesson}
-                  accessibilityRole="button"
-                >
-                  <Ionicons
-                    name={onStartQuiz ? "help-circle-outline" : "refresh"}
-                    size={17}
-                    color="#000000"
-                  />
-                  <Text style={styles.completePrimaryText}>
-                    {onStartQuiz ? "Start quiz" : "Replay lesson"}
-                  </Text>
-                </TouchableOpacity>
-                {onStartQuiz ? (
-                  <TouchableOpacity
-                    style={styles.completeSecondary}
-                    onPress={onReplayLesson}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.completeSecondaryText}>Replay lesson</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {onNextLesson ? (
-                  <TouchableOpacity
-                    style={styles.completeSecondary}
-                    onPress={onNextLesson}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.completeSecondaryText}>Next lesson</Text>
-                  </TouchableOpacity>
-                ) : null}
-                <TouchableOpacity
-                  style={styles.completeSecondary}
-                  onPress={onClose}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.completeSecondaryText}>
-                    {closeLabel ?? "Exit full screen"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+          {audioLoading ? (
+            <View style={styles.statusRow}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.statusText}>Preparing narration...</Text>
             </View>
           ) : null}
+
+          {audioError ? (
+            <View style={styles.statusRow}>
+              <Ionicons name="volume-mute-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.statusText}>{audioError}</Text>
+            </View>
+          ) : null}
+
+          {canAdvance ? null : (
+            <TouchableOpacity
+              style={styles.checkpointButton}
+              onPress={onAnswerCheckpoint}
+              accessibilityRole="button"
+            >
+              <Ionicons name="help-circle-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.checkpointText}>
+                Answer the checkpoint to continue
+              </Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+
+        <View
+          style={[
+            styles.controls,
+            { paddingBottom: Math.max(insets.bottom, 12) + 4 },
+          ]}
+        >
+          <View style={styles.timelineRow}>
+            <Text style={styles.timeText}>{formatTimecode(currentTimeMs)}</Text>
+            <View style={styles.timelineTrack}>
+              <View
+                style={[
+                  styles.timelineFill,
+                  {
+                    width: `${Math.min(1, Math.max(0, progress)) * 100}%` as `${number}%`,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.timeText}>{formatTimecode(durationMs)}</Text>
+          </View>
+
+          <View style={styles.controlRow}>
+            <IconButton
+              icon="chevron-back"
+              label="Previous slide"
+              onPress={onPrevious}
+              disabled={index <= 0}
+            />
+            <TouchableOpacity
+              style={styles.playButton}
+              onPress={onPlayPause}
+              disabled={audioLoading}
+              accessibilityRole="button"
+              accessibilityLabel={playing ? "Pause narration" : "Play narration"}
+              accessibilityState={{ disabled: audioLoading }}
+            >
+              {audioLoading ? (
+                <ActivityIndicator size="small" color="#000000" />
+              ) : (
+                <Ionicons
+                  name={playing ? "pause" : "play"}
+                  size={24}
+                  color="#000000"
+                  style={!playing ? styles.playIcon : undefined}
+                />
+              )}
+            </TouchableOpacity>
+            <IconButton
+              icon="chevron-forward"
+              label={isLast ? "Finish lesson" : "Next slide"}
+              onPress={onNext}
+              disabled={!canAdvance}
+            />
+          </View>
+        </View>
+
+        {finished ? (
+          <View style={styles.completeOverlay}>
+            <View style={styles.completeIcon}>
+              <Ionicons name="checkmark" size={30} color="#000000" />
+            </View>
+            <Text style={styles.completeTitle}>Lesson complete</Text>
+            <Text style={styles.completeText}>
+              You made it through every slide.
+            </Text>
+            <View style={styles.completeActions}>
+              <TouchableOpacity
+                style={styles.completePrimary}
+                onPress={onStartQuiz ?? onReplayLesson}
+                accessibilityRole="button"
+              >
+                <Ionicons
+                  name={onStartQuiz ? "help-circle-outline" : "refresh"}
+                  size={17}
+                  color="#000000"
+                />
+                <Text style={styles.completePrimaryText}>
+                  {onStartQuiz ? "Start quiz" : "Replay lesson"}
+                </Text>
+              </TouchableOpacity>
+              {onStartQuiz ? (
+                <TouchableOpacity
+                  style={styles.completeSecondary}
+                  onPress={onReplayLesson}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.completeSecondaryText}>Replay lesson</Text>
+                </TouchableOpacity>
+              ) : null}
+              {onNextLesson ? (
+                <TouchableOpacity
+                  style={styles.completeSecondary}
+                  onPress={onNextLesson}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.completeSecondaryText}>Next lesson</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={styles.completeSecondary}
+                onPress={onClose}
+                accessibilityRole="button"
+              >
+                <Text style={styles.completeSecondaryText}>
+                  {closeLabel ?? "Exit full screen"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
       </View>
     </LessonThemeProvider>
   );
