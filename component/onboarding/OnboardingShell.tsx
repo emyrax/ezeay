@@ -52,6 +52,7 @@ export default function OnboardingShell({
 }) {
   const { width } = useWindowDimensions();
   const isWide = width >= 1020;
+  const glowScale = Math.max(0.45, Math.min(1, width / 1180));
   const progress = getProgress(step.id, answers);
   const country = findAfricanCountry(answers.country);
   const isFirst = step.id === "welcome";
@@ -64,8 +65,30 @@ export default function OnboardingShell({
         locations={[0, 0.55, 1]}
         style={StyleSheet.absoluteFill}
       />
-      <View style={styles.glowOne} />
-      <View style={styles.glowTwo} />
+      <View
+        style={[
+          styles.glowOne,
+          {
+            width: 420 * glowScale,
+            height: 420 * glowScale,
+            borderRadius: 210 * glowScale,
+            top: -160 * glowScale,
+            right: -120 * glowScale,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.glowTwo,
+          {
+            width: 380 * glowScale,
+            height: 380 * glowScale,
+            borderRadius: 190 * glowScale,
+            bottom: -180 * glowScale,
+            left: -140 * glowScale,
+          },
+        ]}
+      />
 
       <View style={styles.topBar}>
         <Pressable
@@ -305,26 +328,17 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: landingColors.bg,
+    overflow: "hidden",
   },
   flex: {
     flex: 1,
   },
   glowOne: {
     position: "absolute",
-    top: -160,
-    right: -120,
-    width: 420,
-    height: 420,
-    borderRadius: 210,
     backgroundColor: "rgba(47,124,255,0.16)",
   },
   glowTwo: {
     position: "absolute",
-    bottom: -180,
-    left: -140,
-    width: 380,
-    height: 380,
-    borderRadius: 190,
     backgroundColor: "rgba(124,108,255,0.10)",
   },
   topBar: {
