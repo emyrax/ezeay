@@ -88,6 +88,8 @@ test("flattening skips own courses and private chapters for other viewers", () =
   assert.equal(items[0].partNumber, 1);
   assert.equal(items[0].subtopicCount, 2);
   assert.equal(items[0].examCategory, "WAEC");
+  assert.equal(items[0].courseTitle, "Math");
+  assert.equal(items[0].subtopicDetails, "Solve for x");
 
   const own = flattenCourseSubtopics(course, { viewerId: "user_1", includeMine: false });
   assert.equal(own.length, 0);

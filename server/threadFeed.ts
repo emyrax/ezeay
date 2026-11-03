@@ -1,3 +1,7 @@
+import { deriveHandle, deriveIqScore } from "../lib/identity";
+
+export { deriveHandle, deriveIqScore };
+
 export const MAX_THREAD_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 export const SUBTOPIC_POST_PREFIX = "subtopic:";
 export const RESOURCE_POST_PREFIX = "resource:";
@@ -19,6 +23,7 @@ export interface BaseThreadItem {
   authorName: string | null;
   authorAvatar: string | null;
   courseId: string;
+  courseTitle: string;
   chapterId: string;
   chapterIndex: number;
   chapterTitle: string;
@@ -26,6 +31,7 @@ export interface BaseThreadItem {
   partNumber: number;
   subtopicCount: number;
   subtopicTitle: string;
+  subtopicDetails: string;
   content: string;
   examCategory: ThreadExamCategory;
   mediaType: ThreadMediaType;
@@ -59,20 +65,6 @@ interface ResourceRowLike {
   authorAvatar: string | null;
   body: string;
   createdAt: Date | string;
-}
-
-export function deriveHandle(displayName: string | null | undefined, uid: string): string {
-  const base = (displayName ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 20);
-  const suffix = uid.replace(/[^a-zA-Z0-9]/g, "").slice(-4).toLowerCase() || "0000";
-  return `${base || "scholar"}-${suffix}`;
-}
-
-export function deriveIqScore(xp: number): number {
-  const safeXp = Number.isFinite(xp) && xp > 0 ? xp : 0;
-  return 100 + Math.min(100, Math.floor(Math.sqrt(safeXp) * 2));
 }
 
 export function buildChapterId(courseId: string, chapterIndex: number): string {
@@ -203,6 +195,7 @@ export function flattenChapterSubtopics(
       authorName: course.creatorName,
       authorAvatar: course.creatorAvatar,
       courseId: course.id,
+      courseTitle: course.title,
       chapterId: buildChapterId(course.id, chapterIndex),
       chapterIndex,
       chapterTitle,
@@ -210,6 +203,7 @@ export function flattenChapterSubtopics(
       partNumber: subtopicIndex + 1,
       subtopicCount,
       subtopicTitle,
+      subtopicDetails: typeof sub?.content === "string" ? sub.content.trim() : "",
       content: truncateText(sub?.content),
       examCategory: formatExamCategory(course.category),
       mediaType: "visual_lesson" as const,
@@ -288,6 +282,7 @@ export function mapResourceToThreadItem(row: ResourceRowLike): BaseThreadItem | 
     authorName: row.authorName,
     authorAvatar: row.authorAvatar,
     courseId: row.id,
+    courseTitle: "",
     chapterId: `resource:${row.id}`,
     chapterIndex: 0,
     chapterTitle: title,
@@ -295,6 +290,7 @@ export function mapResourceToThreadItem(row: ResourceRowLike): BaseThreadItem | 
     partNumber: 1,
     subtopicCount: 1,
     subtopicTitle: title,
+    subtopicDetails: "",
     content: truncateText(summary),
     examCategory: "General",
     mediaType: "document",

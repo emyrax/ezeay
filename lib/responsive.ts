@@ -3,9 +3,61 @@ import {
   CONTENT_WIDTHS,
   EXPLORE,
   GUTTERS,
+  NAV,
+  THREADS,
   type Breakpoint,
   type ContentWidth,
 } from "../constants/layout";
+
+export interface ThreadsLayout {
+  mode: "mobile" | "twoPane" | "threePane";
+  showSidebar: boolean;
+  sidebarExpanded: boolean;
+  showRightRail: boolean;
+  sidebarWidth: number;
+  feedMaxWidth: number | undefined;
+  railWidth: number;
+  gap: number;
+}
+
+export function getThreadsLayout(width: number): ThreadsLayout {
+  if (width >= THREADS.threePaneMinWidth) {
+    return {
+      mode: "threePane",
+      showSidebar: true,
+      sidebarExpanded: true,
+      showRightRail: true,
+      sidebarWidth: NAV.sidebarExpandedWidth,
+      feedMaxWidth: THREADS.feedMaxWidth,
+      railWidth: THREADS.rightRailWidth,
+      gap: THREADS.columnGap,
+    };
+  }
+
+  if (width >= THREADS.twoPaneMinWidth) {
+    return {
+      mode: "twoPane",
+      showSidebar: true,
+      sidebarExpanded: false,
+      showRightRail: false,
+      sidebarWidth: NAV.sidebarWidth,
+      feedMaxWidth: THREADS.feedMaxWidthCompact,
+      railWidth: 0,
+      gap: 0,
+    };
+  }
+
+  return {
+    mode: "mobile",
+    showSidebar: false,
+    sidebarExpanded: false,
+    showRightRail: false,
+    sidebarWidth: 0,
+    feedMaxWidth: undefined,
+    railWidth: 0,
+    gap: 0,
+  };
+}
 
 export interface ExploreLayout {
   showPanel: boolean;

@@ -247,6 +247,7 @@ export default function ChapterScreen() {
           chapterIndex: chapterIdx,
           subtopicIndex: activeSubtopic,
           subtopicTitle: subtopics[activeSubtopic]?.title ?? "",
+          subtopicDetails: subtopics[activeSubtopic]?.content ?? "",
         },
         token,
       );
@@ -282,13 +283,9 @@ export default function ChapterScreen() {
 
     try {
       const newResults: Record<number, boolean> = {};
-      let allCorrect = true;
-
-      quiz.questions.forEach((q, idx) => {
-        const isCorrect = selectedAnswers[idx] === q.correctAnswer;
-        newResults[idx] = isCorrect;
-        if (!isCorrect) allCorrect = false;
-      });
+    quiz.questions.forEach((q, idx) => {
+      newResults[idx] = selectedAnswers[idx] === q.correctAnswer;
+    });
 
       const correctCount = quiz.questions.filter(
         (_, idx) => newResults[idx],
@@ -303,8 +300,8 @@ export default function ChapterScreen() {
       await recordQuizAttempt(courseId, chapterIdx, activeSubtopic);
       await recordQuizScore(courseId, chapterIdx, activeSubtopic, score);
 
-      if (allCorrect) {
-        setQuizState("passed");
+    if (score >= 80) {
+      setQuizState("passed");
         setPassScore(correctCount);
         setRewardVisible(true);
 
@@ -652,7 +649,7 @@ export default function ChapterScreen() {
           {quiz.questions.map((q, qIdx) => (
             <View key={qIdx} style={styles.questionCard}>
               <Text style={[styles.questionText, { color: theme.text }]}>
-                {qIdx + 1}. {q.text}
+                {qIdx + 1}. {q.question}
               </Text>
               {q.options.map((opt, oIdx) => (
                 <TouchableOpacity
@@ -1144,7 +1141,7 @@ export default function ChapterScreen() {
                         <Text
                           style={[styles.questionText, { color: theme.text }]}
                         >
-                          {qIdx + 1}. {q.text}
+                          {qIdx + 1}. {q.question}
                         </Text>
                         {q.options.map((opt, oIdx) => (
                           <TouchableOpacity

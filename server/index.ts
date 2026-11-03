@@ -4731,18 +4731,26 @@ app.post("/api/subtopics/quiz", async (req, res) => {
     await verifyClerkToken(req.headers.authorization);
     const body = req.body;
 
-    if (!body.courseTitle || !body.subtopicTitle) {
-      res.status(400).json({ error: "Missing courseTitle or subtopicTitle" });
-      return;
-    }
+      if (
+        !body.courseTitle ||
+        !body.subtopicTitle ||
+        typeof body.subtopicDetails !== "string" ||
+        !body.subtopicDetails.trim()
+      ) {
+        res.status(400).json({
+          error: "Missing courseTitle, subtopicTitle, or subtopicDetails",
+        });
+        return;
+      }
 
-    const prompt = buildQuizGenerationPrompt({
-      courseId: body.courseId || "",
-      courseTitle: body.courseTitle,
-      chapterIndex: body.chapterIndex ?? 0,
-      subtopicIndex: body.subtopicIndex ?? 0,
-      subtopicTitle: body.subtopicTitle,
-    });
+      const prompt = buildQuizGenerationPrompt({
+        courseId: body.courseId || "",
+        courseTitle: body.courseTitle,
+        chapterIndex: body.chapterIndex ?? 0,
+        subtopicIndex: body.subtopicIndex ?? 0,
+        subtopicTitle: body.subtopicTitle,
+        subtopicDetails: body.subtopicDetails,
+      });
 
     const ai = aiRequestOptions(req);
     const questions = await generateQuizQuestions(ai.modelRef, prompt, ai.apiKey);

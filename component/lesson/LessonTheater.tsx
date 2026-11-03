@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -28,7 +28,7 @@ import SyncedNarration, {
   type NarrationWordLayout,
 } from "./SyncedNarration";
 
-interface Props {
+export interface LessonTheaterViewProps {
   visible: boolean;
   lessonTitle: string;
   slide: LessonSlide;
@@ -45,13 +45,17 @@ interface Props {
   finished: boolean;
   canAdvance: boolean;
   isLast: boolean;
+  closeLabel?: string;
   onClose: () => void;
+  onMinimize?: () => void;
   onPlayPause: () => void;
   onReplayAudio: () => void;
   onPrevious: () => void;
   onNext: () => void;
   onAnswerCheckpoint: () => void;
   onReplayLesson: () => void;
+  onStartQuiz?: () => void;
+  onNextLesson?: () => void;
 }
 
 type PresentationMode = "visual" | "text";
@@ -87,7 +91,24 @@ function IconButton({
   );
 }
 
-export default function LessonTheater({
+export default function LessonTheater(props: LessonTheaterViewProps) {
+  const { visible, onClose } = props;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      presentationStyle="fullScreen"
+      statusBarTranslucent
+      onRequestClose={onClose}
+      supportedOrientations={["portrait", "landscape"]}
+    >
+      <LessonTheaterView {...props} />
+    </Modal>
+  );
+}
+
+export function LessonTheaterView({
   visible,
   lessonTitle,
   slide,
@@ -104,14 +125,18 @@ export default function LessonTheater({
   finished,
   canAdvance,
   isLast,
+  closeLabel,
   onClose,
+  onMinimize,
   onPlayPause,
   onReplayAudio,
   onPrevious,
   onNext,
   onAnswerCheckpoint,
   onReplayLesson,
-}: Props) {
+  onStartQuiz,
+  onNextLesson,
+}: LessonTheaterViewProps) {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const narrationTopRef = useRef(0);
@@ -242,17 +267,9 @@ export default function LessonTheater({
   }, []);
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      presentationStyle="fullScreen"
-      statusBarTranslucent
-      onRequestClose={onClose}
-      supportedOrientations={["portrait", "landscape"]}
-    >
+    <LessonThemeProvider theme={lessonTheaterTheme}>
       <StatusBar hidden />
-      <LessonThemeProvider theme={lessonTheaterTheme}>
-        <View style={styles.root}>
+      <View style={styles.root}>
           <MotionBackdrop
             preset={motion}
             color="#FFFFFF"
@@ -319,7 +336,14 @@ export default function LessonTheater({
                 onPress={onReplayAudio}
                 disabled={!clipReady}
               />
-              <IconButton icon="close" label="Exit full screen" onPress={onClose} />
+              {onMinimize ? (
+                <IconButton
+                  icon="chevron-down"
+                  label="Minimize lesson"
+                  onPress={onMinimize}
+                />
+              ) : null}
+              <IconButton icon="close" label={closeLabel ?? "Exit full screen"} onPress={onClose} />
             </View>
           </View>
 
@@ -486,25 +510,50 @@ export default function LessonTheater({
               <View style={styles.completeActions}>
                 <TouchableOpacity
                   style={styles.completePrimary}
-                  onPress={onReplayLesson}
+                  onPress={onStartQuiz ?? onReplayLesson}
                   accessibilityRole="button"
                 >
-                  <Ionicons name="refresh" size={17} color="#000000" />
-                  <Text style={styles.completePrimaryText}>Replay lesson</Text>
+                  <Ionicons
+                    name={onStartQuiz ? "help-circle-outline" : "refresh"}
+                    size={17}
+                    color="#000000"
+                  />
+                  <Text style={styles.completePrimaryText}>
+                    {onStartQuiz ? "Start quiz" : "Replay lesson"}
+                  </Text>
                 </TouchableOpacity>
+                {onStartQuiz ? (
+                  <TouchableOpacity
+                    style={styles.completeSecondary}
+                    onPress={onReplayLesson}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.completeSecondaryText}>Replay lesson</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {onNextLesson ? (
+                  <TouchableOpacity
+                    style={styles.completeSecondary}
+                    onPress={onNextLesson}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.completeSecondaryText}>Next lesson</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity
                   style={styles.completeSecondary}
                   onPress={onClose}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.completeSecondaryText}>Exit full screen</Text>
+                  <Text style={styles.completeSecondaryText}>
+                    {closeLabel ?? "Exit full screen"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : null}
-        </View>
-      </LessonThemeProvider>
-    </Modal>
+      </View>
+    </LessonThemeProvider>
   );
 }
 

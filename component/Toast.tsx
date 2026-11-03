@@ -11,7 +11,7 @@ interface ToastMessage {
   title: string;
   xp?: number;
   coins?: number;
-  type?: "success" | "error";
+  type?: "success" | "error" | "info";
 }
 
 let toastId = 0;
@@ -79,9 +79,9 @@ export default function Toast() {
   }, [currentToast, opacity, translateY, dismissCurrent]);
 
   useEffect(() => {
-    const enqueueSuccess = (data: Omit<ToastMessage, "id">) => {
+    const enqueue = (data: Omit<ToastMessage, "id" | "type">, type: ToastMessage["type"]) => {
       setQueue((prev) => {
-        const newItem: ToastMessage = { ...data, id: ++toastId, type: "success" };
+        const newItem: ToastMessage = { ...data, id: ++toastId, type };
         if (prev.length === 0 && !currentToast) {
           setCurrentToast(newItem);
           return prev;
@@ -90,31 +90,41 @@ export default function Toast() {
       });
     };
 
-    const unsubClaim = eventBus.on("bounty:claimed", enqueueSuccess);
-
-    const unsubSuccess = eventBus.on("toast:success", enqueueSuccess);
-
-    const unsubError = eventBus.on("toast:error", (data: { title: string }) => {
-      setQueue((prev) => {
-        const newItem: ToastMessage = { id: ++toastId, title: data.title, type: "error" };
-        if (prev.length === 0 && !currentToast) {
-          setCurrentToast(newItem);
-          return prev;
-        }
-        return [...prev, newItem];
-      });
-    });
+    const unsubClaim = eventBus.on("bounty:claimed", (data: Omit<ToastMessage, "id" | "type">) =>
+      enqueue(data, "success"),
+    );
+    const unsubSuccess = eventBus.on("toast:success", (data: Omit<ToastMessage, "id" | "type">) =>
+      enqueue(data, "success"),
+    );
+    const unsubError = eventBus.on("toast:error", (data: { title: string }) =>
+      enqueue(data, "error"),
+    );
+    const unsubInfo = eventBus.on("toast:info", (data: { title: string }) =>
+      enqueue(data, "info"),
+    );
 
     return () => {
       unsubClaim();
       unsubSuccess();
       unsubError();
+      unsubInfo();
     };
   }, [currentToast]);
 
   if (!currentToast) return null;
 
-  const isError = currentToast.type === "error";
+  const tone =
+    currentToast.type === "error"
+      ? theme.danger
+      : currentToast.type === "info"
+        ? theme.info
+        : "#FFD700";
+  const icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"] =
+    currentToast.type === "error"
+      ? "alert-circle"
+      : currentToast.type === "info"
+        ? "information"
+        : "trophy";
 
   return (
     <Animated.View
@@ -126,16 +136,12 @@ export default function Toast() {
           styles.container,
           {
             backgroundColor: theme.surface,
-            borderLeftColor: isError ? theme.danger : "#FFD700",
+            borderLeftColor: tone,
           },
         ]}
       >
-        <View style={[styles.iconWrap, { backgroundColor: isError ? (theme.danger + "20") : (theme.primary + "20") }]}>
-          <MaterialCommunityIcons
-            name={isError ? "alert-circle" : "trophy"}
-            size={20}
-            color={isError ? theme.danger : "#FFD700"}
-          />
+        <View style={[styles.iconWrap, { backgroundColor: tone + "20" }]}>
+          <MaterialCommunityIcons name={icon} size={20} color={tone} />
         </View>
         <View style={styles.textWrap}>
           <Text style={[styles.title, { color: theme.text }]}>{currentToast.title}</Text>

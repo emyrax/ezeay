@@ -6,15 +6,15 @@ import SpinWheel from "../../component/SpinWheel";
 import { useResponsive } from "../../hooks/useResponsive";
 
 export default function TabLayout() {
-  const { isWebWide } = useResponsive();
+  const { showSidebar } = useResponsive();
 
   return (
-    <View style={[styles.root, isWebWide && styles.rootWide]}>
-      {isWebWide ? <AppSidebar /> : null}
+    <View style={[styles.root, showSidebar && styles.rootWide]}>
+      {showSidebar ? <AppSidebar /> : null}
 
       <View style={styles.content}>
         <Tabs
-          tabBar={(props) => (isWebWide ? null : <ResponsiveTabBar {...props} />)}
+          tabBar={(props) => (showSidebar ? null : <ResponsiveTabBar {...props} />)}
           screenOptions={{ headerShown: false }}
         >
           <Tabs.Screen name="index" />

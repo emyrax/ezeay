@@ -4,7 +4,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -14,21 +15,29 @@ import {
 import { NAV } from "../constants/layout";
 import { safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
-import { useTabBarInset } from "../hooks/useResponsive";
+import { useFullscreen } from "../hooks/useFullscreen";
+import { useResponsive, useTabBarInset } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
+import { eventBus } from "../lib/eventBus";
 import { threadLessonHref } from "../lib/threads/format";
+import { useThreadLearningStore } from "../store/threadLearningStore";
 import { useThreadStore } from "../store/threadStore";
+import type { FocusSubtopic } from "../types/learning";
 import type { ThreadPost } from "../types/thread";
 import ChapterThreadModal from "./ChapterThreadModal";
 import CommentsModal from "./CommentsModal";
+import FocusRail from "./FocusRail";
 import ProfileCardModal from "./ProfileCardModal";
 import ResourceUploadSheet from "./ResourceUploadSheet";
 import SubtopicThreadCard from "./SubtopicThreadCard";
+import ThreadQuizModal from "./ThreadQuizModal";
+import VisualLessonModal from "./VisualLessonModal";
 
 export default function ThreadFeedScreen() {
   const { getToken } = useAuth();
   const colors = useThemeColors();
   const router = useRouter();
+  const { isTabletUp, threadsLayout } = useResponsive();
   const tabBarInset = useTabBarInset(NAV.tabBarHeight + NAV.tabBarBottomInset + 16);
 
   const posts = useThreadStore((s) => s.posts);
@@ -41,6 +50,8 @@ export default function ThreadFeedScreen() {
   const fetchFeed = useThreadStore((s) => s.fetchFeed);
   const loadMore = useThreadStore((s) => s.loadMore);
   const refresh = useThreadStore((s) => s.refresh);
+  const hydrate = useThreadLearningStore((s) => s.hydrate);
+  const toggleFocus = useThreadLearningStore((s) => s.toggleFocus);
 
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [profileTarget, setProfileTarget] = useState<{ userId: string; postId: string } | null>(
@@ -48,10 +59,37 @@ export default function ThreadFeedScreen() {
   );
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const [uploadVisible, setUploadVisible] = useState(false);
+  const [lessonPost, setLessonPost] = useState<ThreadPost | null>(null);
+  const [lessonMinimized, setLessonMinimized] = useState(false);
+  const [quizPost, setQuizPost] = useState<ThreadPost | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const { enter: enterFullscreen, exit: exitFullscreen } = useFullscreen({
+    onExit: () => setLessonMinimized(true),
+  });
+
+  const openLesson = useCallback(
+    (post: ThreadPost) => {
+      setLessonPost(post);
+      setLessonMinimized(false);
+      void enterFullscreen();
+    },
+    [enterFullscreen],
+  );
+
+  const closeLesson = useCallback(() => {
+    setLessonPost(null);
+    setLessonMinimized(false);
+    void exitFullscreen();
+  }, [exitFullscreen]);
 
   useEffect(() => {
     fetchFeed(getToken);
   }, [fetchFeed, getToken]);
+
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
 
   const handlePressSubtopic = useCallback(
     (post: ThreadPost) => {
@@ -72,106 +110,203 @@ export default function ThreadFeedScreen() {
     [getToken, includeMine, refresh],
   );
 
-  const webMaxWidth = Platform.OS === "web" ? 680 : undefined;
+  const handleOpenFocus = useCallback(
+    (item: FocusSubtopic) => {
+      const post = posts.find((candidate) => candidate.id === item.postId);
+      if (post) {
+        openLesson(post);
+        return;
+      }
+      router.push(
+        `/course/${encodeURIComponent(item.courseId)}/lesson/${item.chapterIndex}/${item.subtopicIndex}` as never,
+      );
+    },
+    [openLesson, posts, router],
+  );
+
+  const handleNextLesson = useCallback(() => {
+    if (!lessonPost) return;
+    const next = posts.find(
+      (candidate) =>
+        candidate.courseId === lessonPost.courseId &&
+        candidate.chapterIndex === lessonPost.chapterIndex &&
+        candidate.subtopicIndex === lessonPost.subtopicIndex + 1,
+    );
+    if (next) {
+      openLesson(next);
+      return;
+    }
+    closeLesson();
+    eventBus.emit("toast:info", { title: "No next lesson in this chapter yet." });
+  }, [closeLesson, lessonPost, openLesson, posts]);
+
+  const handleStartQuiz = useCallback(() => {
+    if (!lessonPost) return;
+    setQuizPost(lessonPost);
+    closeLesson();
+  }, [closeLesson, lessonPost]);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const nextCollapsed = event.nativeEvent.contentOffset.y > 36;
+    setCollapsed((current) => (current === nextCollapsed ? current : nextCollapsed));
+  }, []);
+
+  const showRail = threadsLayout.showRightRail;
+  const bordered = threadsLayout.mode !== "mobile";
+  const bottomPadding = isTabletUp ? 32 : tabBarInset + 88;
+  const minimizedBottom = isTabletUp ? 24 : tabBarInset + 84;
+  const minimizedRight = isTabletUp ? 24 : 16;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <View style={[styles.container, { maxWidth: webMaxWidth }]}>
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={[styles.title, { color: colors.text }]}>Threads</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Learn from every chapter, one part at a time
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => setUploadVisible(true)}
-            style={[styles.composeBtn, { backgroundColor: colors.primary }]}
-            accessibilityRole="button"
-            accessibilityLabel="Share a resource"
-          >
-            <Ionicons name="add" size={22} color="#FFFFFF" />
-          </Pressable>
-        </View>
-
-        <View style={styles.filterRow}>
-          <FilterChip
-            label="Discover"
-            active={!includeMine}
-            onPress={() => handleFilter(false)}
-            colors={colors}
-          />
-          <FilterChip
-            label="Everyone"
-            active={includeMine}
-            onPress={() => handleFilter(true)}
-            colors={colors}
-          />
-        </View>
-
-        <FlatList
-          data={posts}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <SubtopicThreadCard
-              post={item}
-              onPressSubtopic={handlePressSubtopic}
-              onPressChapterThread={setChapterId}
-              onPressProfile={handlePressProfile}
-              onPressComments={(post) => setCommentsPostId(post.id)}
-            />
-          )}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: tabBarInset + 88 },
-            posts.length === 0 && styles.listContentEmpty,
+      <View
+        style={[
+          styles.workspace,
+          showRail && styles.workspaceRow,
+          {
+            gap: threadsLayout.gap,
+            paddingHorizontal: bordered ? 24 : 0,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.feedColumn,
+            bordered && styles.feedColumnBordered,
+            {
+              maxWidth: threadsLayout.feedMaxWidth,
+              borderColor: colors.border,
+            },
           ]}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => refresh(getToken)}
-              tintColor={colors.primary}
-              colors={[colors.primary]}
-            />
-          }
-          onEndReached={() => loadMore(getToken)}
-          onEndReachedThreshold={0.6}
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={styles.footer}>
-                <ActivityIndicator size="small" color={colors.primary} />
-              </View>
-            ) : null
-          }
-          ListEmptyComponent={
-            loading ? (
-              <View style={styles.empty}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  Loading threads…
+        >
+          <View
+            style={[
+              styles.header,
+              collapsed && styles.headerCollapsed,
+              { borderBottomColor: colors.border },
+            ]}
+          >
+            <View style={styles.headerText}>
+              <Text
+                style={[
+                  styles.title,
+                  collapsed && styles.titleCollapsed,
+                  { color: colors.text },
+                ]}
+              >
+                Threads
+              </Text>
+              {!collapsed ? (
+                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                  Learn from every chapter, one part at a time
                 </Text>
-              </View>
-            ) : loaded ? (
-              <View style={styles.empty}>
-                <Ionicons name="chatbubbles-outline" size={40} color={colors.textMuted} />
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  {error ? "Threads couldn't load" : "No threads yet"}
-                </Text>
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  {error ?? "Share a resource or publish a course to start a conversation."}
-                </Text>
-                <Pressable
-                  onPress={() => refresh(getToken, includeMine)}
-                  style={[styles.retryBtn, { borderColor: colors.primary }]}
-                >
-                  <Text style={[styles.retryText, { color: colors.primary }]}>Try again</Text>
-                </Pressable>
-              </View>
-            ) : null
-          }
-        />
+              ) : null}
+            </View>
+            <Pressable
+              onPress={() => setUploadVisible(true)}
+              style={[styles.composeBtn, { backgroundColor: colors.primary }]}
+              accessibilityRole="button"
+              accessibilityLabel="Share a resource"
+            >
+              <Ionicons name="add" size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
 
+          {!collapsed ? (
+            <View style={styles.filterRow}>
+              <FilterChip
+                label="Discover"
+                active={!includeMine}
+                onPress={() => handleFilter(false)}
+                colors={colors}
+              />
+              <FilterChip
+                label="Everyone"
+                active={includeMine}
+                onPress={() => handleFilter(true)}
+                colors={colors}
+              />
+            </View>
+          ) : null}
+
+          <FlatList
+            data={posts}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <SubtopicThreadCard
+                post={item}
+                onPressSubtopic={handlePressSubtopic}
+                onPressChapterThread={setChapterId}
+                onPressProfile={handlePressProfile}
+                onPressComments={(post) => setCommentsPostId(post.id)}
+                onPressFocus={(post) => toggleFocus(post)}
+                onPressLesson={openLesson}
+                onPressQuiz={setQuizPost}
+              />
+            )}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: bottomPadding },
+              posts.length === 0 && styles.listContentEmpty,
+            ]}
+            showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={32}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => refresh(getToken)}
+                tintColor={colors.primary}
+                colors={[colors.primary]}
+              />
+            }
+            onEndReached={() => loadMore(getToken)}
+            onEndReachedThreshold={0.6}
+            ListFooterComponent={
+              loadingMore ? (
+                <View style={styles.footer}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              ) : null
+            }
+            ListEmptyComponent={
+              loading ? (
+                <View style={styles.empty}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                    Loading threads...
+                  </Text>
+                </View>
+              ) : loaded ? (
+                <View style={styles.empty}>
+                  <Ionicons name="chatbubbles-outline" size={40} color={colors.textMuted} />
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    {error ? "Threads couldn't load" : "No threads yet"}
+                  </Text>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                    {error ??
+                      "Share a resource or publish a course to start a conversation."}
+                  </Text>
+                  <Pressable
+                    onPress={() => refresh(getToken, includeMine)}
+                    style={[styles.retryBtn, { borderColor: colors.primary }]}
+                  >
+                    <Text style={[styles.retryText, { color: colors.primary }]}>
+                      Try again
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null
+            }
+          />
+        </View>
+
+        {showRail ? (
+          <FocusRail width={threadsLayout.railWidth} onOpenFocus={handleOpenFocus} />
+        ) : null}
+      </View>
+
+      {!isTabletUp ? (
         <Pressable
           onPress={() => setUploadVisible(true)}
           style={[
@@ -183,7 +318,7 @@ export default function ThreadFeedScreen() {
         >
           <Ionicons name="cloud-upload-outline" size={22} color="#FFFFFF" />
         </Pressable>
-      </View>
+      ) : null}
 
       <ChapterThreadModal
         visible={chapterId !== null}
@@ -220,6 +355,30 @@ export default function ThreadFeedScreen() {
         visible={uploadVisible}
         onClose={() => setUploadVisible(false)}
         onSuccess={() => refresh(getToken, includeMine)}
+      />
+
+      <VisualLessonModal
+        post={lessonPost}
+        minimized={lessonMinimized}
+        minimizedBottom={minimizedBottom}
+        minimizedRight={minimizedRight}
+        onMinimize={() => {
+          setLessonMinimized(true);
+          void exitFullscreen();
+        }}
+        onRestore={() => {
+          setLessonMinimized(false);
+          void enterFullscreen();
+        }}
+        onClose={closeLesson}
+        onStartQuiz={handleStartQuiz}
+        onNextLesson={handleNextLesson}
+      />
+
+      <ThreadQuizModal
+        visible={quizPost !== null}
+        post={quizPost}
+        onClose={() => setQuizPost(null)}
       />
     </View>
   );
@@ -259,22 +418,49 @@ function FilterChip({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, alignItems: "center" },
-  container: { flex: 1, width: "100%" },
+  root: { flex: 1 },
+  workspace: {
+    flex: 1,
+    width: "100%",
+    alignItems: "center",
+  },
+  workspaceRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
+  feedColumn: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    minWidth: 0,
+  },
+  feedColumnBordered: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 16,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerCollapsed: {
+    paddingTop: 10,
     paddingBottom: 8,
   },
-  headerText: { flex: 1 },
+  headerText: { flex: 1, minWidth: 0 },
   title: {
     fontFamily: safeFont,
     fontSize: 26,
     fontWeight: "800",
     letterSpacing: -0.4,
+  },
+  titleCollapsed: {
+    fontSize: 20,
   },
   subtitle: {
     fontFamily: safeFont,
@@ -292,6 +478,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     paddingHorizontal: 16,
+    paddingTop: 10,
     paddingBottom: 10,
   },
   chip: {
@@ -307,7 +494,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  listContent: { paddingTop: 4 },
+  listContent: { paddingTop: 12 },
   listContentEmpty: { flexGrow: 1, justifyContent: "center" },
   footer: { paddingVertical: 18, alignItems: "center" },
   empty: {

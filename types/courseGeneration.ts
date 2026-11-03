@@ -43,6 +43,7 @@ export interface GenerateQuizInput {
   chapterIndex: number;
   subtopicIndex: number;
   subtopicTitle: string;
+  subtopicDetails: string;
 }
 
 export interface GenerateQuizResponse {

@@ -7,6 +7,7 @@ import {
   getExploreLayout,
   getGridColumns,
   getGutter,
+  getThreadsLayout,
 } from "./responsive";
 
 test("getBreakpoint resolves every breakpoint boundary", () => {
@@ -65,6 +66,39 @@ test("getExploreLayout enables the panel only on laptop and desktop", () => {
     panelWidth: 360,
     gap: 28,
     contentMaxWidth: 1200,
+  });
+});
+
+test("getThreadsLayout switches between mobile, two-pane, and three-pane", () => {
+  assert.deepEqual(getThreadsLayout(375), {
+    mode: "mobile",
+    showSidebar: false,
+    sidebarExpanded: false,
+    showRightRail: false,
+    sidebarWidth: 0,
+    feedMaxWidth: undefined,
+    railWidth: 0,
+    gap: 0,
+  });
+  assert.deepEqual(getThreadsLayout(1024), {
+    mode: "twoPane",
+    showSidebar: true,
+    sidebarExpanded: false,
+    showRightRail: false,
+    sidebarWidth: 96,
+    feedMaxWidth: 680,
+    railWidth: 0,
+    gap: 0,
+  });
+  assert.deepEqual(getThreadsLayout(1280), {
+    mode: "threePane",
+    showSidebar: true,
+    sidebarExpanded: true,
+    showRightRail: true,
+    sidebarWidth: 260,
+    feedMaxWidth: 640,
+    railWidth: 300,
+    gap: 20,
   });
 });
 

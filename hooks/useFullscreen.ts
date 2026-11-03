@@ -36,6 +36,11 @@ export function useFullscreen({ onExit }: Options = {}) {
     if (!root.requestFullscreen) return;
 
     activeRef.current = true;
+    if (document.fullscreenElement) {
+      setIsFullscreen(true);
+      return;
+    }
+
     try {
       await root.requestFullscreen();
       if (!activeRef.current) {

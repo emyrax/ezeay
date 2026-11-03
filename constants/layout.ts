@@ -24,12 +24,23 @@ export const GUTTERS: Record<Breakpoint, number> = {
 
 export const NAV = {
   sidebarWidth: 96,
+  sidebarExpandedWidth: 260,
   sidebarMinWidth: 1024,
+  sidebarTabletMinWidth: 768,
   tabBarHeight: 74,
   tabBarMaxWidth: 560,
   tabBarSideInset: 16,
   tabBarBottomInset: 24,
   desktopContentInset: 24,
+} as const;
+
+export const THREADS = {
+  threePaneMinWidth: 1280,
+  twoPaneMinWidth: 768,
+  feedMaxWidth: 640,
+  feedMaxWidthCompact: 680,
+  rightRailWidth: 300,
+  columnGap: 20,
 } as const;
 
 export const TOAST_MAX_WIDTH = 420;

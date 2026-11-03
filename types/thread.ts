@@ -33,6 +33,7 @@ export interface SubtopicThreadPost {
   authorId: string;
   author: ThreadUser;
   courseId: string;
+  courseTitle: string;
   chapterId: string;
   chapterIndex: number;
   chapterTitle: string;
@@ -40,6 +41,7 @@ export interface SubtopicThreadPost {
   partNumber: number;
   subtopicCount: number;
   subtopicTitle: string;
+  subtopicDetails: string;
   content: string;
   examCategory: ExamCategory;
   mediaType: ThreadMediaType;

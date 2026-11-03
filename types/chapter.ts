@@ -21,7 +21,9 @@ export interface Quiz {
 }
 
 export interface Question {
-  text: string;
+  id: string;
+  question: string;
   options: string[];
   correctAnswer: number;
+  explanation: string;
 }

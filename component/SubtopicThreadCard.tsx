@@ -9,8 +9,9 @@ import {
   chapterDisplayNumber,
   formatCount,
   formatRelativeTime,
-  threadLessonHref,
 } from "../lib/threads/format";
+import { useProgressStore } from "../store/courseProgressStore";
+import { useThreadLearningStore } from "../store/threadLearningStore";
 import { useThreadStore } from "../store/threadStore";
 import type { ThreadPost } from "../types/thread";
 import CommunityAvatar from "./CommunityAvatar";
@@ -21,6 +22,9 @@ interface SubtopicThreadCardProps {
   onPressChapterThread?: (chapterId: string) => void;
   onPressProfile?: (post: ThreadPost) => void;
   onPressComments?: (post: ThreadPost) => void;
+  onPressQuiz?: (post: ThreadPost) => void;
+  onPressLesson?: (post: ThreadPost) => void;
+  onPressFocus?: (post: ThreadPost) => void;
   hideAuthorActions?: boolean;
 }
 
@@ -30,6 +34,9 @@ export default function SubtopicThreadCard({
   onPressChapterThread,
   onPressProfile,
   onPressComments,
+  onPressQuiz,
+  onPressLesson,
+  onPressFocus,
   hideAuthorActions = false,
 }: SubtopicThreadCardProps) {
   const colors = useThemeColors();
@@ -37,6 +44,12 @@ export default function SubtopicThreadCard({
   const likePost = useThreadStore((s) => s.likePost);
   const followUser = useThreadStore((s) => s.followUser);
   const challengeUser = useThreadStore((s) => s.challengeUser);
+  const focused = useThreadLearningStore((s) => !!s.focus[post.id]);
+  const quizSession = useThreadLearningStore((s) => s.quizSessions[post.id]);
+  const lessonDone = useThreadLearningStore((s) => !!s.completedLessons[post.id]);
+  const quizPassed = useProgressStore((s) =>
+    s.isQuizPassed(post.courseId, post.chapterIndex, post.subtopicIndex),
+  );
 
   const isOwn = !!profile?.uid && profile.uid === post.authorId;
   const showAuthorActions = !isOwn && !hideAuthorActions;
@@ -124,12 +137,21 @@ export default function SubtopicThreadCard({
         accessibilityLabel="Open chapter thread"
       >
         <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.info} />
-        <Text style={[styles.breadcrumbTitle, { color: colors.info }]} numberOfLines={1}>
-          {post.chapterTitle}
-        </Text>
-        <Text style={[styles.breadcrumbMeta, { color: colors.textMuted }]}>
-          Ch. {chapterDisplayNumber(post.chapterIndex)} · Part {post.partNumber}/{post.subtopicCount}
-        </Text>
+        <View style={styles.breadcrumbCopy}>
+          <Text style={[styles.breadcrumbTitle, { color: colors.info }]} numberOfLines={1}>
+            {post.courseTitle || post.chapterTitle}
+          </Text>
+          {post.courseTitle ? (
+            <Text style={[styles.breadcrumbSub, { color: colors.textMuted }]} numberOfLines={1}>
+              {post.chapterTitle}
+            </Text>
+          ) : null}
+        </View>
+        <View style={[styles.moduleBadge, { backgroundColor: colors.bg }]}>
+          <Text style={[styles.moduleText, { color: colors.textSecondary }]}>
+            M{chapterDisplayNumber(post.chapterIndex)} · L{post.partNumber}
+          </Text>
+        </View>
       </Pressable>
 
       <Pressable onPress={() => onPressSubtopic?.(post)}>
@@ -180,18 +202,85 @@ export default function SubtopicThreadCard({
         ),
       )}
 
-      {post.mediaType === "visual_lesson" && (
+      {onPressFocus || onPressQuiz || onPressLesson ? (
+        <View style={styles.studyRow}>
         <Pressable
-          onPress={() => onPressSubtopic?.(post)}
-          style={[styles.lessonBtn, { borderColor: colors.primary, backgroundColor: colors.primary + "12" }]}
+          onPress={() => (onPressFocus ? onPressFocus(post) : undefined)}
+          style={[
+            styles.studyBtn,
+            {
+              borderColor: focused ? colors.primary : colors.border,
+              backgroundColor: focused ? colors.primary + "12" : colors.surfaceAlt,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={focused ? "Remove from focus" : "Add to focus"}
         >
-          <Ionicons name="play-circle" size={20} color={colors.primary} />
-          <Text style={[styles.lessonText, { color: colors.primary }]}>Open visual lesson</Text>
-          <Text style={[styles.lessonPath, { color: colors.textMuted }]} numberOfLines={1}>
-            {threadLessonHref(post)}
+          <Ionicons
+            name={focused ? "bookmark" : "bookmark-outline"}
+            size={16}
+            color={focused ? colors.primary : colors.textSecondary}
+          />
+          <Text
+            style={[styles.studyText, { color: focused ? colors.primary : colors.textSecondary }]}
+          >
+            {focused ? "Focused" : "Focus"}
           </Text>
         </Pressable>
-      )}
+
+        {post.mediaType === "visual_lesson" ? (
+          <Pressable
+            onPress={() => (onPressLesson ? onPressLesson(post) : onPressSubtopic?.(post))}
+            style={[
+              styles.studyBtn,
+              styles.lessonBtn,
+              { borderColor: colors.primary, backgroundColor: colors.primary + "10" },
+            ]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="play-circle" size={17} color={colors.primary} />
+            <Text style={[styles.studyText, { color: colors.primary }]}>
+              {lessonDone ? "Review lesson" : "Visual lesson"}
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {post.subtopicDetails.trim() ? (
+          <Pressable
+            onPress={() => onPressQuiz?.(post)}
+            style={[
+              styles.studyBtn,
+              {
+                borderColor: quizPassed ? colors.success : colors.border,
+                backgroundColor: quizPassed ? colors.success + "12" : colors.surfaceAlt,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={quizPassed ? "Retake quiz" : "Take quiz"}
+          >
+            <Ionicons
+              name={quizPassed ? "checkmark-circle" : "help-circle-outline"}
+              size={17}
+              color={quizPassed ? colors.success : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.studyText,
+                { color: quizPassed ? colors.success : colors.textSecondary },
+              ]}
+            >
+              {quizPassed
+                ? "Passed"
+                : quizSession?.status === "generating"
+                  ? "Building..."
+                  : quizSession?.questions.length
+                    ? "Take quiz"
+                    : "Quiz"}
+            </Text>
+          </Pressable>
+        ) : null}
+        </View>
+      ) : null}
 
       <View style={[styles.actions, { borderTopColor: colors.border }]}>
         <Pressable
@@ -329,16 +418,30 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 12,
   },
+  breadcrumbCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   breadcrumbTitle: {
     fontFamily: safeFont,
     fontSize: 12,
     fontWeight: "700",
-    flexShrink: 1,
   },
-  breadcrumbMeta: {
+  breadcrumbSub: {
     fontFamily: safeFont,
-    fontSize: 11,
-    marginLeft: "auto",
+    fontSize: 10,
+    marginTop: 1,
+  },
+  moduleBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 7,
+  },
+  moduleText: {
+    fontFamily: safeFont,
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   subtopicTitle: {
     fontFamily: safeFont,
@@ -387,26 +490,30 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 1,
   },
-  lessonBtn: {
+  studyRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
     marginTop: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+  },
+  studyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 36,
+    paddingHorizontal: 11,
+    borderRadius: 10,
     borderWidth: 1,
   },
-  lessonText: {
-    fontFamily: safeFont,
-    fontSize: 13,
-    fontWeight: "700",
+  lessonBtn: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
-  lessonPath: {
+  studyText: {
     fontFamily: safeFont,
-    fontSize: 10,
-    flexShrink: 1,
-    marginLeft: "auto",
+    fontSize: 12,
+    fontWeight: "700",
   },
   actions: {
     flexDirection: "row",

@@ -19,6 +19,7 @@
     "test:auth": "tsx --test --test-force-exit lib/auth/validation.test.ts lib/auth/errors.test.ts",
     "test:reels": "tsx --test --test-force-exit lib/reels/challenge.test.ts",
     "test:threads": "tsx --test --test-force-exit server/threadFeed.test.ts lib/threads/format.test.ts",
+    "test:learning": "tsx --test --test-force-exit lib/quiz/grade.test.ts lib/focus/selectors.test.ts lib/lesson/visualLessonStatus.test.ts",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web",
