@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import Head from "expo-router/head";
 import React from "react";
 import {
@@ -196,6 +197,7 @@ function SuccessView({
 }
 
 export default function Login() {
+  const router = useRouter();
   const flow = useLoginFlow();
   const isBusy = flow.busy !== null;
 
@@ -277,7 +279,9 @@ export default function Login() {
         </Text>
         <TextAction
           label={flow.isSignUp ? "Sign in" : "Create one"}
-          onPress={flow.switchMode}
+          onPress={
+            flow.isSignUp ? flow.switchMode : () => router.push("/onboarding")
+          }
           disabled={isBusy}
         />
       </View>

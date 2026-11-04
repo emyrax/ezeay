@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { hero, safeFont } from "../constants/themes";
+import { appTheme, safeFont } from "../constants/themes";
 import { images } from "../constants/images";
 import LandingPage from "../component/landing/LandingPage";
 import { useAuth } from "../contexts/AuthContext";
@@ -100,7 +100,7 @@ function NativeWelcome() {
   const copy = (
     <View style={[styles.textBlock, isWebWide && styles.textBlockWide]}>
       <View style={styles.pillBadge}>
-        <Ionicons name="sparkles" size={13} color={hero.primary} />
+        <Ionicons name="sparkles" size={13} color={appTheme.primary} />
         <Text style={styles.pillText}>Gamified Learning Companion</Text>
       </View>
       <Text style={[styles.title, isWebWide && styles.titleWide]}>
@@ -125,13 +125,13 @@ function NativeWelcome() {
         onPress={() => router.push("/onboarding")}
       >
         <LinearGradient
-          colors={[hero.gradientStart, hero.gradientMid, hero.gradientEnd]}
+          colors={[appTheme.gradientStart, appTheme.gradientMid, appTheme.gradientEnd]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.primaryBtnGradient}
         >
           <Text style={styles.primaryBtnText}>Get Started</Text>
-          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+          <Ionicons name="arrow-forward" size={18} color={appTheme.bg} />
         </LinearGradient>
       </Pressable>
 
@@ -154,7 +154,7 @@ function NativeWelcome() {
     <View style={styles.container}>
       {/* Background gradient lighting */}
       <LinearGradient
-        colors={["#080C14", "#0D1322", "#070A10"]}
+        colors={["#152A4D", "#1B3560", "#152A4D"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -173,7 +173,7 @@ function NativeWelcome() {
           <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
             <View style={styles.brandRow}>
               <View style={styles.brandBadge}>
-                <MaterialCommunityIcons name="infinity" size={24} color={hero.primary} />
+                <MaterialCommunityIcons name="infinity" size={24} color={appTheme.primary} />
               </View>
               <Text style={styles.brandTitle}>Yuinx</Text>
             </View>
@@ -213,7 +213,7 @@ function NativeWelcome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#070A10",
+    backgroundColor: "#152A4D",
   },
   safeArea: {
     flex: 1,
@@ -278,9 +278,9 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    backgroundColor: "rgba(149, 208, 253, 0.12)",
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.28)",
+    borderColor: "rgba(149, 208, 253, 0.28)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 22,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: appTheme.text,
     letterSpacing: 0.5,
   },
   heroContent: {
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    backgroundColor: "rgba(149, 208, 253, 0.15)",
     transform: [{ scale: 1.2 }],
   },
   illustration: {
@@ -325,9 +325,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    backgroundColor: appTheme.primaryLight,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: appTheme.border,
     borderRadius: 20,
     paddingVertical: 5,
     paddingHorizontal: 12,
@@ -337,25 +337,25 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 12,
     fontWeight: "600",
-    color: "rgba(255, 255, 255, 0.85)",
+    color: appTheme.text,
   },
   title: {
     fontFamily: safeFont,
     fontSize: 34,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: appTheme.text,
     textAlign: "center",
     lineHeight: 42,
     letterSpacing: -0.5,
     marginBottom: 10,
   },
   titleHighlight: {
-    color: hero.primary,
+    color: appTheme.primary,
   },
   subtitle: {
     fontFamily: safeFont,
     fontSize: 15,
-    color: "rgba(255, 255, 255, 0.65)",
+    color: appTheme.textSecondary,
     textAlign: "center",
     lineHeight: 22,
     letterSpacing: 0.1,
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
     elevation: 4,
-    shadowColor: hero.primary,
+    shadowColor: appTheme.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: appTheme.bg,
     letterSpacing: 0.3,
   },
   secondaryBtn: {
@@ -407,10 +407,10 @@ const styles = StyleSheet.create({
   secondaryBtnText: {
     fontFamily: safeFont,
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.6)",
+    color: appTheme.textSecondary,
   },
   secondaryBtnHighlight: {
-    color: hero.primary,
+    color: appTheme.primary,
     fontWeight: "700",
   },
 });

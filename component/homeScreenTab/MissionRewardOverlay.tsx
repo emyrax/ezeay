@@ -122,101 +122,113 @@ export default function MissionRewardOverlay({
       <Animated.View style={[styles.backdropWrap, { opacity: backdropOpacity }]}>
         <ConfettiLayer />
 
-        <View style={styles.stage}>
-          {rings.map((ring, i) => (
-            <Animated.View key={i} style={[styles.ring, { borderColor: accent }, ringStyle(ring)]} />
-          ))}
-          <Animated.View
-            style={[
-              styles.iconHalo,
-              {
-                transform: [
-                  {
-                    translateY: floatAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -7],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
+        <View style={styles.content}>
+          <View style={styles.stage}>
+            {rings.map((ring, i) => (
+              <Animated.View
+                key={i}
+                style={[styles.ring, { borderColor: accent }, ringStyle(ring)]}
+              />
+            ))}
             <Animated.View
               style={[
-                styles.iconCircle,
-                { backgroundColor: theme.surface, borderColor: theme.borderLight },
-                { transform: [{ scale: iconScale }] },
+                styles.iconHalo,
+                {
+                  transform: [
+                    {
+                      translateY: floatAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, -7],
+                      }),
+                    },
+                  ],
+                },
               ]}
             >
-              {reward && (
-                <MaterialCommunityIcons name={reward.icon} size={44} color={accent} />
-              )}
+              <Animated.View
+                style={[
+                  styles.iconCircle,
+                  { backgroundColor: theme.surface, borderColor: theme.borderLight },
+                  { transform: [{ scale: iconScale }] },
+                ]}
+              >
+                {reward && (
+                  <MaterialCommunityIcons name={reward.icon} size={44} color={accent} />
+                )}
+              </Animated.View>
             </Animated.View>
-          </Animated.View>
-        </View>
-
-        <Text style={[styles.title, { color: accent }]}>
-          {allDone ? "Cycle complete!" : "Mission complete!"}
-        </Text>
-        {reward && <Text style={[styles.subtitle, { color: theme.text }]}>{reward.title}</Text>}
-        {reward && reward.description ? (
-          <Text style={[styles.description, { color: theme.textMuted }]}>{reward.description}</Text>
-        ) : null}
-        {hasReward && (
-          <View style={[styles.rewardLine, { backgroundColor: accent + "1A", borderColor: accent }]}>
-            <MaterialCommunityIcons name="star" size={18} color={accent} />
-            <Text style={[styles.rewardText, { color: accent }]}>
-              +{reward!.xp} XP{reward!.coins > 0 ? ` · +${reward!.coins} Coins` : ""}
-            </Text>
           </View>
-        )}
 
-        <View style={[styles.progressCard, { backgroundColor: theme.surfaceAlt }]}>
-          <View style={styles.progressRow}>
-            <Text style={[styles.progressLabel, { color: theme.text }]}>
-              {doneCount} of {total} missions done
+          <Text style={[styles.title, { color: accent }]}>
+            {allDone ? "Cycle complete!" : "Mission complete!"}
+          </Text>
+          {reward && <Text style={[styles.subtitle, { color: theme.text }]}>{reward.title}</Text>}
+          {reward && reward.description ? (
+            <Text style={[styles.description, { color: theme.textMuted }]}>
+              {reward.description}
             </Text>
-            <Text style={[styles.progressHint, { color: accent }]}>
-              {allDone
-                ? cycleBonusClaimed
-                  ? `Bonus +${cycleBonusXp} XP claimed`
-                  : "Bonus ready!"
-                : `${remaining} to go`}
-            </Text>
-          </View>
-          <ProgressBar
-            progress={total > 0 ? doneCount / total : 0}
-            trackColor={theme.border}
-            filledColors={[accent, theme.accent] as [string, string]}
-            height={10}
-            borderRadius={5}
-          />
-          {!allDone && (
-            <Text style={[styles.motivation, { color: theme.textMuted }]}>
-              Finish everything for a bonus cycle reward.
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.actions}>
-          {!allDone && (
-            <TouchableOpacity
-              style={[styles.secondaryBtn, { backgroundColor: theme.surfaceAlt }]}
-              onPress={onNextMission}
-              activeOpacity={0.8}
+          ) : null}
+          {hasReward && (
+            <View
+              style={[
+                styles.rewardLine,
+                { backgroundColor: accent + "1A", borderColor: accent },
+              ]}
             >
-              <Text style={[styles.secondaryLabel, { color: theme.textSecondary }]}>
-                Next mission
+              <MaterialCommunityIcons name="star" size={18} color={accent} />
+              <Text style={[styles.rewardText, { color: accent }]}>
+                +{reward!.xp} XP{reward!.coins > 0 ? ` · +${reward!.coins} Coins` : ""}
               </Text>
-            </TouchableOpacity>
+            </View>
           )}
-          <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: accent }]}
-            onPress={onKeepGoing}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.primaryLabel}>{allDone ? "Awesome" : "Keep going"}</Text>
-          </TouchableOpacity>
+
+          <View style={[styles.progressCard, { backgroundColor: theme.surfaceAlt }]}>
+            <View style={styles.progressRow}>
+              <Text style={[styles.progressLabel, { color: theme.text }]}>
+                {doneCount} of {total} missions done
+              </Text>
+              <Text style={[styles.progressHint, { color: accent }]}>
+                {allDone
+                  ? cycleBonusClaimed
+                    ? `Bonus +${cycleBonusXp} XP claimed`
+                    : "Bonus ready!"
+                  : `${remaining} to go`}
+              </Text>
+            </View>
+            <ProgressBar
+              progress={total > 0 ? doneCount / total : 0}
+              trackColor={theme.border}
+              filledColors={[accent, theme.accent] as [string, string]}
+              height={10}
+              borderRadius={5}
+            />
+            {!allDone && (
+              <Text style={[styles.motivation, { color: theme.textMuted }]}>
+                Finish everything for a bonus cycle reward.
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.actions}>
+            {!allDone && (
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { backgroundColor: theme.surfaceAlt }]}
+                onPress={onNextMission}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.secondaryLabel, { color: theme.textSecondary }]}>
+                  Next mission
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: accent }]}
+              onPress={onKeepGoing}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryLabel}>{allDone ? "Awesome" : "Keep going"}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Animated.View>
     </Modal>
@@ -230,6 +242,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
+  },
+  content: {
+    width: "100%",
+    maxWidth: 420,
+    alignItems: "center",
   },
   stage: {
     width: 160,

@@ -50,3 +50,9 @@ app-example
 # generated native folders
 /ios
 /android
+
+# local tooling
+/.tools/
+
+# mascot media manifest is generated but tracked
+!assets/mascot/gamification/manifest.json

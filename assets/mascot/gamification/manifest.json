@@ -1,0 +1,159 @@
+[
+  {
+    "source": "document_6005710258134065258.mp4",
+    "sourceSha256": "8d93304f6c75cdcb4c341c27e40fb80bcfdf089eb3e3f000438d35ae181bf657",
+    "output": "mascot_emitting_energy.webp",
+    "detectedAction": "mascot_emitting_energy",
+    "finalAction": "mascot_emitting_energy",
+    "confidence": 0.95,
+    "description": "The mascot stands still while emitting glowing blue energy orbs that radiate outwards and orbit around its body.",
+    "background": {
+      "solid": true,
+      "color": "0x153155",
+      "variance": 2
+    },
+    "width": 720,
+    "height": 720,
+    "fps": 30,
+    "duration": 6,
+    "bytes": 1354968,
+    "status": "ok"
+  },
+  {
+    "source": "document_6005710258134065315.mp4",
+    "sourceSha256": "cca46a9b475f0ea3bedc75d4a9a8e6866fd906e11eebf1c06a6d580da90f6ca8",
+    "output": "mascot_waving.webp",
+    "detectedAction": "mascot_waving",
+    "finalAction": "mascot_waving",
+    "confidence": 0.9,
+    "description": "The mascot takes a step forward, stands still, and then waves.",
+    "background": {
+      "solid": false,
+      "color": "0x183454",
+      "variance": 23.5
+    },
+    "width": 720,
+    "height": 1280,
+    "fps": 24,
+    "duration": 16.128,
+    "bytes": 1493218,
+    "status": "ok"
+  },
+  {
+    "source": "document_6005710258134065318.mp4",
+    "sourceSha256": "e6c4176b321381ad8b21c8c28de243dcfa049b2efa7c8eca7cbe9f9d07d5c697",
+    "output": "mascot_posing.webp",
+    "detectedAction": "mascot_posing",
+    "finalAction": "mascot_posing",
+    "confidence": 0.88,
+    "description": "The mascot assumes different poses and expressions, transitioning from a neutral stance with arms down, to a happy expression, and finally to a bored/annoyed expression with crossed arms.",
+    "background": {
+      "solid": true,
+      "color": "0x16314e",
+      "variance": 3.6
+    },
+    "width": 720,
+    "height": 1094,
+    "fps": 24,
+    "duration": 15.999,
+    "bytes": 1835062,
+    "status": "ok"
+  },
+  {
+    "source": "document_6005710258134065320.mp4",
+    "sourceSha256": "ff8cbf33e12197414c333ef7134167bd31dfd5941ff8889f77093ac9ea11d859",
+    "output": "mascot_jumping.webp",
+    "detectedAction": "mascot_jumping",
+    "finalAction": "mascot_jumping",
+    "confidence": 0.95,
+    "description": "The mascot jumps, lands, and jumps again.",
+    "background": {
+      "solid": true,
+      "color": "0x163254",
+      "variance": 3.3
+    },
+    "width": 720,
+    "height": 720,
+    "fps": 30,
+    "duration": 12,
+    "bytes": 1550822,
+    "status": "ok"
+  },
+  {
+    "source": "document_6005710258134065323 (1).mp4",
+    "sourceSha256": "a100a1fd9a011299632e9ae28b8844ddbf36b44d3feabadeef59e1eb4f33f83c",
+    "output": null,
+    "detectedAction": null,
+    "finalAction": null,
+    "confidence": null,
+    "description": null,
+    "background": null,
+    "width": null,
+    "height": null,
+    "fps": null,
+    "duration": null,
+    "bytes": null,
+    "status": "failed",
+    "error": "ffprobe.exe exited 1: [mov,mp4,m4a,3gp,3g2,mj2 @ 00000113cafb7fc0] moov atom not found\r\nC:\\Users\\USER\\Documents\\project\\ezeay\\ezeay\\assets\\mascot\\animated_mascot_mp4\\document_6005710258134065323 (1).mp4: Invalid data found when processing input"
+  },
+  {
+    "source": "failture_feeling.mp4",
+    "sourceSha256": "daf5891d06f0681277f2e4b9ab7149d0e5cccbe3f71dc8327a6c3c1febc00e34",
+    "output": "mascot_disappointed.webp",
+    "detectedAction": "mascot_changes_expression",
+    "finalAction": "mascot_disappointed",
+    "confidence": 0.98,
+    "description": "The mascot transitions from a sad expression with drooped leaves to a happy expression with perked-up leaves, while remaining stationary.",
+    "background": {
+      "solid": false,
+      "color": "0x142d4f",
+      "variance": 26.8
+    },
+    "width": 720,
+    "height": 1280,
+    "fps": 24,
+    "duration": 8.042667,
+    "bytes": 716350,
+    "status": "ok"
+  },
+  {
+    "source": "mainLoadscreen.mp4",
+    "sourceSha256": "8dc33ab9cb99620177d49aa2df128fd524b8e0aa6610422eefb1198320e1a570",
+    "output": "mascot_loading.webp",
+    "detectedAction": "mascot_activating",
+    "finalAction": "mascot_loading",
+    "confidence": 0.95,
+    "description": "The mascot, surrounded by glowing, orbiting orbs, transitions from a meditative state with closed eyes to an alert and confident expression with open eyes, indicating it is powering up or becoming active.",
+    "background": {
+      "solid": false,
+      "color": "0x113154",
+      "variance": 26.7
+    },
+    "width": 720,
+    "height": 1280,
+    "fps": 24,
+    "duration": 8.042667,
+    "bytes": 1159956,
+    "status": "ok"
+  },
+  {
+    "source": "success_feeling.mp4",
+    "sourceSha256": "bc598a9944fa4a21fe25365b4559f20ca7c91d441ce302ca5ed0db2b969df447",
+    "output": "mascot_celebrating.webp",
+    "detectedAction": "mascot_jumping",
+    "finalAction": "mascot_celebrating",
+    "confidence": 0.95,
+    "description": "The mascot performs a triumphant jump, raising a golden trophy overhead while expressing joy.",
+    "background": {
+      "solid": false,
+      "color": "0x133256",
+      "variance": 25.6
+    },
+    "width": 720,
+    "height": 1280,
+    "fps": 24,
+    "duration": 8.042667,
+    "bytes": 1172074,
+    "status": "ok"
+  }
+]

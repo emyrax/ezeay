@@ -20,6 +20,8 @@
     "test:reels": "tsx --test --test-force-exit lib/reels/challenge.test.ts",
     "test:threads": "tsx --test --test-force-exit server/threadFeed.test.ts lib/threads/format.test.ts",
     "test:learning": "tsx --test --test-force-exit lib/quiz/grade.test.ts lib/focus/selectors.test.ts lib/lesson/visualLessonStatus.test.ts",
+    "test:media": "tsx --test --test-force-exit scripts/mascotNaming.test.ts",
+    "media:mascots": "tsx scripts/process-mascot-media.ts",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web",

@@ -1,8 +1,8 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { images } from "../constants/images";
-import { useThemeColors } from "../hooks/useTheme";
-import { safeFont } from "../constants/themes";
+import { appTheme, safeFont } from "../constants/themes";
 
 interface Props {
   message?: string;
@@ -10,43 +10,20 @@ interface Props {
 }
 
 export default function LoadingScreen({ message, fullScreen = true }: Props) {
-  const theme = useThemeColors();
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.05,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.95,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, [scaleAnim]);
-
   const content = (
     <View style={styles.content}>
-      <Animated.Image
-        source={images.yuinxLogoTrans}
-        style={[styles.logo, { transform: [{ scale: scaleAnim }] }]}
-        resizeMode="contain"
+      <Image
+        source={images.loadingMascot}
+        style={styles.mascot}
+        contentFit="contain"
+        accessibilityLabel="Yuinx mascot loading"
       />
-      {message && <Text style={[styles.text, { color: theme.text }]}>{message}</Text>}
+      {message ? <Text style={styles.text}>{message}</Text> : null}
     </View>
   );
 
   if (fullScreen) {
-    return <View style={[styles.fullScreen, { backgroundColor: theme.bg }]}>{content}</View>;
+    return <View style={styles.fullScreen}>{content}</View>;
   }
 
   return content;
@@ -54,23 +31,35 @@ export default function LoadingScreen({ message, fullScreen = true }: Props) {
 
 const styles = StyleSheet.create({
   fullScreen: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     flex: 1,
-    justifyContent: "center",
+    width: "100%",
+    height: "100%",
+    backgroundColor: appTheme.bg,
     alignItems: "center",
+    justifyContent: "center",
   },
   content: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 32,
+    paddingHorizontal: 24,
+    width: "100%",
   },
-  logo: {
-    width: 120,
-    height: 120,
+  mascot: {
+    width: "78%",
+    maxWidth: 360,
+    aspectRatio: 424 / 239,
   },
   text: {
     marginTop: 16,
     fontSize: 15,
     fontWeight: "600",
     fontFamily: safeFont,
+    color: appTheme.text,
+    textAlign: "center",
   },
 });

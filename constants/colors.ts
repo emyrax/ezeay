@@ -12,10 +12,10 @@ export const heroText = "#F1F1F6";
 export const heroTextSecondary = "#9D9DB5";
 export const heroTextMuted = "#6B6B85";
 
-export const heroBlue = "#4F8CFF";
+export const heroBlue = "#152a4d";
 export const heroGreen = "#00D68F";
-export const heroTeal = "#00B4D8";
-export const heroCyan = "#00D4FF";
+export const heroTeal = "#005ed8";
+export const heroCyan = "#0077ff";
 export const heroEmerald = "#34D399";
 export const heroOrange = "#FF8A65";
 export const heroRed = "#FF5252";
@@ -25,15 +25,15 @@ export const heroBorderLight = "rgba(255, 255, 255, 0.1)";
 
 export const heroTabBg = "rgba(10, 10, 20, 0.9)";
 export const heroTabBorder = "rgba(255, 255, 255, 0.08)";
-export const heroTabActive = "#4F8CFF";
+export const heroTabActive = "#152a4d";
 export const heroTabInactive = "#6B6B85";
 
-export const heroGradientStart = "#4F8CFF";
-export const heroGradientMid = "#00B4D8";
+export const heroGradientStart = "#152a4d";
+export const heroGradientMid = "#0065d8";
 export const heroGradientEnd = "#00D68F";
 
 export const heroCardShadow = {
-  shadowColor: "#4F8CFF",
+  shadowColor: "#152a4d",
   shadowOffset: { width: 0, height: 0 },
   shadowOpacity: 0.06,
   shadowRadius: 20,

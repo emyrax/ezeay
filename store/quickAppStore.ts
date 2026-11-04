@@ -1,6 +1,6 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 export interface QuickApp {
   id: string;
@@ -10,21 +10,46 @@ export interface QuickApp {
 }
 
 export const ALL_APPS: QuickApp[] = [
-  { id: "study", icon: "book-open-page-variant", label: "Study", route: "/(study)" },
-  { id: "notes", icon: "notebook-multiple", label: "My Notes", route: "/(notes)" },
-  { id: "paddi", icon: "infinity", label: "MY Paddi" },
+  {
+    id: "study",
+    icon: "book-open-page-variant",
+    label: "Study",
+    route: "/(study)",
+  },
+  {
+    id: "notes",
+    icon: "notebook-multiple",
+    label: "My Notes",
+    route: "/(notes)",
+  },
+  { id: "paddi", icon: "infinity", label: "Agent" },
   { id: "resources", icon: "bank-outline", label: "Resources" },
-  { id: "courses", icon: "school-outline", label: "Courses", route: "/(tabs)/quests" },
+  {
+    id: "courses",
+    icon: "school-outline",
+    label: "Courses",
+    route: "/(tabs)/quests",
+  },
   { id: "stats", icon: "chart-bar", label: "Stats", route: "/(tabs)/stats" },
-  { id: "profile", icon: "account-circle", label: "Profile", route: "/(tabs)/profile" },
-  { id: "schedule", icon: "calendar-month-outline", label: "Schedule", route: "/(schedule)" },
+  {
+    id: "profile",
+    icon: "account-circle",
+    label: "Profile",
+    route: "/(tabs)/profile",
+  },
+  {
+    id: "schedule",
+    icon: "calendar-month-outline",
+    label: "Schedule",
+    route: "/(schedule)",
+  },
   { id: "trophies", icon: "trophy-outline", label: "Trophies" },
   { id: "ai-tutor", icon: "robot-outline", label: "AI Tutor" },
   { id: "settings", icon: "cog-outline", label: "Settings" },
   { id: "community", icon: "account-group-outline", label: "Community" },
 ];
 
-const DEFAULT_VISIBLE = ["study", "notes", "paddi", "resources"];
+const DEFAULT_VISIBLE = ["courses", "notes", "paddi", "schedule"];
 
 interface QuickAppState {
   visibleIds: string[];

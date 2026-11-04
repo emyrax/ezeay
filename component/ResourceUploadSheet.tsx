@@ -16,7 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { hero, safeFont } from "../constants/themes";
+import { safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useThemeColors } from "../hooks/useTheme";
 import { api } from "../lib/api";
