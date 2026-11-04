@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import * as Haptics from "expo-haptics";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -8,10 +9,8 @@ import {
   Text,
   View,
 } from "react-native";
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
 import { useThemeColors } from "../../hooks/useTheme";
-import { images } from "../../constants/images";
+import MascotAnimation from "../MascotAnimation";
 import ThemeIcon from "./ThemeIcon";
 
 export interface AiQuizQuestion {
@@ -99,10 +98,16 @@ function QuizCelebration({ score, total }: { score: number; total: number }) {
   const ringStyle = (ring: Animated.Value) => ({
     transform: [
       {
-        scale: ring.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.9] }),
+        scale: ring.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.7, 1.9],
+        }),
       },
     ],
-    opacity: ring.interpolate({ inputRange: [0, 0.7, 1], outputRange: [0.55, 0.35, 0] }),
+    opacity: ring.interpolate({
+      inputRange: [0, 0.7, 1],
+      outputRange: [0.55, 0.35, 0],
+    }),
   });
 
   return (
@@ -126,28 +131,38 @@ function QuizCelebration({ score, total }: { score: number; total: number }) {
         ))}
         <Animated.View
           style={[
-            styles.logoHalo,
-            { transform: [{ translateY: floatAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -7] }) }] },
+            styles.mascotWrap,
+            {
+              transform: [
+                {
+                  translateY: floatAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -7],
+                  }),
+                },
+                { scale: logoScale },
+              ],
+            },
           ]}
         >
-          <Animated.View
-            style={[
-              styles.logoCircle,
-              { backgroundColor: theme.surface, borderColor: theme.borderLight },
-              { transform: [{ scale: logoScale }] },
-            ]}
-          >
-            <Image source={images.yuinxLogoTrans} style={styles.logoImg} contentFit="contain" />
-          </Animated.View>
+          <MascotAnimation
+            action="mascot_celebrating"
+            height={180}
+            style={styles.mascot}
+          />
         </Animated.View>
       </View>
 
-      <Text style={[styles.congratsTitle, { color: theme.success }]}>Quiz Passed!</Text>
+      <Text style={[styles.congratsTitle, { color: theme.success }]}>
+        Quiz Passed!
+      </Text>
       <Text style={[styles.congratsScore, { color: theme.text }]}>
         {score} / {total} · {pct}%
       </Text>
       <Text style={[styles.congratsSub, { color: theme.textMuted }]}>
-        {pct === 100 ? "Perfect score. Absolutely nailed it." : "Great work — you've mastered this note."}
+        {pct === 100
+          ? "Perfect score. Absolutely nailed it."
+          : "Great work — you've mastered this note."}
       </Text>
     </View>
   );
@@ -168,9 +183,18 @@ function ConfettiPiece({ x, size, color, delay, duration, spin }: Confetti) {
     ).start();
   }, [anim, duration, delay]);
 
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [-30, 200] });
-  const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", `${spin}deg`] });
-  const opacity = anim.interpolate({ inputRange: [0, 0.75, 1], outputRange: [0.95, 0.9, 0] });
+  const translateY = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-30, 200],
+  });
+  const rotate = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", `${spin}deg`],
+  });
+  const opacity = anim.interpolate({
+    inputRange: [0, 0.75, 1],
+    outputRange: [0.95, 0.9, 0],
+  });
 
   return (
     <Animated.View
@@ -245,7 +269,12 @@ export default function AiQuizView({ questions, onComplete }: AiQuizViewProps) {
     }
     return (
       <View style={styles.doneWrap}>
-        <ThemeIcon sf="checkmark.seal" material="check-decagram" size={44} color={theme.warning} />
+        <ThemeIcon
+          sf="checkmark.seal"
+          material="check-decagram"
+          size={44}
+          color={theme.warning}
+        />
         <Text style={[styles.doneTitle, { color: theme.text }]}>
           {score} / {questions.length}
         </Text>
@@ -273,18 +302,28 @@ export default function AiQuizView({ questions, onComplete }: AiQuizViewProps) {
 
   return (
     <View>
-      <View style={[styles.headerRow, { borderBottomColor: theme.borderLight }]}>
+      <View
+        style={[styles.headerRow, { borderBottomColor: theme.borderLight }]}
+      >
         <Text style={[styles.progress, { color: theme.textMuted }]}>
           Question {index + 1} of {questions.length}
         </Text>
-        <Text style={[styles.score, { color: theme.primary }]}>Score {score}</Text>
+        <Text style={[styles.score, { color: theme.primary }]}>
+          Score {score}
+        </Text>
       </View>
-      <Text style={[styles.question, { color: theme.text }]}>{question.question}</Text>
-      <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
+      <Text style={[styles.question, { color: theme.text }]}>
+        {question.question}
+      </Text>
+      <ScrollView
+        style={{ maxHeight: 240 }}
+        showsVerticalScrollIndicator={false}
+      >
         {question.options.map((option, i) => {
           const color = optionColor(i);
           const borderColor =
-            selected !== null && (i === question.correctAnswer || i === selected)
+            selected !== null &&
+            (i === question.correctAnswer || i === selected)
               ? color
               : theme.borderLight;
           const labelColor =
@@ -300,7 +339,9 @@ export default function AiQuizView({ questions, onComplete }: AiQuizViewProps) {
               onPress={() => handleSelect(i)}
               style={[styles.option, { backgroundColor: color, borderColor }]}
             >
-              <Text style={[styles.optionLabel, { color: labelColor }]}>{option}</Text>
+              <Text style={[styles.optionLabel, { color: labelColor }]}>
+                {option}
+              </Text>
             </Pressable>
           );
         })}
@@ -311,10 +352,18 @@ export default function AiQuizView({ questions, onComplete }: AiQuizViewProps) {
           <View
             style={[
               styles.reveal,
-              { backgroundColor: theme.danger + "14", borderColor: theme.danger + "55" },
+              {
+                backgroundColor: theme.danger + "14",
+                borderColor: theme.danger + "55",
+              },
             ]}
           >
-            <ThemeIcon sf="lightbulb.fill" material="lightbulb-on-outline" size={15} color={theme.danger} />
+            <ThemeIcon
+              sf="lightbulb.fill"
+              material="lightbulb-on-outline"
+              size={15}
+              color={theme.danger}
+            />
             <Text style={[styles.revealLabel, { color: theme.text }]}>
               Correct answer:{" "}
               <Text style={[styles.revealStrong, { color: theme.success }]}>
@@ -448,11 +497,11 @@ const styles = StyleSheet.create({
     top: 0,
   },
   logoStage: {
-    width: 132,
-    height: 132,
+    width: 160,
+    height: 205,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   ring: {
     position: "absolute",
@@ -461,27 +510,12 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     borderWidth: 2,
   },
-  logoHalo: {
-    position: "absolute",
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    backgroundColor: "rgba(255,255,255,0.06)",
+  mascotWrap: {
     alignItems: "center",
     justifyContent: "center",
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  logoImg: {
-    width: 64,
-    height: 64,
+  mascot: {
+    borderRadius: 22,
   },
   congratsTitle: {
     fontSize: 22,

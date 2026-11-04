@@ -1,24 +1,35 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import {
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
+} from "react-native";
 import Svg, { Circle } from "react-native-svg";
-import { images } from "../../constants/images";
 import { fontFamily } from "../../constants/themes";
 import { useAuth } from "../../contexts/AuthContext";
 import { getNextLevel } from "../../data/levels";
-import { useThemeColors } from "../../hooks/useTheme";
+import { DAILY_ACTIVITY_GOAL } from "../../data/stats";
 import { useResponsive } from "../../hooks/useResponsive";
-import { getLevelProgress } from "../../services/LevelService";
+import { useThemeColors } from "../../hooks/useTheme";
+import { images } from "../../images";
 import { useNavLock } from "../../lib/guard";
+import { getLevelProgress } from "../../services/LevelService";
 import { useCheckInStore } from "../../store/checkInStore";
 import { useEnrollmentStore } from "../../store/courseEnrollmentStore";
 import { useCourseStore } from "../../store/courseStore";
-import { getMaxVisibleApps, getVisibleApps, useQuickAppStore } from "../../store/quickAppStore";
+import {
+    getMaxVisibleApps,
+    getVisibleApps,
+    useQuickAppStore,
+} from "../../store/quickAppStore";
 import { useStatsStore } from "../../store/statsStore";
 import { useUserStore } from "../../store/userStore";
-import { DAILY_ACTIVITY_GOAL } from "../../data/stats";
 import AppManagerSheet from "../AppManagerSheet";
 import CheckInDialog from "../CheckInDialog";
 
@@ -115,9 +126,7 @@ export default function HeaderSection() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() =>
-              navigate(() => router.push("/(schedule)" as any))
-            }
+            onPress={() => navigate(() => router.push("/(schedule)" as any))}
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons

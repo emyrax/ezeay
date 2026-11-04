@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef } from "react";
 import {
   Animated,
@@ -9,11 +10,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
+import type { GamificationAction } from "../constants/gamificationImages";
 import { useThemeColors } from "../hooks/useTheme";
-import { images } from "../constants/images";
 import { ConfettiLayer } from "./ConfettiLayer";
+import MascotAnimation from "./MascotAnimation";
 import ProgressBar from "./ProgressBar";
 
 interface QuizRewardOverlayProps {
@@ -23,6 +23,7 @@ interface QuizRewardOverlayProps {
   title?: string;
   subtitle?: string;
   accentColor?: string;
+  mascotAction?: GamificationAction;
   progressCount?: number;
   progressTotal?: number;
   progressLabel?: string;
@@ -42,6 +43,7 @@ export default function QuizRewardOverlay({
   title,
   subtitle,
   accentColor,
+  mascotAction = "mascot_celebrating",
   progressCount,
   progressTotal,
   progressLabel,
@@ -60,7 +62,10 @@ export default function QuizRewardOverlay({
   const rings = useRef([new Animated.Value(0), new Animated.Value(0)]).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
-  const pct = total && total > 0 && score !== undefined ? Math.round((score / total) * 100) : 0;
+  const pct =
+    total && total > 0 && score !== undefined
+      ? Math.round((score / total) * 100)
+      : 0;
 
   useEffect(() => {
     if (!visible) return;
@@ -117,15 +122,23 @@ export default function QuizRewardOverlay({
   const ringStyle = (ring: Animated.Value) => ({
     transform: [
       {
-        scale: ring.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.9] }),
+        scale: ring.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.7, 1.9],
+        }),
       },
     ],
-    opacity: ring.interpolate({ inputRange: [0, 0.7, 1], outputRange: [0.55, 0.35, 0] }),
+    opacity: ring.interpolate({
+      inputRange: [0, 0.7, 1],
+      outputRange: [0.55, 0.35, 0],
+    }),
   });
 
   const showScore = score !== undefined && total !== undefined && total > 0;
   const hasProgress =
-    progressCount !== undefined && progressTotal !== undefined && progressTotal > 0;
+    progressCount !== undefined &&
+    progressTotal !== undefined &&
+    progressTotal > 0;
 
   return (
     <Modal
@@ -135,101 +148,116 @@ export default function QuizRewardOverlay({
       statusBarTranslucent
       onRequestClose={onRequestClose ?? onPrimary ?? onSecondary}
     >
-      <Animated.View style={[styles.backdropWrap, { opacity: backdropOpacity }]}>
+      <Animated.View
+        style={[styles.backdropWrap, { opacity: backdropOpacity }]}
+      >
         <ConfettiLayer />
 
         <View style={styles.content}>
-        <View style={styles.stage}>
-          {rings.map((ring, i) => (
-            <Animated.View
-              key={i}
-              style={[styles.ring, { borderColor: accent }, ringStyle(ring)]}
-            />
-          ))}
-          <Animated.View
-            style={[
-              styles.logoHalo,
-              {
-                transform: [
-                  {
-                    translateY: floatAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -7],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
+          <View style={styles.stage}>
+            {rings.map((ring, i) => (
+              <Animated.View
+                key={i}
+                style={[styles.ring, { borderColor: accent }, ringStyle(ring)]}
+              />
+            ))}
             <Animated.View
               style={[
-                styles.logoCircle,
-                { backgroundColor: theme.surface, borderColor: theme.borderLight },
-                { transform: [{ scale: logoScale }] },
+                styles.mascotWrap,
+                {
+                  transform: [
+                    {
+                      translateY: floatAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, -7],
+                      }),
+                    },
+                    { scale: logoScale },
+                  ],
+                },
               ]}
             >
-              <Image source={images.yuinxLogoTrans} style={styles.logoImg} contentFit="contain" />
+              <MascotAnimation
+                action={mascotAction}
+                height={184}
+                style={styles.mascot}
+              />
             </Animated.View>
-          </Animated.View>
-        </View>
-
-        <Text style={[styles.title, { color: accent }]}>{title ?? "Quiz Passed!"}</Text>
-        {showScore && (
-          <Text style={[styles.score, { color: theme.text }]}>
-            {score} / {total} · {pct}%
-          </Text>
-        )}
-        <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-          {subtitle ??
-            (pct === 100
-              ? "Perfect score. Absolutely nailed it."
-              : "Great work — you've mastered this.")}
-        </Text>
-
-        {hasProgress && (
-          <View style={[styles.progressCard, { backgroundColor: theme.surfaceAlt }]}>
-            <View style={styles.progressRow}>
-              <Text style={[styles.progressLabel, { color: theme.text }]}>
-                {progressLabel ?? `${progressCount} of ${progressTotal} complete`}
-              </Text>
-              <Text style={[styles.progressHint, { color: accent }]}>
-                {progressHint ?? `${progressTotal - progressCount} to go`}
-              </Text>
-            </View>
-            <ProgressBar
-              progress={progressCount / progressTotal}
-              trackColor={theme.border}
-              filledColors={[accent, theme.accent] as [string, string]}
-              height={10}
-              borderRadius={5}
-            />
           </View>
-        )}
 
-        {children}
+          <Text style={[styles.title, { color: accent }]}>
+            {title ?? "Quiz Passed!"}
+          </Text>
+          {showScore && (
+            <Text style={[styles.score, { color: theme.text }]}>
+              {score} / {total} · {pct}%
+            </Text>
+          )}
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>
+            {subtitle ??
+              (pct === 100
+                ? "Perfect score. Absolutely nailed it."
+                : "Great work — you've mastered this.")}
+          </Text>
 
-        <View style={styles.actions}>
-          {secondaryLabel && onSecondary && (
-            <TouchableOpacity
-              style={[styles.secondaryBtn, { backgroundColor: theme.surfaceAlt }]}
-              onPress={onSecondary}
-              activeOpacity={0.8}
+          {hasProgress && (
+            <View
+              style={[
+                styles.progressCard,
+                { backgroundColor: theme.surfaceAlt },
+              ]}
             >
-              <Text style={[styles.secondaryLabel, { color: theme.textSecondary }]}>
-                {secondaryLabel}
-              </Text>
-            </TouchableOpacity>
+              <View style={styles.progressRow}>
+                <Text style={[styles.progressLabel, { color: theme.text }]}>
+                  {progressLabel ??
+                    `${progressCount} of ${progressTotal} complete`}
+                </Text>
+                <Text style={[styles.progressHint, { color: accent }]}>
+                  {progressHint ?? `${progressTotal - progressCount} to go`}
+                </Text>
+              </View>
+              <ProgressBar
+                progress={progressCount / progressTotal}
+                trackColor={theme.border}
+                filledColors={[accent, theme.accent] as [string, string]}
+                height={10}
+                borderRadius={5}
+              />
+            </View>
           )}
-          {onPrimary && (
-            <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: accent }]}
-              onPress={onPrimary}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryLabel}>{primaryLabel}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+
+          {children}
+
+          <View style={styles.actions}>
+            {secondaryLabel && onSecondary && (
+              <TouchableOpacity
+                style={[
+                  styles.secondaryBtn,
+                  { backgroundColor: theme.surfaceAlt },
+                ]}
+                onPress={onSecondary}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.secondaryLabel,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  {secondaryLabel}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {onPrimary && (
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: accent }]}
+                onPress={onPrimary}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryLabel}>{primaryLabel}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </Animated.View>
     </Modal>
@@ -250,11 +278,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   stage: {
-    width: 168,
-    height: 168,
+    width: 180,
+    height: 210,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   ring: {
     position: "absolute",
@@ -263,27 +291,12 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     borderWidth: 3,
   },
-  logoHalo: {
-    position: "absolute",
-    width: 116,
-    height: 116,
-    borderRadius: 58,
-    backgroundColor: "rgba(255,255,255,0.07)",
+  mascotWrap: {
     alignItems: "center",
     justifyContent: "center",
   },
-  logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  logoImg: {
-    width: 72,
-    height: 72,
+  mascot: {
+    borderRadius: 24,
   },
   title: {
     fontSize: 26,

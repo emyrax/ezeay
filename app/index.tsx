@@ -1,24 +1,24 @@
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
-  Animated,
-  Easing,
-  Image,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    Animated,
+    Easing,
+    Image,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { appTheme, safeFont } from "../constants/themes";
-import { images } from "../constants/images";
 import LandingPage from "../component/landing/LandingPage";
+import { appTheme, safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
+import { images } from "../images";
 
 export default function Index() {
   return Platform.OS === "web" ? <LandingPage /> : <NativeWelcome />;
@@ -108,14 +108,19 @@ function NativeWelcome() {
         <Text style={styles.titleHighlight}>Your Curiosity</Text>
       </Text>
       <Text style={[styles.subtitle, isWebWide && styles.subtitleWide]}>
-        Personalized paths, gamified quests, and real mastery. Tailored for your unique ambition.
+        Personalized paths, gamified quests, and real mastery. Tailored for your
+        unique ambition.
       </Text>
     </View>
   );
 
   const footer = (
     <Animated.View
-      style={[styles.footer, isWebWide && styles.footerWide, { opacity: fadeAnim }]}
+      style={[
+        styles.footer,
+        isWebWide && styles.footerWide,
+        { opacity: fadeAnim },
+      ]}
     >
       <Pressable
         style={({ pressed }) => [
@@ -125,7 +130,11 @@ function NativeWelcome() {
         onPress={() => router.push("/onboarding")}
       >
         <LinearGradient
-          colors={[appTheme.gradientStart, appTheme.gradientMid, appTheme.gradientEnd]}
+          colors={[
+            appTheme.gradientStart,
+            appTheme.gradientMid,
+            appTheme.gradientEnd,
+          ]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.primaryBtnGradient}
@@ -173,7 +182,11 @@ function NativeWelcome() {
           <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
             <View style={styles.brandRow}>
               <View style={styles.brandBadge}>
-                <MaterialCommunityIcons name="infinity" size={24} color={appTheme.primary} />
+                <MaterialCommunityIcons
+                  name="infinity"
+                  size={24}
+                  color={appTheme.primary}
+                />
               </View>
               <Text style={styles.brandTitle}>Yuinx</Text>
             </View>

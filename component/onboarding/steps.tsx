@@ -1,49 +1,46 @@
-import React, { useMemo, useState } from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useMemo, useState } from "react";
 import {
-  DEGREE_OPTIONS,
-  GOALS,
-  MAX_GOALS,
-  MAX_SUBJECTS,
-  SCHOOL_TYPES,
-  SUBJECTS,
-  getGradeOptions,
-  getSchoolTypeLabel,
-  getSchoolTypeOption,
-} from "../../data/onboarding";
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
 import {
-  findAfricanCountry,
-} from "../../data/countries";
-import { images } from "../../constants/images";
-import {
-  landingColors,
-  landingFonts,
-  landingRadii,
+    landingColors,
+    landingFonts,
+    landingRadii,
 } from "../../constants/landing";
+import { findAfricanCountry } from "../../data/countries";
+import {
+    DEGREE_OPTIONS,
+    GOALS,
+    MAX_GOALS,
+    MAX_SUBJECTS,
+    SCHOOL_TYPES,
+    SUBJECTS,
+    getGradeOptions,
+    getSchoolTypeLabel,
+    getSchoolTypeOption,
+} from "../../data/onboarding";
 import { parseBirthdayDate, uniqueStrings } from "../../lib/onboarding/steps";
+import MascotAnimation from "../MascotAnimation";
 import type {
-  OnboardingAnswers,
-  OnboardingErrors,
-  OnboardingStep,
+    OnboardingAnswers,
+    OnboardingErrors,
+    OnboardingStep,
 } from "../../types/onboarding";
 import CountryFlag from "./CountryFlag";
 import {
-  ChoiceCard,
-  InlineError,
-  SelectionCount,
-  SelectChip,
-  StepHeader,
-  TextField,
+    ChoiceCard,
+    InlineError,
+    SelectChip,
+    SelectionCount,
+    StepHeader,
+    TextField,
 } from "./primitives";
 
 export interface StepContentProps {
@@ -98,21 +95,32 @@ function WelcomeStep({ step, onSignIn }: StepContentProps) {
       <StepHeader step={step} />
       <View style={styles.welcomeVisual}>
         <View style={styles.welcomeGlow} />
-        <Image
-          source={images.researching}
+        <MascotAnimation
+          action="mascot_waving"
+          height={220}
           style={styles.welcomeImage}
-          contentFit="contain"
         />
       </View>
       <View style={styles.bulletList}>
-        <Bullet icon="map-marker-radius-outline" text="Built around where you learn." />
-        <Bullet icon="target" text="Quests that match your goals, not a generic feed." />
-        <Bullet icon="chart-timeline-variant" text="Progress you can actually see." />
+        <Bullet
+          icon="map-marker-radius-outline"
+          text="Built around where you learn."
+        />
+        <Bullet
+          icon="target"
+          text="Quests that match your goals, not a generic feed."
+        />
+        <Bullet
+          icon="chart-timeline-variant"
+          text="Progress you can actually see."
+        />
       </View>
-      <Pressable onPress={onSignIn} style={styles.textLink} accessibilityRole="button">
-        <Text style={styles.textLinkText}>
-          I already have an account
-        </Text>
+      <Pressable
+        onPress={onSignIn}
+        style={styles.textLink}
+        accessibilityRole="button"
+      >
+        <Text style={styles.textLinkText}>I already have an account</Text>
         <MaterialCommunityIcons
           name="arrow-right"
           size={15}
@@ -250,7 +258,12 @@ function BirthdayStep({ step, answers, errors, setAnswer }: StepContentProps) {
   );
 }
 
-function CountryStep({ step, answers, errors, onOpenCountry }: StepContentProps) {
+function CountryStep({
+  step,
+  answers,
+  errors,
+  onOpenCountry,
+}: StepContentProps) {
   const country = findAfricanCountry(answers.country);
   return (
     <View style={styles.wrap}>
@@ -327,7 +340,12 @@ function RegionStep({ step, answers, errors, setAnswer }: StepContentProps) {
   );
 }
 
-function SchoolTypeStep({ step, answers, errors, setAnswer }: StepContentProps) {
+function SchoolTypeStep({
+  step,
+  answers,
+  errors,
+  setAnswer,
+}: StepContentProps) {
   return (
     <View style={styles.wrap}>
       <StepHeader step={step} />
@@ -434,12 +452,7 @@ function DegreeStep({ step, answers, setAnswer }: StepContentProps) {
   );
 }
 
-function SubjectsStep({
-  step,
-  answers,
-  errors,
-  setAnswers,
-}: StepContentProps) {
+function SubjectsStep({ step, answers, errors, setAnswers }: StepContentProps) {
   const [custom, setCustom] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
   const selected = answers.subjects;
@@ -484,7 +497,11 @@ function SubjectsStep({
       <StepHeader step={step} />
       <View style={styles.selectionHeader}>
         <Text style={styles.fieldLabel}>Subjects</Text>
-        <SelectionCount count={selected.length} max={MAX_SUBJECTS} label="picked" />
+        <SelectionCount
+          count={selected.length}
+          max={MAX_SUBJECTS}
+          label="picked"
+        />
       </View>
       <View style={styles.chipWrap}>
         {SUBJECTS.map((subject) => (
@@ -576,7 +593,11 @@ function GoalsStep({ step, answers, errors, setAnswers }: StepContentProps) {
       <StepHeader step={step} />
       <View style={styles.selectionHeader}>
         <Text style={styles.fieldLabel}>Your goals</Text>
-        <SelectionCount count={selected.length} max={MAX_GOALS} label="picked" />
+        <SelectionCount
+          count={selected.length}
+          max={MAX_GOALS}
+          label="picked"
+        />
       </View>
       <View style={styles.chipWrap}>
         {GOALS.map((goal) => (
@@ -623,12 +644,7 @@ function GoalsStep({ step, answers, errors, setAnswers }: StepContentProps) {
   );
 }
 
-function ReadyStep({
-  step,
-  answers,
-  isSignedIn,
-  email,
-}: StepContentProps) {
+function ReadyStep({ step, answers, isSignedIn, email }: StepContentProps) {
   const country = findAfricanCountry(answers.country);
   const schoolType = getSchoolTypeLabel(answers.schoolType);
   const subjects = uniqueStrings(answers.subjects);
@@ -742,8 +758,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(47,124,255,0.18)",
   },
   welcomeImage: {
-    width: "86%",
-    height: "86%",
+    borderRadius: 24,
   },
   bulletList: {
     gap: 10,

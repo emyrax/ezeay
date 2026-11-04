@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../hooks/useTheme";
 import { useCheckInStore } from "../store/checkInStore";
 import { useUserStore } from "../store/userStore";
+import MascotAnimation from "./MascotAnimation";
 
 interface CheckInDialogProps {
   visible: boolean;
@@ -85,6 +86,8 @@ export default function CheckInDialog({ visible, onClose, getToken }: CheckInDia
   }, [profile, checkIn, getToken]);
 
   const weekDays = miniCalendar();
+  const mascotAction =
+    justCheckedIn || alreadyCheckedIn ? "mascot_celebrating" : "mascot_posing";
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -94,9 +97,11 @@ export default function CheckInDialog({ visible, onClose, getToken }: CheckInDia
         >
           <Pressable onPress={() => {}}>
             <View style={styles.header}>
-              <View style={[styles.fireCircle, { backgroundColor: theme.primary + "20" }]}>
-                <MaterialCommunityIcons name="fire" size={36} color={theme.primary} />
-              </View>
+              <MascotAnimation
+                action={mascotAction}
+                width={68}
+                style={styles.mascot}
+              />
               <Text style={[styles.title, { color: theme.text }]}>Daily Check-In</Text>
             </View>
 
@@ -210,12 +215,8 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 16,
   },
-  fireCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: "center",
-    alignItems: "center",
+  mascot: {
+    marginBottom: 2,
   },
   title: {
     fontSize: 20,

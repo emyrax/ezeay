@@ -1,33 +1,30 @@
-import React from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { images } from "../../constants/images";
+import { LinearGradient } from "expo-linear-gradient";
+import React from "react";
 import {
-  landingColors,
-  landingFonts,
-  landingRadii,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+    landingColors,
+    landingFonts,
+    landingRadii,
 } from "../../constants/landing";
 import { findAfricanCountry } from "../../data/countries";
+import { images } from "../../images";
 import { getProgress } from "../../lib/onboarding/steps";
-import type {
-  OnboardingAnswers,
-  OnboardingStep,
-} from "../../types/onboarding";
-import { InlineError } from "./primitives";
+import type { OnboardingAnswers, OnboardingStep } from "../../types/onboarding";
 import CountryFlag from "./CountryFlag";
+import { InlineError } from "./primitives";
 
 export default function OnboardingShell({
   step,
@@ -121,7 +118,9 @@ export default function OnboardingShell({
       </View>
 
       <View style={styles.track}>
-        <View style={[styles.trackFill, { width: `${progress.ratio * 100}%` }]} />
+        <View
+          style={[styles.trackFill, { width: `${progress.ratio * 100}%` }]}
+        />
       </View>
 
       <KeyboardAvoidingView
@@ -130,7 +129,12 @@ export default function OnboardingShell({
       >
         <View style={[styles.body, isWide && styles.bodyWide]}>
           {isWide ? (
-            <SidePanel step={step} answers={answers} progress={progress} country={country} />
+            <SidePanel
+              step={step}
+              answers={answers}
+              progress={progress}
+              country={country}
+            />
           ) : null}
 
           <View style={styles.main}>

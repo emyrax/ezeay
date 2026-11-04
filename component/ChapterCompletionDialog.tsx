@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "../hooks/useTheme";
+import { selectTierMascotAction } from "../lib/mascot/actions";
 import QuizRewardOverlay from "./QuizRewardOverlay";
 import type { ChapterPerformance } from "../store/courseProgressStore";
 
@@ -36,6 +37,7 @@ export default function ChapterCompletionDialog({
       accentColor={accentColor}
       title={performance?.message ?? "Complete!"}
       subtitle={performance?.subtitle ?? "Great work!"}
+      mascotAction={selectTierMascotAction(performance?.tier ?? "good")}
       score={performance?.stats.avgScore}
       total={100}
       primaryLabel="Claim Rewards & Continue"

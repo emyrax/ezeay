@@ -1,8 +1,7 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { Image } from "expo-image";
-import { images } from "../constants/images";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { appTheme, safeFont } from "../constants/themes";
+import MascotAnimation from "./MascotAnimation";
 
 interface Props {
   message?: string;
@@ -10,13 +9,13 @@ interface Props {
 }
 
 export default function LoadingScreen({ message, fullScreen = true }: Props) {
+  const { width } = useWindowDimensions();
   const content = (
     <View style={styles.content}>
-      <Image
-        source={images.loadingMascot}
+      <MascotAnimation
+        action="mascot_loading"
+        width={Math.min(width * 0.58, 250)}
         style={styles.mascot}
-        contentFit="contain"
-        accessibilityLabel="Yuinx mascot loading"
       />
       {message ? <Text style={styles.text}>{message}</Text> : null}
     </View>
@@ -50,9 +49,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   mascot: {
-    width: "78%",
-    maxWidth: 360,
-    aspectRatio: 424 / 239,
+    marginBottom: 4,
   },
   text: {
     marginTop: 16,

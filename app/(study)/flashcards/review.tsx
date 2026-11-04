@@ -174,6 +174,9 @@ const token = await getToken();
         title="Review complete!"
         subtitle={earned > 0 ? `+${earned} XP earned` : "Strong recall — well done"}
         accentColor={earned > 0 ? theme.primary : theme.success}
+        mascotAction={
+          reviewed >= totalCards ? "mascot_celebrating" : "mascot_jumping"
+        }
         progressCount={Math.min(reviewed, totalCards)}
         progressTotal={totalCards}
         progressLabel="Cards reviewed"

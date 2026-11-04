@@ -1,6 +1,13 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "expo-router";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,30 +26,25 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 
+import ConfirmDialog from "../../component/ConfirmDialog";
 import DropdownSelect, { DropdownOption } from "../../component/DropdownSelect";
+import ErrorBoundary from "../../component/ErrorBoundary";
 import GradientOutlineContainer from "../../component/GradientOutlineContainer";
 import ProgressBar from "../../component/ProgressBar";
-import ErrorBoundary from "../../component/ErrorBoundary";
-import ConfirmDialog from "../../component/ConfirmDialog";
 import QuestOverviewCard from "../../component/QuestOverviewCard";
-import { images } from "../../constants/images";
 import {
   CONTENT_WIDTHS,
   DIALOG_WIDTHS,
   QUEST_CARD_MIN_WIDTH,
 } from "../../constants/layout";
-import { useThemeColors } from "../../hooks/useTheme";
-import { useResponsive, useTabBarInset } from "../../hooks/useResponsive";
 import { useAuth } from "../../contexts/AuthContext";
-import { useNavLock } from "../../lib/guard";
-import { useCourseStore } from "../../store/courseStore";
-import { useEnrollmentStore } from "../../store/courseEnrollmentStore";
-import { useModelStore } from "../../store/modelStore";
+import { useResponsive, useTabBarInset } from "../../hooks/useResponsive";
+import { useThemeColors } from "../../hooks/useTheme";
+import { images } from "../../images";
 import { api } from "../../lib/api";
-import { getGridColumns } from "../../lib/responsive";
 import { eventBus } from "../../lib/eventBus";
+import { useNavLock } from "../../lib/guard";
 import {
   AI_MODELS,
   AI_PROVIDER_LABELS,
@@ -50,6 +52,10 @@ import {
   type AiModelOption,
   type AiProvider,
 } from "../../lib/providers/modelRegistry";
+import { getGridColumns } from "../../lib/responsive";
+import { useEnrollmentStore } from "../../store/courseEnrollmentStore";
+import { useCourseStore } from "../../store/courseStore";
+import { useModelStore } from "../../store/modelStore";
 import type { GenerateCourseInput } from "../../types/courseGeneration";
 import type { UserProfile } from "../../types/user";
 
@@ -62,7 +68,10 @@ const DIFFICULTY_OPTIONS: DropdownOption[] = [
 ];
 
 function normalizeCategory(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 export default function QuestsScreen() {
@@ -108,7 +117,10 @@ export default function QuestsScreen() {
   const [personalised, setPersonalised] = useState(true);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<null | { id: string; title: string }>(null);
+  const [confirmDelete, setConfirmDelete] = useState<null | {
+    id: string;
+    title: string;
+  }>(null);
   const [deleting, setDeleting] = useState(false);
   const [gridWidth, setGridWidth] = useState(0);
 
@@ -124,7 +136,10 @@ export default function QuestsScreen() {
   }, [profile, getToken, fetchCourses, fetchEnrollments]);
 
   const userId = profile?.uid ?? "";
-  const interests = useMemo(() => profile?.interests ?? [], [profile?.interests]);
+  const interests = useMemo(
+    () => profile?.interests ?? [],
+    [profile?.interests],
+  );
 
   const allStoredCourses = useCourseStore((s) => s.courses);
   const getCourseById = useCourseStore((s) => s.getCourseById);
@@ -132,15 +147,14 @@ export default function QuestsScreen() {
   const userCourses = useMemo(
     () =>
       allStoredCourses
-        .filter(
-          (c) => c.creatorId === userId || c.id.startsWith("generating_"),
-        )
+        .filter((c) => c.creatorId === userId || c.id.startsWith("generating_"))
         .sort((a, b) => {
           const aPinned = a.pinned ? 1 : 0;
           const bPinned = b.pinned ? 1 : 0;
           if (aPinned !== bPinned) return bPinned - aPinned;
           return (
-            new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+            new Date(b.createdAt ?? 0).getTime() -
+            new Date(a.createdAt ?? 0).getTime()
           );
         }),
     [allStoredCourses, userId],
@@ -174,7 +188,14 @@ export default function QuestsScreen() {
       }
     };
     hydrate();
-  }, [enrollments, profile, getToken, getCourseById, upsertCourse, allStoredCourses]);
+  }, [
+    enrollments,
+    profile,
+    getToken,
+    getCourseById,
+    upsertCourse,
+    allStoredCourses,
+  ]);
 
   const interestOptions = useMemo<DropdownOption[]>(
     () => [
@@ -187,7 +208,10 @@ export default function QuestsScreen() {
   const showCategoryInput = addingCategory || interests.length === 0;
   const activeCategory = category || interests[0] || "";
 
-  const cloudModels = useMemo(() => AI_MODELS.filter((m) => m.provider !== "offline"), []);
+  const cloudModels = useMemo(
+    () => AI_MODELS.filter((m) => m.provider !== "offline"),
+    [],
+  );
   const modelGroups = useMemo(() => {
     const order: AiProvider[] = ["gemini", "openai", "anthropic", "openrouter"];
     return order
@@ -202,34 +226,38 @@ export default function QuestsScreen() {
     [selectedModel],
   );
 
-  const buildLearnerContext = useCallback((p: UserProfile): string | undefined => {
-    const parts: string[] = [];
-    const add = (field: string, value?: string) => {
-      const v = value?.trim();
-      if (v) parts.push(`${field}: ${v}`);
-    };
-    add("Country", p.country);
-    add("Region", p.region);
-    add("Learning stage", p.schoolType);
-    add("School", p.school ?? p.university);
-    add("Grade / Year", p.grade);
-    add("Degree", p.degree);
-    add("Department", p.department);
-    add("Level / Year of study", p.level);
-    add("Course / Major", p.majorCourse);
-    const subjects = (p.subjects ?? []).slice(0, 6);
-    if (subjects.length > 0) parts.push(`Subjects: ${subjects.join(", ")}`);
-    add("Industry", p.industry);
-    add("Job title", p.jobTitle);
-    add("Company", p.company);
-    const skills = (p.skills ?? []).slice(0, 6);
-    if (skills.length > 0) parts.push(`Skills: ${skills.join(", ")}`);
-    const interestsList = (p.interests ?? []).slice(0, 6);
-    if (interestsList.length > 0) parts.push(`Interests: ${interestsList.join(", ")}`);
-    const goals = (p.learningGoals ?? []).slice(0, 6);
-    if (goals.length > 0) parts.push(`Learning goals: ${goals.join(", ")}`);
-    return parts.length > 0 ? parts.join(" · ") : undefined;
-  }, []);
+  const buildLearnerContext = useCallback(
+    (p: UserProfile): string | undefined => {
+      const parts: string[] = [];
+      const add = (field: string, value?: string) => {
+        const v = value?.trim();
+        if (v) parts.push(`${field}: ${v}`);
+      };
+      add("Country", p.country);
+      add("Region", p.region);
+      add("Learning stage", p.schoolType);
+      add("School", p.school ?? p.university);
+      add("Grade / Year", p.grade);
+      add("Degree", p.degree);
+      add("Department", p.department);
+      add("Level / Year of study", p.level);
+      add("Course / Major", p.majorCourse);
+      const subjects = (p.subjects ?? []).slice(0, 6);
+      if (subjects.length > 0) parts.push(`Subjects: ${subjects.join(", ")}`);
+      add("Industry", p.industry);
+      add("Job title", p.jobTitle);
+      add("Company", p.company);
+      const skills = (p.skills ?? []).slice(0, 6);
+      if (skills.length > 0) parts.push(`Skills: ${skills.join(", ")}`);
+      const interestsList = (p.interests ?? []).slice(0, 6);
+      if (interestsList.length > 0)
+        parts.push(`Interests: ${interestsList.join(", ")}`);
+      const goals = (p.learningGoals ?? []).slice(0, 6);
+      if (goals.length > 0) parts.push(`Learning goals: ${goals.join(", ")}`);
+      return parts.length > 0 ? parts.join(" · ") : undefined;
+    },
+    [],
+  );
 
   const getEnrollmentForCourse = useCallback(
     (courseId: string) => enrollments.find((e) => e.courseId === courseId),
@@ -252,11 +280,21 @@ export default function QuestsScreen() {
       if (progress > 0) inProgress += 1;
     });
 
-    return { total: all.length, inProgress, completed, gems: profile?.coins ?? 0 };
+    return {
+      total: all.length,
+      inProgress,
+      completed,
+      gems: profile?.coins ?? 0,
+    };
   }, [userCourses, enrolledCourses, getEnrollmentForCourse, profile?.coins]);
 
   const useWebGrid = isWeb;
-  const gridColumnsCount = getGridColumns(gridWidth, QUEST_CARD_MIN_WIDTH, 16, 3);
+  const gridColumnsCount = getGridColumns(
+    gridWidth,
+    QUEST_CARD_MIN_WIDTH,
+    16,
+    3,
+  );
   const gridCardWidth =
     gridWidth > 0
       ? (gridWidth - 16 * (gridColumnsCount - 1)) / gridColumnsCount
@@ -280,7 +318,8 @@ export default function QuestsScreen() {
         course.title.toLowerCase().includes(term) ||
         course.description.toLowerCase().includes(term) ||
         course.category.toLowerCase().includes(term);
-      const matchesFavourite = activeFilter !== "favourites" || course.favorite === true;
+      const matchesFavourite =
+        activeFilter !== "favourites" || course.favorite === true;
       const matchesEnrolled =
         activeFilter !== "enrolled" || !!getEnrollmentForCourse(course.id);
       const matchesInterest =
@@ -288,7 +327,9 @@ export default function QuestsScreen() {
         activeFilter === "enrolled" ||
         activeFilter === "favourites" ||
         normalizeCategory(course.category) === normalizeCategory(activeFilter);
-      return matchesSearch && matchesFavourite && matchesEnrolled && matchesInterest;
+      return (
+        matchesSearch && matchesFavourite && matchesEnrolled && matchesInterest
+      );
     });
   }, [userCourses, searchText, activeFilter, getEnrollmentForCourse]);
 
@@ -302,7 +343,8 @@ export default function QuestsScreen() {
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
       if (
-        contentOffset.y + layoutMeasurement.height >= contentSize.height - 400 &&
+        contentOffset.y + layoutMeasurement.height >=
+          contentSize.height - 400 &&
         visibleCount < filteredCourses.length
       ) {
         setVisibleCount((c) => Math.min(c + 5, filteredCourses.length));
@@ -324,7 +366,10 @@ export default function QuestsScreen() {
     if (generateLockRef.current) return;
     setFormError(null);
     if (!description.trim()) {
-      reportFormError("Missing Description", "Please describe what you want to learn.");
+      reportFormError(
+        "Missing Description",
+        "Please describe what you want to learn.",
+      );
       return;
     }
     if (!profile) {
@@ -336,7 +381,10 @@ export default function QuestsScreen() {
     const typedCategory = customCategory.trim();
     if (showCategoryInput) {
       if (!typedCategory) {
-        reportFormError("Missing Category", "Please enter a category or interest name.");
+        reportFormError(
+          "Missing Category",
+          "Please enter a category or interest name.",
+        );
         return;
       }
       resolvedCategory = typedCategory;
@@ -481,7 +529,8 @@ export default function QuestsScreen() {
       try {
         await deleteCourse(id, getToken);
       } catch (err: any) {
-        const message = err?.message ?? "Couldn't delete the course. Try again.";
+        const message =
+          err?.message ?? "Couldn't delete the course. Try again.";
         if (isWeb) {
           eventBus.emit("toast:error", { title: message });
         } else {
@@ -559,7 +608,9 @@ export default function QuestsScreen() {
       <View style={styles.optionTextWrap}>
         <Text style={styles.optionTitle}>Generate AI Course</Text>
         <Text style={[styles.optionSubtitle, { color: theme.textSecondary }]}>
-          {generating ? "Generating your course…" : "Create a personalized learning quest"}
+          {generating
+            ? "Generating your course…"
+            : "Create a personalized learning quest"}
         </Text>
       </View>
       {generating ? (
@@ -586,8 +637,18 @@ export default function QuestsScreen() {
       <View style={styles.optionTextWrap}>
         <View style={styles.optionTitleRow}>
           <Text style={styles.optionTitle}>Join a Class</Text>
-          <View style={[styles.soonBadge, { backgroundColor: theme.accent + "1F", borderColor: theme.accent + "33" }]}>
-            <Text style={[styles.soonBadgeText, { color: theme.accent }]}>Coming Soon</Text>
+          <View
+            style={[
+              styles.soonBadge,
+              {
+                backgroundColor: theme.accent + "1F",
+                borderColor: theme.accent + "33",
+              },
+            ]}
+          >
+            <Text style={[styles.soonBadgeText, { color: theme.accent }]}>
+              Coming Soon
+            </Text>
           </View>
         </View>
         <Text style={[styles.optionSubtitle, { color: theme.textSecondary }]}>
@@ -603,645 +664,1016 @@ export default function QuestsScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <ScrollView
           ref={scrollRef}
-          contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.primary}
+            />
           }
         >
           <View style={[styles.page, isWeb && styles.pageWeb]}>
-          <View style={styles.headerRow}>
-          <View style={styles.brandBlock}>
-            <Image source={images.brandYuinxTrans} style={styles.brandLogo} />
-          </View>
-          <View style={styles.userGroup}>
-            <View style={styles.gemPill}>
-              <Image source={images.goldCoinIcon} style={styles.coinIcon} />
-              <Text style={styles.gemText}>{profile?.coins ?? 0} Gems</Text>
-            </View>
-            <View style={styles.avatarStack}>
-              <Image source={images.userProfilePhoto} style={[styles.avatar, { borderColor: theme.accent }]} />
-              <View style={[styles.notificationBadge, { backgroundColor: theme.primary }]}>
-                <Text style={styles.notificationText}>12</Text>
+            <View style={styles.headerRow}>
+              <View style={styles.brandBlock}>
+                <Image
+                  source={images.brandYuinxTrans}
+                  style={styles.brandLogo}
+                />
+              </View>
+              <View style={styles.userGroup}>
+                <View style={styles.gemPill}>
+                  <Image source={images.goldCoinIcon} style={styles.coinIcon} />
+                  <Text style={styles.gemText}>{profile?.coins ?? 0} Gems</Text>
+                </View>
+                <View style={styles.avatarStack}>
+                  <Image
+                    source={images.userProfilePhoto}
+                    style={[styles.avatar, { borderColor: theme.accent }]}
+                  />
+                  <View
+                    style={[
+                      styles.notificationBadge,
+                      { backgroundColor: theme.primary },
+                    ]}
+                  >
+                    <Text style={styles.notificationText}>12</Text>
+                  </View>
+                </View>
               </View>
             </View>
-          </View>
-        </View>
 
-        {isWebWide ? (
-          <View style={styles.heroRow}>
-            <View style={styles.heroMain}>
-              <Text style={[styles.sectionTitle, styles.sectionTitleWide, { color: theme.text }]}>
-                My AI Quests
-              </Text>
-              <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
-                Build a learning path around what you&apos;re curious about.
-              </Text>
-              <View style={[styles.heroActions, isDesktop && styles.heroActionsRow]}>
-                {generateOptionCard}
-                {joinOptionCard}
-              </View>
-            </View>
-            <View style={styles.heroSide}>
-              <QuestOverviewCard
-                total={questStats.total}
-                inProgress={questStats.inProgress}
-                completed={questStats.completed}
-                gems={questStats.gems}
-              />
-            </View>
-          </View>
-        ) : (
-          <>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>My AI Quests</Text>
-            {generateOptionCard}
-            {joinOptionCard}
-          </>
-        )}
-
-        <Modal
-          visible={showCreateModal}
-          animationType="slide"
-          transparent
-          onRequestClose={() => {
-            setShowCreateModal(false);
-            setFormError(null);
-          }}
-        >
-          <View style={[styles.modalOverlay, showWebDialog && styles.modalOverlayDialog]}>
-            <View
-              style={[
-                styles.modalContainer,
-                { backgroundColor: theme.bg },
-                showWebDialog && styles.modalContainerDialog,
-              ]}
-            >
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Create Your AI Quest</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowCreateModal(false);
-                    setFormError(null);
-                  }}
-                >
-                  <Ionicons name="close-circle" size={28} color={theme.textMuted} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={[styles.inputBox, { backgroundColor: theme.surfaceAlt }]}>
-                  <TextInput
-                    placeholder={'Describe what you want to learn...\ne.g., "Master Python Basics"'}
-                    placeholderTextColor={theme.textMuted}
-                    multiline
-                    value={description}
-                    onChangeText={setDescription}
-                    style={[styles.textInput, styles.textArea]}
+            {isWebWide ? (
+              <View style={styles.heroRow}>
+                <View style={styles.heroMain}>
+                  <Text
+                    style={[
+                      styles.sectionTitle,
+                      styles.sectionTitleWide,
+                      { color: theme.text },
+                    ]}
+                  >
+                    My AI Quests
+                  </Text>
+                  <Text
+                    style={[
+                      styles.heroSubtitle,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Build a learning path around what you&apos;re curious about.
+                  </Text>
+                  <View
+                    style={[
+                      styles.heroActions,
+                      isDesktop && styles.heroActionsRow,
+                    ]}
+                  >
+                    {generateOptionCard}
+                    {joinOptionCard}
+                  </View>
+                </View>
+                <View style={styles.heroSide}>
+                  <QuestOverviewCard
+                    total={questStats.total}
+                    inProgress={questStats.inProgress}
+                    completed={questStats.completed}
+                    gems={questStats.gems}
                   />
                 </View>
-
-                {formError ? (
-                  <Text style={[styles.formError, { color: theme.danger }]}>{formError}</Text>
-                ) : null}
-
-                <View style={styles.configRow}>
-                  <View style={styles.configCol}>
-                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Category</Text>
-                    {showCategoryInput ? (
-                      <TextInput
-                        placeholder={
-                          interests.length > 0
-                            ? "Enter a new category or interest..."
-                            : "Enter a category or interest..."
-                        }
-                        placeholderTextColor={theme.textMuted}
-                        value={customCategory}
-                        onChangeText={setCustomCategory}
-                        style={[styles.textInput, styles.categoryInput, { backgroundColor: theme.surfaceAlt }]}
-                      />
-                    ) : (
-                      <DropdownSelect
-                        options={interestOptions}
-                        selected={activeCategory}
-                        onSelect={(val) => {
-                          if (val === ADD_NEW_INTEREST) {
-                            setAddingCategory(true);
-                            setCustomCategory("");
-                          } else {
-                            setCategory(val);
-                            setAddingCategory(false);
-                          }
-                        }}
-                      />
-                    )}
-                  </View>
-                  <View style={styles.configCol}>
-                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Difficulty</Text>
-                    <DropdownSelect
-                      options={DIFFICULTY_OPTIONS}
-                      selected={difficulty}
-                      onSelect={setDifficulty}
-                    />
-                  </View>
-                </View>
-
-                <Pressable
-                  style={[styles.modelRow, { backgroundColor: theme.surfaceAlt }]}
-                  onPress={() => setShowModelPicker(true)}
-                >
-                  <View style={styles.modelRowTextWrap}>
-                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>AI Model</Text>
-                    <Text style={styles.modelRowLabel} numberOfLines={1}>
-                      {selectedModelLabel}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-down" size={18} color="#FFFFFF" />
-                </Pressable>
-
-                <View style={styles.personalisedRow}>
-                  <View style={styles.personalisedTextWrap}>
-                    <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>Personalised</Text>
-                    <Text style={[styles.personalisedSub, { color: theme.textMuted }]}>
-                      Tailor the whole course to your department, year of study & profile
-                    </Text>
-                  </View>
-                  <Switch value={personalised} onValueChange={setPersonalised} />
-                </View>
-
-                <Pressable onPress={handleGenerate} disabled={generating}>
-                  <LinearGradient
-                    colors={[theme.accent, theme.primary]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[styles.ctaButton, { shadowColor: theme.accent }, generating && styles.ctaButtonDisabled]}
-                  >
-                    {generating ? (
-                      <ActivityIndicator color="#FFF" size="small" />
-                    ) : (
-                      <Text style={styles.ctaText}>GENERATE MY COURSE</Text>
-                    )}
-                  </LinearGradient>
-                </Pressable>
-
-                <View style={{ height: 40 }} />
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        <Modal
-          visible={showModelPicker}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setShowModelPicker(false)}
-        >
-          <View style={[styles.pickerOverlay, showWebDialog && styles.modalOverlayDialog]}>
-            <View
-              style={[
-                styles.pickerContainer,
-                { backgroundColor: theme.bg },
-                showWebDialog && styles.modalContainerDialog,
-                showWebDialog && styles.pickerContainerDialog,
-              ]}
-            >
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select AI Model</Text>
-                <TouchableOpacity onPress={() => setShowModelPicker(false)}>
-                  <Ionicons name="close-circle" size={28} color={theme.textMuted} />
-                </TouchableOpacity>
               </View>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {modelGroups.map((group) => (
-                  <View key={group.provider}>
-                    <Text style={[styles.pickerGroupTitle, { color: theme.textSecondary }]}>
-                      {AI_PROVIDER_LABELS[group.provider]}
-                    </Text>
-                    {group.models.map((m: AiModelOption) => {
-                      const active = m.ref === selectedModel;
-                      return (
-                        <Pressable
-                          key={m.ref}
-                          style={[
-                            styles.pickerItem,
-                            { backgroundColor: theme.surfaceAlt },
-                            active && { borderColor: theme.primary, borderWidth: 1 },
-                          ]}
-                          onPress={() => {
-                            setSelectedModel(m.ref);
-                            setShowModelPicker(false);
-                          }}
-                        >
-                          <View style={styles.pickerItemTextWrap}>
-                            <View style={styles.pickerItemTopRow}>
-                              <Text style={styles.pickerLabel} numberOfLines={1}>
-                                {m.label}
-                              </Text>
-                              <View
-                                style={[
-                                  styles.pickerTierChip,
-                                  m.tier === "paid"
-                                    ? { backgroundColor: "rgba(245,158,11,0.15)" }
-                                    : { backgroundColor: "rgba(16,185,129,0.15)" },
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.pickerTierText,
-                                    { color: m.tier === "paid" ? "#F59E0B" : "#10B981" },
-                                  ]}
-                                >
-                                  {m.tier === "paid" ? "PAID" : "FREE"}
-                                </Text>
-                              </View>
-                            </View>
-                            {m.note ? (
-                              <Text style={[styles.pickerNote, { color: theme.textMuted }]}>
-                                {m.note}
-                              </Text>
-                            ) : null}
-                          </View>
-                          {active && <Ionicons name="checkmark" size={20} color={theme.primary} />}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ))}
-                <View style={{ height: 30 }} />
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        {!isEnrolledFilter && (
-          <Text
-            style={styles.coursesTitle}
-            onLayout={(e) => {
-              generatedSectionYRef.current = e.nativeEvent.layout.y;
-            }}
-          >
-            My AI Generated Courses
-          </Text>
-        )}
-
-        {(userCourses.length > 0 || enrolledCourses.length > 0) && (
-          <View style={styles.coursesToolbar}>
-            {!isEnrolledFilter && (
-              <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Ionicons name="search" size={16} color={theme.textMuted} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search your courses..."
-                  placeholderTextColor={theme.textMuted}
-                  value={searchText}
-                  onChangeText={(t) => {
-                    setSearchText(t);
-                    setVisibleCount(5);
-                  }}
-                />
-                {searchText.length > 0 && (
-                  <TouchableOpacity onPress={() => { setSearchText(""); setVisibleCount(5); }} hitSlop={8}>
-                    <Ionicons name="close-circle" size={16} color={theme.textMuted} />
-                  </TouchableOpacity>
-                )}
-              </View>
+            ) : (
+              <>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                  My AI Quests
+                </Text>
+                {generateOptionCard}
+                {joinOptionCard}
+              </>
             )}
-            <View style={styles.filterWrap}>
-              <DropdownSelect
-                options={filterOptions}
-                selected={activeFilter}
-                onSelect={(v) => {
-                  setActiveFilter(v);
-                  setVisibleCount(5);
-                }}
-              />
-            </View>
-          </View>
-        )}
 
-        {!isEnrolledFilter && userCourses.length === 0 && enrolledCourses.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="rocket-outline" size={48} color={theme.textMuted} />
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              No courses yet. Describe what you want to learn and generate your first course!
-            </Text>
-          </View>
-        )}
-
-        {!isEnrolledFilter && userCourses.length > 0 && filteredCourses.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons
-              name={activeFilter === "favourites" ? "heart-outline" : "search-outline"}
-              size={48}
-              color={theme.textMuted}
-            />
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              {activeFilter === "favourites"
-                ? "No favourite courses yet — long-press a course and choose 'Add to favourites'."
-                : "No courses match your search or selected interest."}
-            </Text>
-          </View>
-        )}
-
-        {courseError ? (
-          <View style={[styles.errorBanner, { backgroundColor: theme.danger + "15", borderColor: theme.danger }]}>
-            <Text style={[styles.errorText, { color: theme.danger }]}>{courseError}</Text>
-          </View>
-        ) : null}
-
-        {!isEnrolledFilter && (
-          <>
-          <View
-            style={useWebGrid ? styles.courseGrid : undefined}
-            onLayout={
-              useWebGrid
-                ? (e) => setGridWidth(e.nativeEvent.layout.width)
-                : undefined
-            }
-          >
-          {paginatedCourses.map((course) => {
-          const isGenerating = course.id.startsWith("generating_");
-          const enrollment = getEnrollmentForCourse(course.id);
-          const progress = enrollment?.progress ?? course.progress ?? 0;
-          const chapterCount = course.chapters?.length ?? course.totalChapters ?? 0;
-          const courseAge = formatCourseAge(course.createdAt);
-
-          if (isGenerating) {
-            return (
+            <Modal
+              visible={showCreateModal}
+              animationType="slide"
+              transparent
+              onRequestClose={() => {
+                setShowCreateModal(false);
+                setFormError(null);
+              }}
+            >
               <View
-                key={course.id}
                 style={[
-                  styles.courseCard,
-                  styles.skeletonCard,
-                  useWebGrid && styles.courseCardFull,
-                  { backgroundColor: theme.surface },
+                  styles.modalOverlay,
+                  showWebDialog && styles.modalOverlayDialog,
                 ]}
               >
-                <View style={styles.courseCardContent}>
-                  <View style={styles.courseInfo}>
-                    <View style={styles.skeletonTitle} />
-                    <View style={[styles.skeletonBar, { width: "60%", marginTop: 8 }]} />
-                    <View style={[styles.skeletonBar, { width: "40%", marginTop: 6 }]} />
-                    <View style={styles.skeletonMeta}>
-                      <View style={[styles.skeletonTag, { width: 60 }]} />
-                      <View style={[styles.skeletonTag, { width: 80 }]} />
-                    </View>
+                <View
+                  style={[
+                    styles.modalContainer,
+                    { backgroundColor: theme.bg },
+                    showWebDialog && styles.modalContainerDialog,
+                  ]}
+                >
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Create Your AI Quest</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowCreateModal(false);
+                        setFormError(null);
+                      }}
+                    >
+                      <Ionicons
+                        name="close-circle"
+                        size={28}
+                        color={theme.textMuted}
+                      />
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.courseAction}>
-                    <ActivityIndicator color={theme.accent} size="small" />
-                    <Text style={[styles.continueText, { color: theme.textMuted, marginTop: 8 }]}>
-                      Generating...
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            );
-          }
 
-          return (
-            <GradientOutlineContainer
-              key={course.id}
-              gradientColors={
-                course.difficulty === "Beginner"
-                  ? ["rgba(76, 175, 80, 0.2)", "rgba(6, 182, 212, 0.2)"]
-                  : course.difficulty === "Intermediate"
-                    ? ["rgba(255, 152, 0, 0.2)", "rgba(139, 92, 246, 0.2)"]
-                    : ["rgba(244, 67, 54, 0.2)", "rgba(236, 72, 153, 0.2)"]
-              }
-              style={[
-                styles.courseCard,
-                useWebGrid && styles.courseCardGrid,
-                useWebGrid && gridCardWidth ? { width: gridCardWidth } : null,
-              ]}
-            >
-              <Pressable onPress={() => handleCardPress(course.id)} onLongPress={() => handleCardLongPress(course.id)}>
-                <View style={styles.courseCardContent}>
-                  <View style={styles.courseInfo}>
-                    <View style={styles.courseTitleRow}>
-                      <Text style={styles.courseTitle}>{course.title}</Text>
-                      {course.pinned && (
-                        <View style={styles.menuIndicator}>
-                          <Ionicons name="push" size={13} color="#F59E0B" />
-                        </View>
-                      )}
-                      {course.favorite && (
-                        <View style={styles.favouriteBadge}>
-                          <Ionicons name="heart" size={13} color="#FB7185" />
-                        </View>
-                      )}
-                      <View style={styles.activeBadge}>
-                        <Text style={[styles.activeBadgeText, { color: theme.success }]}>
-                          {enrollment?.isCompleted ? "Done" : "Active"}
+                  <ScrollView showsVerticalScrollIndicator={false}>
+                    <View
+                      style={[
+                        styles.inputBox,
+                        { backgroundColor: theme.surfaceAlt },
+                      ]}
+                    >
+                      <TextInput
+                        placeholder={
+                          'Describe what you want to learn...\ne.g., "Master Python Basics"'
+                        }
+                        placeholderTextColor={theme.textMuted}
+                        multiline
+                        value={description}
+                        onChangeText={setDescription}
+                        style={[styles.textInput, styles.textArea]}
+                      />
+                    </View>
+
+                    {formError ? (
+                      <Text style={[styles.formError, { color: theme.danger }]}>
+                        {formError}
+                      </Text>
+                    ) : null}
+
+                    <View style={styles.configRow}>
+                      <View style={styles.configCol}>
+                        <Text
+                          style={[
+                            styles.fieldLabel,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          Category
                         </Text>
+                        {showCategoryInput ? (
+                          <TextInput
+                            placeholder={
+                              interests.length > 0
+                                ? "Enter a new category or interest..."
+                                : "Enter a category or interest..."
+                            }
+                            placeholderTextColor={theme.textMuted}
+                            value={customCategory}
+                            onChangeText={setCustomCategory}
+                            style={[
+                              styles.textInput,
+                              styles.categoryInput,
+                              { backgroundColor: theme.surfaceAlt },
+                            ]}
+                          />
+                        ) : (
+                          <DropdownSelect
+                            options={interestOptions}
+                            selected={activeCategory}
+                            onSelect={(val) => {
+                              if (val === ADD_NEW_INTEREST) {
+                                setAddingCategory(true);
+                                setCustomCategory("");
+                              } else {
+                                setCategory(val);
+                                setAddingCategory(false);
+                              }
+                            }}
+                          />
+                        )}
+                      </View>
+                      <View style={styles.configCol}>
+                        <Text
+                          style={[
+                            styles.fieldLabel,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          Difficulty
+                        </Text>
+                        <DropdownSelect
+                          options={DIFFICULTY_OPTIONS}
+                          selected={difficulty}
+                          onSelect={setDifficulty}
+                        />
                       </View>
                     </View>
-                    <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>
-                      Progress: {Math.round(progress * 100)}%
-                    </Text>
-                    <ProgressBar
-                      progress={progress}
-                      trackColor="#222530"
-                      filledColors={[theme.accent, theme.primary]}
-                      style={styles.progressBar}
-                    />
-                    <View style={styles.courseMeta}>
-                      {courseAge ? (
-                        <>
-                          <Ionicons name="time-outline" size={14} color={theme.textMuted} />
-                          <Text style={[styles.metaText, { color: theme.textMuted }]}>{courseAge}</Text>
-                        </>
-                      ) : null}
-                      <MaterialCommunityIcons
-                        name={
-                          course.difficulty === "Beginner"
-                            ? "sprout"
-                            : course.difficulty === "Intermediate"
-                              ? "shield-star"
-                              : "sword-cross"
-                        }
-                        size={14}
-                        color={
-                          course.difficulty === "Beginner"
-                            ? theme.success
-                            : course.difficulty === "Intermediate"
-                              ? "#F59E0B"
-                              : "#F44336"
-                        }
-                        style={courseAge ? { marginLeft: 12 } : undefined}
-                      />
-                      <Text style={[styles.metaText, { color: theme.textSecondary }]}>{course.difficulty}</Text>
-                      <Text style={[styles.metaText, { marginLeft: 16, color: theme.textSecondary }]}>
-                        {chapterCount} chapters
-                      </Text>
-                      {course.creatorName && course.creatorId !== "system" && (
-                        <Text style={[styles.metaText, { marginLeft: 16, color: theme.textSecondary }]}>
-                          by {course.creatorName}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                  <View style={styles.courseAction}>
-                    <View style={[styles.courseIconCircle, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
-                      <Ionicons
-                        name={getCourseIcon(course.category)}
-                        size={28}
-                        color={theme.accent}
-                      />
-                    </View>
-                    <Text style={[styles.continueText, { color: theme.info }]}>
-                      {enrollment?.isCompleted ? "REVIEW" : progress > 0 ? "RESUME" : "START"}
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            </GradientOutlineContainer>
-          );
-        })}
-          </View>
-          {hasMore && (
-            <View style={styles.loadMoreRow}>
-              <ActivityIndicator size="small" color={theme.accent} />
-              <Text style={[styles.loadMoreText, { color: theme.textSecondary }]}>
-                Loading more courses...
-              </Text>
-            </View>
-          )}
-          </>
-        )}
 
-          {showEnrolledSection && (enrolledCourses.length > 0 || isEnrolledFilter) && (
-            <>
-              <Text style={styles.coursesTitle}>Enrolled</Text>
-              {isEnrolledFilter && enrolledCourses.length === 0 && (
+                    <Pressable
+                      style={[
+                        styles.modelRow,
+                        { backgroundColor: theme.surfaceAlt },
+                      ]}
+                      onPress={() => setShowModelPicker(true)}
+                    >
+                      <View style={styles.modelRowTextWrap}>
+                        <Text
+                          style={[
+                            styles.fieldLabel,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          AI Model
+                        </Text>
+                        <Text style={styles.modelRowLabel} numberOfLines={1}>
+                          {selectedModelLabel}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-down" size={18} color="#FFFFFF" />
+                    </Pressable>
+
+                    <View style={styles.personalisedRow}>
+                      <View style={styles.personalisedTextWrap}>
+                        <Text
+                          style={[
+                            styles.fieldLabel,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          Personalised
+                        </Text>
+                        <Text
+                          style={[
+                            styles.personalisedSub,
+                            { color: theme.textMuted },
+                          ]}
+                        >
+                          Tailor the whole course to your department, year of
+                          study & profile
+                        </Text>
+                      </View>
+                      <Switch
+                        value={personalised}
+                        onValueChange={setPersonalised}
+                      />
+                    </View>
+
+                    <Pressable onPress={handleGenerate} disabled={generating}>
+                      <LinearGradient
+                        colors={[theme.accent, theme.primary]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[
+                          styles.ctaButton,
+                          { shadowColor: theme.accent },
+                          generating && styles.ctaButtonDisabled,
+                        ]}
+                      >
+                        {generating ? (
+                          <ActivityIndicator color="#FFF" size="small" />
+                        ) : (
+                          <Text style={styles.ctaText}>GENERATE MY COURSE</Text>
+                        )}
+                      </LinearGradient>
+                    </Pressable>
+
+                    <View style={{ height: 40 }} />
+                  </ScrollView>
+                </View>
+              </View>
+            </Modal>
+
+            <Modal
+              visible={showModelPicker}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setShowModelPicker(false)}
+            >
+              <View
+                style={[
+                  styles.pickerOverlay,
+                  showWebDialog && styles.modalOverlayDialog,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.pickerContainer,
+                    { backgroundColor: theme.bg },
+                    showWebDialog && styles.modalContainerDialog,
+                    showWebDialog && styles.pickerContainerDialog,
+                  ]}
+                >
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Select AI Model</Text>
+                    <TouchableOpacity onPress={() => setShowModelPicker(false)}>
+                      <Ionicons
+                        name="close-circle"
+                        size={28}
+                        color={theme.textMuted}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView showsVerticalScrollIndicator={false}>
+                    {modelGroups.map((group) => (
+                      <View key={group.provider}>
+                        <Text
+                          style={[
+                            styles.pickerGroupTitle,
+                            { color: theme.textSecondary },
+                          ]}
+                        >
+                          {AI_PROVIDER_LABELS[group.provider]}
+                        </Text>
+                        {group.models.map((m: AiModelOption) => {
+                          const active = m.ref === selectedModel;
+                          return (
+                            <Pressable
+                              key={m.ref}
+                              style={[
+                                styles.pickerItem,
+                                { backgroundColor: theme.surfaceAlt },
+                                active && {
+                                  borderColor: theme.primary,
+                                  borderWidth: 1,
+                                },
+                              ]}
+                              onPress={() => {
+                                setSelectedModel(m.ref);
+                                setShowModelPicker(false);
+                              }}
+                            >
+                              <View style={styles.pickerItemTextWrap}>
+                                <View style={styles.pickerItemTopRow}>
+                                  <Text
+                                    style={styles.pickerLabel}
+                                    numberOfLines={1}
+                                  >
+                                    {m.label}
+                                  </Text>
+                                  <View
+                                    style={[
+                                      styles.pickerTierChip,
+                                      m.tier === "paid"
+                                        ? {
+                                            backgroundColor:
+                                              "rgba(245,158,11,0.15)",
+                                          }
+                                        : {
+                                            backgroundColor:
+                                              "rgba(16,185,129,0.15)",
+                                          },
+                                    ]}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.pickerTierText,
+                                        {
+                                          color:
+                                            m.tier === "paid"
+                                              ? "#F59E0B"
+                                              : "#10B981",
+                                        },
+                                      ]}
+                                    >
+                                      {m.tier === "paid" ? "PAID" : "FREE"}
+                                    </Text>
+                                  </View>
+                                </View>
+                                {m.note ? (
+                                  <Text
+                                    style={[
+                                      styles.pickerNote,
+                                      { color: theme.textMuted },
+                                    ]}
+                                  >
+                                    {m.note}
+                                  </Text>
+                                ) : null}
+                              </View>
+                              {active && (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={20}
+                                  color={theme.primary}
+                                />
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ))}
+                    <View style={{ height: 30 }} />
+                  </ScrollView>
+                </View>
+              </View>
+            </Modal>
+
+            {!isEnrolledFilter && (
+              <Text
+                style={styles.coursesTitle}
+                onLayout={(e) => {
+                  generatedSectionYRef.current = e.nativeEvent.layout.y;
+                }}
+              >
+                My AI Generated Courses
+              </Text>
+            )}
+
+            {(userCourses.length > 0 || enrolledCourses.length > 0) && (
+              <View style={styles.coursesToolbar}>
+                {!isEnrolledFilter && (
+                  <View
+                    style={[
+                      styles.searchBox,
+                      {
+                        backgroundColor: theme.surface,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Ionicons name="search" size={16} color={theme.textMuted} />
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search your courses..."
+                      placeholderTextColor={theme.textMuted}
+                      value={searchText}
+                      onChangeText={(t) => {
+                        setSearchText(t);
+                        setVisibleCount(5);
+                      }}
+                    />
+                    {searchText.length > 0 && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSearchText("");
+                          setVisibleCount(5);
+                        }}
+                        hitSlop={8}
+                      >
+                        <Ionicons
+                          name="close-circle"
+                          size={16}
+                          color={theme.textMuted}
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+                <View style={styles.filterWrap}>
+                  <DropdownSelect
+                    options={filterOptions}
+                    selected={activeFilter}
+                    onSelect={(v) => {
+                      setActiveFilter(v);
+                      setVisibleCount(5);
+                    }}
+                  />
+                </View>
+              </View>
+            )}
+
+            {!isEnrolledFilter &&
+              userCourses.length === 0 &&
+              enrolledCourses.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Ionicons name="book-outline" size={48} color={theme.textMuted} />
-                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                    No enrolled courses yet — courses you join from other creators will appear here.
+                  <Ionicons
+                    name="rocket-outline"
+                    size={48}
+                    color={theme.textMuted}
+                  />
+                  <Text
+                    style={[styles.emptyText, { color: theme.textSecondary }]}
+                  >
+                    No courses yet. Describe what you want to learn and generate
+                    your first course!
                   </Text>
                 </View>
               )}
-              <View
-                style={useWebGrid ? styles.courseGrid : undefined}
-                onLayout={
-                  useWebGrid
-                    ? (e) => setGridWidth(e.nativeEvent.layout.width)
-                    : undefined
-                }
-              >
-              {enrolledCourses.map((course) => {
-                const enrollment = getEnrollmentForCourse(course.id);
-                const progress = enrollment?.progress ?? 0;
-                const chapterCount = course.chapters?.length ?? 0;
-                return (
-                  <GradientOutlineContainer
-                    key={course.id}
-                    gradientColors={
-                      course.difficulty === "Beginner"
-                        ? ["rgba(76, 175, 80, 0.2)", "rgba(6, 182, 212, 0.2)"]
-                        : course.difficulty === "Intermediate"
-                          ? ["rgba(255, 152, 0, 0.2)", "rgba(139, 92, 246, 0.2)"]
-                          : ["rgba(244, 67, 54, 0.2)", "rgba(236, 72, 153, 0.2)"]
+
+            {!isEnrolledFilter &&
+              userCourses.length > 0 &&
+              filteredCourses.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Ionicons
+                    name={
+                      activeFilter === "favourites"
+                        ? "heart-outline"
+                        : "search-outline"
                     }
-                    style={[
-                      styles.courseCard,
-                      useWebGrid && styles.courseCardGrid,
-                      useWebGrid && gridCardWidth ? { width: gridCardWidth } : null,
-                    ]}
+                    size={48}
+                    color={theme.textMuted}
+                  />
+                  <Text
+                    style={[styles.emptyText, { color: theme.textSecondary }]}
                   >
-                    <Pressable onPress={() => handleCoursePress(course.id)}>
-                      <View style={styles.courseCardContent}>
-                        <View style={styles.courseInfo}>
-                          <View style={styles.courseTitleRow}>
-                            <Text style={styles.courseTitle} numberOfLines={1}>
-                              {course.title}
-                            </Text>
-                            {course.creatorName && (
+                    {activeFilter === "favourites"
+                      ? "No favourite courses yet — long-press a course and choose 'Add to favourites'."
+                      : "No courses match your search or selected interest."}
+                  </Text>
+                </View>
+              )}
+
+            {courseError ? (
+              <View
+                style={[
+                  styles.errorBanner,
+                  {
+                    backgroundColor: theme.danger + "15",
+                    borderColor: theme.danger,
+                  },
+                ]}
+              >
+                <Text style={[styles.errorText, { color: theme.danger }]}>
+                  {courseError}
+                </Text>
+              </View>
+            ) : null}
+
+            {!isEnrolledFilter && (
+              <>
+                <View
+                  style={useWebGrid ? styles.courseGrid : undefined}
+                  onLayout={
+                    useWebGrid
+                      ? (e) => setGridWidth(e.nativeEvent.layout.width)
+                      : undefined
+                  }
+                >
+                  {paginatedCourses.map((course) => {
+                    const isGenerating = course.id.startsWith("generating_");
+                    const enrollment = getEnrollmentForCourse(course.id);
+                    const progress =
+                      enrollment?.progress ?? course.progress ?? 0;
+                    const chapterCount =
+                      course.chapters?.length ?? course.totalChapters ?? 0;
+                    const courseAge = formatCourseAge(course.createdAt);
+
+                    if (isGenerating) {
+                      return (
+                        <View
+                          key={course.id}
+                          style={[
+                            styles.courseCard,
+                            styles.skeletonCard,
+                            useWebGrid && styles.courseCardFull,
+                            { backgroundColor: theme.surface },
+                          ]}
+                        >
+                          <View style={styles.courseCardContent}>
+                            <View style={styles.courseInfo}>
+                              <View style={styles.skeletonTitle} />
+                              <View
+                                style={[
+                                  styles.skeletonBar,
+                                  { width: "60%", marginTop: 8 },
+                                ]}
+                              />
+                              <View
+                                style={[
+                                  styles.skeletonBar,
+                                  { width: "40%", marginTop: 6 },
+                                ]}
+                              />
+                              <View style={styles.skeletonMeta}>
+                                <View
+                                  style={[styles.skeletonTag, { width: 60 }]}
+                                />
+                                <View
+                                  style={[styles.skeletonTag, { width: 80 }]}
+                                />
+                              </View>
+                            </View>
+                            <View style={styles.courseAction}>
+                              <ActivityIndicator
+                                color={theme.accent}
+                                size="small"
+                              />
                               <Text
                                 style={[
-                                  styles.metaText,
-                                  { color: theme.textMuted, fontWeight: "600" },
+                                  styles.continueText,
+                                  { color: theme.textMuted, marginTop: 8 },
                                 ]}
-                                numberOfLines={1}
                               >
-                                by {course.creatorName}
+                                Generating...
                               </Text>
-                            )}
-                          </View>
-                          <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>
-                            Progress: {Math.round(progress * 100)}%
-                          </Text>
-                          <ProgressBar
-                            progress={progress}
-                            trackColor="#222530"
-                            filledColors={[theme.accent, theme.primary]}
-                            style={styles.progressBar}
-                          />
-                          <View style={styles.courseMeta}>
-                            <MaterialCommunityIcons
-                              name={
-                                course.difficulty === "Beginner"
-                                  ? "sprout"
-                                  : course.difficulty === "Intermediate"
-                                    ? "shield-star"
-                                    : "sword-cross"
-                              }
-                              size={14}
-                              color={
-                                course.difficulty === "Beginner"
-                                  ? theme.success
-                                  : course.difficulty === "Intermediate"
-                                    ? "#F59E0B"
-                                    : "#F44336"
-                              }
-                            />
-                            <Text style={[styles.metaText, { color: theme.textSecondary }]}>
-                              {course.difficulty}
-                            </Text>
-                            <Text
-                              style={[styles.metaText, { marginLeft: 16, color: theme.textSecondary }]}
-                            >
-                              {chapterCount} chapters
-                            </Text>
+                            </View>
                           </View>
                         </View>
-                        <View style={styles.courseAction}>
-                          <View
-                            style={[styles.courseIconCircle, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
-                          >
-                            <Ionicons
-                              name={getCourseIcon(course.category)}
-                              size={28}
-                              color={theme.accent}
-                            />
-                          </View>
-                          <Text style={[styles.continueText, { color: theme.info }]}>
-                            {enrollment?.isCompleted
-                              ? "REVIEW"
-                              : progress > 0
-                                ? "RESUME"
-                                : "START"}
-                          </Text>
-                        </View>
-                      </View>
-                    </Pressable>
-                  </GradientOutlineContainer>
-                );
-              })}
-              </View>
-            </>
-          )}
+                      );
+                    }
 
-          <View style={{ height: tabBarInset }} />
+                    return (
+                      <GradientOutlineContainer
+                        key={course.id}
+                        gradientColors={
+                          course.difficulty === "Beginner"
+                            ? [
+                                "rgba(76, 175, 80, 0.2)",
+                                "rgba(6, 182, 212, 0.2)",
+                              ]
+                            : course.difficulty === "Intermediate"
+                              ? [
+                                  "rgba(255, 152, 0, 0.2)",
+                                  "rgba(139, 92, 246, 0.2)",
+                                ]
+                              : [
+                                  "rgba(244, 67, 54, 0.2)",
+                                  "rgba(236, 72, 153, 0.2)",
+                                ]
+                        }
+                        style={[
+                          styles.courseCard,
+                          useWebGrid && styles.courseCardGrid,
+                          useWebGrid && gridCardWidth
+                            ? { width: gridCardWidth }
+                            : null,
+                        ]}
+                      >
+                        <Pressable
+                          onPress={() => handleCardPress(course.id)}
+                          onLongPress={() => handleCardLongPress(course.id)}
+                        >
+                          <View style={styles.courseCardContent}>
+                            <View style={styles.courseInfo}>
+                              <View style={styles.courseTitleRow}>
+                                <Text style={styles.courseTitle}>
+                                  {course.title}
+                                </Text>
+                                {course.pinned && (
+                                  <View style={styles.menuIndicator}>
+                                    <Ionicons
+                                      name="push"
+                                      size={13}
+                                      color="#F59E0B"
+                                    />
+                                  </View>
+                                )}
+                                {course.favorite && (
+                                  <View style={styles.favouriteBadge}>
+                                    <Ionicons
+                                      name="heart"
+                                      size={13}
+                                      color="#FB7185"
+                                    />
+                                  </View>
+                                )}
+                                <View style={styles.activeBadge}>
+                                  <Text
+                                    style={[
+                                      styles.activeBadgeText,
+                                      { color: theme.success },
+                                    ]}
+                                  >
+                                    {enrollment?.isCompleted
+                                      ? "Done"
+                                      : "Active"}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text
+                                style={[
+                                  styles.progressLabel,
+                                  { color: theme.textSecondary },
+                                ]}
+                              >
+                                Progress: {Math.round(progress * 100)}%
+                              </Text>
+                              <ProgressBar
+                                progress={progress}
+                                trackColor="#222530"
+                                filledColors={[theme.accent, theme.primary]}
+                                style={styles.progressBar}
+                              />
+                              <View style={styles.courseMeta}>
+                                {courseAge ? (
+                                  <>
+                                    <Ionicons
+                                      name="time-outline"
+                                      size={14}
+                                      color={theme.textMuted}
+                                    />
+                                    <Text
+                                      style={[
+                                        styles.metaText,
+                                        { color: theme.textMuted },
+                                      ]}
+                                    >
+                                      {courseAge}
+                                    </Text>
+                                  </>
+                                ) : null}
+                                <MaterialCommunityIcons
+                                  name={
+                                    course.difficulty === "Beginner"
+                                      ? "sprout"
+                                      : course.difficulty === "Intermediate"
+                                        ? "shield-star"
+                                        : "sword-cross"
+                                  }
+                                  size={14}
+                                  color={
+                                    course.difficulty === "Beginner"
+                                      ? theme.success
+                                      : course.difficulty === "Intermediate"
+                                        ? "#F59E0B"
+                                        : "#F44336"
+                                  }
+                                  style={
+                                    courseAge ? { marginLeft: 12 } : undefined
+                                  }
+                                />
+                                <Text
+                                  style={[
+                                    styles.metaText,
+                                    { color: theme.textSecondary },
+                                  ]}
+                                >
+                                  {course.difficulty}
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.metaText,
+                                    {
+                                      marginLeft: 16,
+                                      color: theme.textSecondary,
+                                    },
+                                  ]}
+                                >
+                                  {chapterCount} chapters
+                                </Text>
+                                {course.creatorName &&
+                                  course.creatorId !== "system" && (
+                                    <Text
+                                      style={[
+                                        styles.metaText,
+                                        {
+                                          marginLeft: 16,
+                                          color: theme.textSecondary,
+                                        },
+                                      ]}
+                                    >
+                                      by {course.creatorName}
+                                    </Text>
+                                  )}
+                              </View>
+                            </View>
+                            <View style={styles.courseAction}>
+                              <View
+                                style={[
+                                  styles.courseIconCircle,
+                                  {
+                                    backgroundColor: theme.surfaceAlt,
+                                    borderColor: theme.border,
+                                  },
+                                ]}
+                              >
+                                <Ionicons
+                                  name={getCourseIcon(course.category)}
+                                  size={28}
+                                  color={theme.accent}
+                                />
+                              </View>
+                              <Text
+                                style={[
+                                  styles.continueText,
+                                  { color: theme.info },
+                                ]}
+                              >
+                                {enrollment?.isCompleted
+                                  ? "REVIEW"
+                                  : progress > 0
+                                    ? "RESUME"
+                                    : "START"}
+                              </Text>
+                            </View>
+                          </View>
+                        </Pressable>
+                      </GradientOutlineContainer>
+                    );
+                  })}
+                </View>
+                {hasMore && (
+                  <View style={styles.loadMoreRow}>
+                    <ActivityIndicator size="small" color={theme.accent} />
+                    <Text
+                      style={[
+                        styles.loadMoreText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Loading more courses...
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {showEnrolledSection &&
+              (enrolledCourses.length > 0 || isEnrolledFilter) && (
+                <>
+                  <Text style={styles.coursesTitle}>Enrolled</Text>
+                  {isEnrolledFilter && enrolledCourses.length === 0 && (
+                    <View style={styles.emptyState}>
+                      <Ionicons
+                        name="book-outline"
+                        size={48}
+                        color={theme.textMuted}
+                      />
+                      <Text
+                        style={[
+                          styles.emptyText,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        No enrolled courses yet — courses you join from other
+                        creators will appear here.
+                      </Text>
+                    </View>
+                  )}
+                  <View
+                    style={useWebGrid ? styles.courseGrid : undefined}
+                    onLayout={
+                      useWebGrid
+                        ? (e) => setGridWidth(e.nativeEvent.layout.width)
+                        : undefined
+                    }
+                  >
+                    {enrolledCourses.map((course) => {
+                      const enrollment = getEnrollmentForCourse(course.id);
+                      const progress = enrollment?.progress ?? 0;
+                      const chapterCount = course.chapters?.length ?? 0;
+                      return (
+                        <GradientOutlineContainer
+                          key={course.id}
+                          gradientColors={
+                            course.difficulty === "Beginner"
+                              ? [
+                                  "rgba(76, 175, 80, 0.2)",
+                                  "rgba(6, 182, 212, 0.2)",
+                                ]
+                              : course.difficulty === "Intermediate"
+                                ? [
+                                    "rgba(255, 152, 0, 0.2)",
+                                    "rgba(139, 92, 246, 0.2)",
+                                  ]
+                                : [
+                                    "rgba(244, 67, 54, 0.2)",
+                                    "rgba(236, 72, 153, 0.2)",
+                                  ]
+                          }
+                          style={[
+                            styles.courseCard,
+                            useWebGrid && styles.courseCardGrid,
+                            useWebGrid && gridCardWidth
+                              ? { width: gridCardWidth }
+                              : null,
+                          ]}
+                        >
+                          <Pressable
+                            onPress={() => handleCoursePress(course.id)}
+                          >
+                            <View style={styles.courseCardContent}>
+                              <View style={styles.courseInfo}>
+                                <View style={styles.courseTitleRow}>
+                                  <Text
+                                    style={styles.courseTitle}
+                                    numberOfLines={1}
+                                  >
+                                    {course.title}
+                                  </Text>
+                                  {course.creatorName && (
+                                    <Text
+                                      style={[
+                                        styles.metaText,
+                                        {
+                                          color: theme.textMuted,
+                                          fontWeight: "600",
+                                        },
+                                      ]}
+                                      numberOfLines={1}
+                                    >
+                                      by {course.creatorName}
+                                    </Text>
+                                  )}
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.progressLabel,
+                                    { color: theme.textSecondary },
+                                  ]}
+                                >
+                                  Progress: {Math.round(progress * 100)}%
+                                </Text>
+                                <ProgressBar
+                                  progress={progress}
+                                  trackColor="#222530"
+                                  filledColors={[theme.accent, theme.primary]}
+                                  style={styles.progressBar}
+                                />
+                                <View style={styles.courseMeta}>
+                                  <MaterialCommunityIcons
+                                    name={
+                                      course.difficulty === "Beginner"
+                                        ? "sprout"
+                                        : course.difficulty === "Intermediate"
+                                          ? "shield-star"
+                                          : "sword-cross"
+                                    }
+                                    size={14}
+                                    color={
+                                      course.difficulty === "Beginner"
+                                        ? theme.success
+                                        : course.difficulty === "Intermediate"
+                                          ? "#F59E0B"
+                                          : "#F44336"
+                                    }
+                                  />
+                                  <Text
+                                    style={[
+                                      styles.metaText,
+                                      { color: theme.textSecondary },
+                                    ]}
+                                  >
+                                    {course.difficulty}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.metaText,
+                                      {
+                                        marginLeft: 16,
+                                        color: theme.textSecondary,
+                                      },
+                                    ]}
+                                  >
+                                    {chapterCount} chapters
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={styles.courseAction}>
+                                <View
+                                  style={[
+                                    styles.courseIconCircle,
+                                    {
+                                      backgroundColor: theme.surfaceAlt,
+                                      borderColor: theme.border,
+                                    },
+                                  ]}
+                                >
+                                  <Ionicons
+                                    name={getCourseIcon(course.category)}
+                                    size={28}
+                                    color={theme.accent}
+                                  />
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.continueText,
+                                    { color: theme.info },
+                                  ]}
+                                >
+                                  {enrollment?.isCompleted
+                                    ? "REVIEW"
+                                    : progress > 0
+                                      ? "RESUME"
+                                      : "START"}
+                                </Text>
+                              </View>
+                            </View>
+                          </Pressable>
+                        </GradientOutlineContainer>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+            <View style={{ height: tabBarInset }} />
           </View>
         </ScrollView>
-      <Modal
+        <Modal
           visible={!!menuCourse}
           transparent
           animationType="fade"
           onRequestClose={() => setMenuCourse(null)}
         >
-          <View style={[styles.sheetOverlay, showWebDialog && styles.sheetOverlayDialog]}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={() => setMenuCourse(null)} />
+          <View
+            style={[
+              styles.sheetOverlay,
+              showWebDialog && styles.sheetOverlayDialog,
+            ]}
+          >
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setMenuCourse(null)}
+            />
             <View
               style={[
                 styles.sheetCard,
@@ -1249,7 +1681,10 @@ export default function QuestsScreen() {
                 showWebDialog && styles.sheetCardDialog,
               ]}
             >
-              <Text style={[styles.sheetTitle, { color: theme.text }]} numberOfLines={1}>
+              <Text
+                style={[styles.sheetTitle, { color: theme.text }]}
+                numberOfLines={1}
+              >
                 {menuCourse?.title}
               </Text>
 
@@ -1271,22 +1706,38 @@ export default function QuestsScreen() {
                   color={menuCourse?.favorite ? "#FB7185" : theme.textSecondary}
                 />
                 <Text style={[styles.sheetRowLabel, { color: theme.text }]}>
-                  {menuCourse?.favorite ? "Remove from favourites" : "Add to favourites"}
+                  {menuCourse?.favorite
+                    ? "Remove from favourites"
+                    : "Add to favourites"}
                 </Text>
               </Pressable>
 
-              <View style={[styles.sheetDivider, { backgroundColor: theme.border }]} />
+              <View
+                style={[styles.sheetDivider, { backgroundColor: theme.border }]}
+              />
 
               <Pressable style={styles.sheetRow} onPress={handleDeleteCourse}>
                 <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                <Text style={[styles.sheetRowLabel, { color: "#EF4444" }]}>Delete course</Text>
+                <Text style={[styles.sheetRowLabel, { color: "#EF4444" }]}>
+                  Delete course
+                </Text>
               </Pressable>
 
               <Pressable
-                style={[styles.sheetCancelBtn, { backgroundColor: theme.surfaceAlt }]}
+                style={[
+                  styles.sheetCancelBtn,
+                  { backgroundColor: theme.surfaceAlt },
+                ]}
                 onPress={() => setMenuCourse(null)}
               >
-                <Text style={[styles.sheetCancelText, { color: theme.textSecondary }]}>Cancel</Text>
+                <Text
+                  style={[
+                    styles.sheetCancelText,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Cancel
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -1594,7 +2045,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   pickerLabel: { color: "#FFFFFF", fontSize: 14, fontWeight: "600", flex: 1 },
-  pickerTierChip: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 8 },
+  pickerTierChip: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
   pickerTierText: { fontSize: 9, fontWeight: "700" },
   pickerNote: { fontSize: 11, marginTop: 3 },
   ctaButton: {
@@ -1609,7 +2065,12 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   ctaButtonDisabled: { opacity: 0.6 },
-  ctaText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700", letterSpacing: 0.5 },
+  ctaText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
   coursesTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -1655,7 +2116,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  emptyState: { alignItems: "center", paddingVertical: 40, paddingHorizontal: 40, gap: 12 },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 40,
+    gap: 12,
+  },
   emptyText: { fontSize: 14, textAlign: "center", lineHeight: 20 },
   courseCard: { marginHorizontal: 20, marginTop: 14 },
   courseGrid: {
@@ -1705,9 +2171,18 @@ const styles = StyleSheet.create({
   activeBadgeText: { fontSize: 10, fontWeight: "700" },
   progressLabel: { fontSize: 12, marginTop: 4 },
   progressBar: { marginTop: 6 },
-  courseMeta: { flexDirection: "row", alignItems: "center", marginTop: 12, flexWrap: "wrap" },
+  courseMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
   metaText: { fontSize: 11, marginLeft: 4 },
-  courseAction: { alignItems: "center", justifyContent: "space-between", marginLeft: 12 },
+  courseAction: {
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginLeft: 12,
+  },
   courseIconCircle: {
     width: 56,
     height: 56,

@@ -19,6 +19,7 @@ import { useUserStore } from "../store/userStore";
 import { useMissionStore } from "../store/missionStore";
 import { useAuth } from "../contexts/AuthContext";
 import { useThemeColors } from "../hooks/useTheme";
+import MascotAnimation from "./MascotAnimation";
 
 const SEGMENT_COUNT = SPIN_SEGMENTS.length;
 const SEGMENT_ANGLE = (2 * Math.PI) / SEGMENT_COUNT;
@@ -325,8 +326,28 @@ export default function SpinWheel() {
                 },
               ]}
             >
-              <View style={[styles.resultIconWrap, { backgroundColor: result.color + "30" }]}>
-                <MaterialCommunityIcons name={result.icon} size={40} color={result.color} />
+              <View style={styles.resultMascotWrap}>
+                <MascotAnimation
+                  action={
+                    result.type === "reward"
+                      ? "mascot_celebrating"
+                      : "mascot_jumping"
+                  }
+                  height={150}
+                  style={styles.resultMascot}
+                />
+                <View
+                  style={[
+                    styles.resultMascotBadge,
+                    { backgroundColor: result.color + "30" },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={result.icon}
+                    size={22}
+                    color={result.color}
+                  />
+                </View>
               </View>
               <Text style={[styles.resultLabel, { color: theme.text }]}>{result.label.replace("\n", " ")}</Text>
               {result.type === "reward" && (
@@ -476,13 +497,23 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: "center",
   },
-  resultIconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: "center",
+  resultMascotWrap: {
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: 12,
+  },
+  resultMascot: {
+    borderRadius: 22,
+  },
+  resultMascotBadge: {
+    position: "absolute",
+    right: -6,
+    bottom: -6,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   resultLabel: {
     fontSize: 20,

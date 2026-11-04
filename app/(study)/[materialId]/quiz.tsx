@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import StudyQuizView from "../../../component/StudyQuizView";
 import QuizRewardOverlay from "../../../component/QuizRewardOverlay";
+import { selectScoreMascotAction } from "../../../lib/mascot/actions";
 import { useThemeColors } from "../../../hooks/useTheme";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useStudyStore } from "../../../store/studyStore";
@@ -272,6 +273,7 @@ export default function StudyQuizScreen() {
         visible={showReward}
         score={correctCount}
         total={totalQuestions}
+        mascotAction={selectScoreMascotAction(score)}
         title="Quiz Complete!"
         subtitle={
           awardedXp != null && awardedXp > 0

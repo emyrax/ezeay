@@ -3,11 +3,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { usePathname, useRouter, useSegments } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { images } from "../constants/images";
 import { NAV } from "../constants/layout";
 import { NOTES_HREF, TAB_ITEMS } from "../constants/navigation";
 import { useResponsive } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
+import { images } from "../images";
 import { withAlpha } from "../lib/color";
 import { deriveHandle } from "../lib/identity";
 import { useUserStore } from "../store/userStore";
@@ -55,7 +55,9 @@ export default function AppSidebar() {
         </LinearGradient>
         {sidebarExpanded ? (
           <View style={styles.brandCopy}>
-            <Text style={[styles.brandTitle, { color: theme.text }]}>Yuinx</Text>
+            <Text style={[styles.brandTitle, { color: theme.text }]}>
+              Yuinx
+            </Text>
             <Text style={[styles.brandSubtitle, { color: theme.textMuted }]}>
               Learning threads
             </Text>
@@ -70,17 +72,34 @@ export default function AppSidebar() {
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <CommunityAvatar uid={profile.uid} photoURL={profile.photoURL} size={42} />
+          <CommunityAvatar
+            uid={profile.uid}
+            photoURL={profile.photoURL}
+            size={42}
+          />
           <View style={styles.profileCopy}>
-            <Text style={[styles.profileName, { color: theme.text }]} numberOfLines={1}>
+            <Text
+              style={[styles.profileName, { color: theme.text }]}
+              numberOfLines={1}
+            >
               {profile.displayName ?? "Scholar"}
             </Text>
-            <Text style={[styles.profileHandle, { color: theme.textMuted }]} numberOfLines={1}>
+            <Text
+              style={[styles.profileHandle, { color: theme.textMuted }]}
+              numberOfLines={1}
+            >
               @{handle}
             </Text>
           </View>
-          <View style={[styles.roleBadge, { backgroundColor: theme.primary + "1F" }]}>
-            <Text style={[styles.roleText, { color: theme.primary }]}>{role}</Text>
+          <View
+            style={[
+              styles.roleBadge,
+              { backgroundColor: theme.primary + "1F" },
+            ]}
+          >
+            <Text style={[styles.roleText, { color: theme.primary }]}>
+              {role}
+            </Text>
           </View>
         </View>
       ) : null}
@@ -108,7 +127,11 @@ export default function AppSidebar() {
                   end={{ x: 1, y: 1 }}
                   style={styles.iconActive}
                 >
-                  <MaterialCommunityIcons name={item.iconName} size={22} color="#FFFFFF" />
+                  <MaterialCommunityIcons
+                    name={item.iconName}
+                    size={22}
+                    color="#FFFFFF"
+                  />
                 </LinearGradient>
               ) : (
                 <View
@@ -149,7 +172,8 @@ export default function AppSidebar() {
         style={[
           styles.item,
           sidebarExpanded ? styles.itemExpanded : styles.itemCompact,
-          sidebarExpanded && isNotesActive && { backgroundColor: theme.surface },
+          sidebarExpanded &&
+            isNotesActive && { backgroundColor: theme.surface },
         ]}
         accessibilityRole="button"
         accessibilityLabel="Open Notes"

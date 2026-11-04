@@ -1,33 +1,41 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Alert,
-  Animated,
-  Dimensions,
-  FlatList,
-  Image,
-  Pressable,
-  ScrollView,
-  SectionList,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useNoteStore } from "../../store/noteStore";
-import { useThemeColors } from "../../hooks/useTheme";
-import { images } from "../../constants/images";
-import { bodyFont } from "../../constants/themes";
-import type { Note } from "../../types/note";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
+import {
+    Alert,
+    Animated,
+    Dimensions,
+    FlatList,
+    Image,
+    Pressable,
+    ScrollView,
+    SectionList,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import GlassSheet from "../../component/notes/GlassSheet";
-import ThemeIcon from "../../component/notes/ThemeIcon";
-import ListGridToggle, { NotesLayout } from "../../component/notes/ListGridToggle";
+import ListGridToggle, {
+    NotesLayout,
+} from "../../component/notes/ListGridToggle";
 import NoteContextMenu from "../../component/notes/NoteContextMenu";
 import NotesLocalOnlyBanner from "../../component/notes/NotesLocalOnlyBanner";
+import ThemeIcon from "../../component/notes/ThemeIcon";
+import { bodyFont } from "../../constants/themes";
+import { useThemeColors } from "../../hooks/useTheme";
+import { images } from "../../images";
+import { useNoteStore } from "../../store/noteStore";
+import type { Note } from "../../types/note";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_GAP = 12;
@@ -82,16 +90,31 @@ function NoteCard({
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 320, delay: index * 50, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 320, delay: index * 50, useNativeDriver: true }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 320,
+        delay: index * 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 320,
+        delay: index * 50,
+        useNativeDriver: true,
+      }),
     ]).start();
   }, [fadeAnim, slideAnim, index]);
 
   const preview = notePreview(note).slice(0, 80);
-  const firstTagColor = note.tags.length > 0 ? tagColors[note.tags[0]] || theme.primary : theme.primary;
+  const firstTagColor =
+    note.tags.length > 0
+      ? tagColors[note.tags[0]] || theme.primary
+      : theme.primary;
 
   return (
-    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+    <Animated.View
+      style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
+    >
       <Pressable
         onPress={onPress}
         onLongPress={() => {
@@ -110,29 +133,64 @@ function NoteCard({
           },
         ]}
       >
-        <View style={[styles.gradientAccent, { backgroundColor: firstTagColor }]} />
+        <View
+          style={[styles.gradientAccent, { backgroundColor: firstTagColor }]}
+        />
         <View style={styles.cardHeader}>
-          {note.pinned && <ThemeIcon sf="pin.fill" material="pin" size={12} color={theme.textMuted} />}
-          <Text style={[styles.noteTitle, { color: theme.text }]} numberOfLines={1}>
+          {note.pinned && (
+            <ThemeIcon
+              sf="pin.fill"
+              material="pin"
+              size={12}
+              color={theme.textMuted}
+            />
+          )}
+          <Text
+            style={[styles.noteTitle, { color: theme.text }]}
+            numberOfLines={1}
+          >
             {note.title || "Untitled"}
           </Text>
         </View>
         <View style={styles.cardMedia}>
           {note.images && note.images[0]?.uri ? (
             <View>
-              <Image source={{ uri: note.images[0].uri }} style={styles.cardThumb} resizeMode="cover" />
+              <Image
+                source={{ uri: note.images[0].uri }}
+                style={styles.cardThumb}
+                resizeMode="cover"
+              />
               {note.audioClips && note.audioClips.length > 0 && (
-                <View style={[styles.thumbAudioBadge, { backgroundColor: "rgba(13,17,23,0.72)" }]}>
-                  <ThemeIcon sf="waveform" material="waveform" size={10} color={theme.primary} />
+                <View
+                  style={[
+                    styles.thumbAudioBadge,
+                    { backgroundColor: "rgba(13,17,23,0.72)" },
+                  ]}
+                >
+                  <ThemeIcon
+                    sf="waveform"
+                    material="waveform"
+                    size={10}
+                    color={theme.primary}
+                  />
                   {note.audioClips.length > 1 && (
-                    <Text style={styles.thumbAudioText}>{note.audioClips.length}</Text>
+                    <Text style={styles.thumbAudioText}>
+                      {note.audioClips.length}
+                    </Text>
                   )}
                 </View>
               )}
             </View>
           ) : note.audioClips && note.audioClips.length > 0 ? (
-            <View style={[styles.audioBadge, { backgroundColor: theme.surfaceAlt }]}>
-              <ThemeIcon sf="waveform" material="waveform" size={12} color={theme.primary} />
+            <View
+              style={[styles.audioBadge, { backgroundColor: theme.surfaceAlt }]}
+            >
+              <ThemeIcon
+                sf="waveform"
+                material="waveform"
+                size={12}
+                color={theme.primary}
+              />
               {note.audioClips.length > 1 && (
                 <Text style={[styles.audioCountText, { color: theme.primary }]}>
                   {note.audioClips.length}
@@ -142,16 +200,31 @@ function NoteCard({
           ) : null}
         </View>
         {preview ? (
-          <Text style={[styles.notePreview, { color: theme.textSecondary }]} numberOfLines={3}>
+          <Text
+            style={[styles.notePreview, { color: theme.textSecondary }]}
+            numberOfLines={3}
+          >
             {preview}
           </Text>
         ) : null}
         <View style={styles.cardFooter}>
-          <Text style={[styles.noteTime, { color: theme.textMuted }]}>{formatTimestamp(note.updatedAt)}</Text>
+          <Text style={[styles.noteTime, { color: theme.textMuted }]}>
+            {formatTimestamp(note.updatedAt)}
+          </Text>
           {note.tags.length > 0 && (
-            <View style={[styles.tagChip, { backgroundColor: (firstTagColor || theme.primary) + "20" }]}>
-              <View style={[styles.tagDot, { backgroundColor: firstTagColor }]} />
-              <Text style={[styles.tagLabel, { color: firstTagColor }]} numberOfLines={1}>
+            <View
+              style={[
+                styles.tagChip,
+                { backgroundColor: (firstTagColor || theme.primary) + "20" },
+              ]}
+            >
+              <View
+                style={[styles.tagDot, { backgroundColor: firstTagColor }]}
+              />
+              <Text
+                style={[styles.tagLabel, { color: firstTagColor }]}
+                numberOfLines={1}
+              >
                 {tagName[note.tags[0]] || note.tags[0]}
               </Text>
             </View>
@@ -178,7 +251,12 @@ function NoteRow({
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 260, delay: index * 40, useNativeDriver: true }).start();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 260,
+      delay: index * 40,
+      useNativeDriver: true,
+    }).start();
   }, [fadeAnim, index]);
 
   const preview = notePreview(note);
@@ -198,10 +276,27 @@ function NoteRow({
         ]}
       >
         {note.images && note.images[0]?.uri ? (
-          <Image source={{ uri: note.images[0].uri }} style={[styles.rowThumb, { borderColor: theme.borderLight }]} />
+          <Image
+            source={{ uri: note.images[0].uri }}
+            style={[styles.rowThumb, { borderColor: theme.borderLight }]}
+          />
         ) : note.audioClips && note.audioClips.length > 0 ? (
-          <View style={[styles.rowThumb, styles.rowThumbIcon, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}>
-            <ThemeIcon sf="waveform" material="waveform" size={20} color={theme.primary} />
+          <View
+            style={[
+              styles.rowThumb,
+              styles.rowThumbIcon,
+              {
+                backgroundColor: theme.surfaceAlt,
+                borderColor: theme.borderLight,
+              },
+            ]}
+          >
+            <ThemeIcon
+              sf="waveform"
+              material="waveform"
+              size={20}
+              color={theme.primary}
+            />
             {note.audioClips.length > 1 && (
               <Text style={[styles.rowThumbCount, { color: theme.primary }]}>
                 {note.audioClips.length}
@@ -212,23 +307,39 @@ function NoteRow({
         <View style={styles.rowBody}>
           <View style={styles.rowTitleLine}>
             {note.pinned && (
-              <ThemeIcon sf="pin.fill" material="pin" size={13} color={theme.textMuted} />
+              <ThemeIcon
+                sf="pin.fill"
+                material="pin"
+                size={13}
+                color={theme.textMuted}
+              />
             )}
-            <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+            <Text
+              style={[styles.rowTitle, { color: theme.text }]}
+              numberOfLines={1}
+            >
               {note.title || "Untitled"}
             </Text>
           </View>
           {preview ? (
-            <Text style={[styles.rowPreview, { color: theme.textSecondary }]} numberOfLines={2}>
+            <Text
+              style={[styles.rowPreview, { color: theme.textSecondary }]}
+              numberOfLines={2}
+            >
               {preview}
             </Text>
           ) : (
-            <Text style={[styles.rowPreview, { color: theme.textMuted }]} numberOfLines={1}>
+            <Text
+              style={[styles.rowPreview, { color: theme.textMuted }]}
+              numberOfLines={1}
+            >
               No additional text
             </Text>
           )}
         </View>
-        <Text style={[styles.rowDate, { color: theme.textMuted }]}>{formatTimestamp(note.updatedAt)}</Text>
+        <Text style={[styles.rowDate, { color: theme.textMuted }]}>
+          {formatTimestamp(note.updatedAt)}
+        </Text>
       </Pressable>
     </Animated.View>
   );
@@ -269,8 +380,11 @@ function TagManagerSheet({
   }
 
   const noteCounts: Record<string, number> = {};
-  for (const n of notes) for (const t of n.tags) noteCounts[t] = (noteCounts[t] || 0) + 1;
-  const filtered = tags.filter((t) => t.name.toLowerCase().includes(tagSearch.toLowerCase()));
+  for (const n of notes)
+    for (const t of n.tags) noteCounts[t] = (noteCounts[t] || 0) + 1;
+  const filtered = tags.filter((t) =>
+    t.name.toLowerCase().includes(tagSearch.toLowerCase()),
+  );
 
   const startCreate = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -291,7 +405,12 @@ function TagManagerSheet({
   };
 
   return (
-    <GlassSheet visible={visible} onClose={onClose} title="Manage Tags" subtitle={`${tags.length} total`}>
+    <GlassSheet
+      visible={visible}
+      onClose={onClose}
+      title="Manage Tags"
+      subtitle={`${tags.length} total`}
+    >
       <View
         style={[
           styles.searchBar,
@@ -301,7 +420,12 @@ function TagManagerSheet({
           },
         ]}
       >
-        <ThemeIcon sf="magnifyingglass" material="magnify" size={16} color={theme.textMuted} />
+        <ThemeIcon
+          sf="magnifyingglass"
+          material="magnify"
+          size={16}
+          color={theme.textMuted}
+        />
         <TextInput
           ref={inputRef}
           style={[styles.searchInput, { color: theme.text }]}
@@ -314,13 +438,24 @@ function TagManagerSheet({
         />
         {!createMode && tagSearch ? (
           <Pressable onPress={() => setTagSearch("")} hitSlop={8}>
-            <ThemeIcon sf="xmark.circle.fill" material="close-circle" size={16} color={theme.textMuted} />
+            <ThemeIcon
+              sf="xmark.circle.fill"
+              material="close-circle"
+              size={16}
+              color={theme.textMuted}
+            />
           </Pressable>
         ) : null}
-        <Pressable onPress={createMode ? commitCreate : startCreate} hitSlop={10} style={styles.createTagIcon}>
+        <Pressable
+          onPress={createMode ? commitCreate : startCreate}
+          hitSlop={10}
+          style={styles.createTagIcon}
+        >
           <ThemeIcon
             sf={createMode ? "checkmark.circle.fill" : "plus.circle.fill"}
-            material={createMode ? "check-circle-outline" : "plus-circle-outline"}
+            material={
+              createMode ? "check-circle-outline" : "plus-circle-outline"
+            }
             size={18}
             color={theme.primary}
           />
@@ -334,29 +469,56 @@ function TagManagerSheet({
         showsVerticalScrollIndicator={false}
       >
         {filtered.map((tag) => (
-          <View key={tag.id} style={[styles.tagManagerRow, { borderBottomColor: theme.borderLight }]}>
+          <View
+            key={tag.id}
+            style={[
+              styles.tagManagerRow,
+              { borderBottomColor: theme.borderLight },
+            ]}
+          >
             <View style={[styles.mentionDot, { backgroundColor: tag.color }]} />
-            <Text style={[styles.tagManagerName, { color: theme.text }]} numberOfLines={1}>
+            <Text
+              style={[styles.tagManagerName, { color: theme.text }]}
+              numberOfLines={1}
+            >
               {tag.name}
             </Text>
-            <Text style={[styles.tagManagerCount, { color: theme.textMuted }]}>{noteCounts[tag.id] || 0}</Text>
+            <Text style={[styles.tagManagerCount, { color: theme.textMuted }]}>
+              {noteCounts[tag.id] || 0}
+            </Text>
             <Pressable
               onPress={() => {
                 onClose();
                 onRename(tag.id, tag.name);
               }}
-              style={[styles.tagManagerAction, { backgroundColor: theme.surfaceAlt }]}
+              style={[
+                styles.tagManagerAction,
+                { backgroundColor: theme.surfaceAlt },
+              ]}
             >
-              <ThemeIcon sf="pencil" material="pencil-outline" size={15} color={theme.textSecondary} />
+              <ThemeIcon
+                sf="pencil"
+                material="pencil-outline"
+                size={15}
+                color={theme.textSecondary}
+              />
             </Pressable>
             <Pressable
               onPress={() => {
                 onClose();
                 onDelete(tag.id);
               }}
-              style={[styles.tagManagerAction, { backgroundColor: theme.danger + "15" }]}
+              style={[
+                styles.tagManagerAction,
+                { backgroundColor: theme.danger + "15" },
+              ]}
             >
-              <ThemeIcon sf="trash" material="delete-outline" size={15} color={theme.danger} />
+              <ThemeIcon
+                sf="trash"
+                material="delete-outline"
+                size={15}
+                color={theme.danger}
+              />
             </Pressable>
           </View>
         ))}
@@ -365,7 +527,16 @@ function TagManagerSheet({
   );
 }
 
-const TAG_COLORS = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#06B6D4", "#EC4899", "#14B8A6"];
+const TAG_COLORS = [
+  "#3B82F6",
+  "#8B5CF6",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#06B6D4",
+  "#EC4899",
+  "#14B8A6",
+];
 
 export default function NotesListScreen() {
   const theme = useThemeColors();
@@ -428,7 +599,9 @@ export default function NotesListScreen() {
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
-        (n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q),
+        (n) =>
+          n.title.toLowerCase().includes(q) ||
+          n.content.toLowerCase().includes(q),
       );
     }
 
@@ -460,8 +633,16 @@ export default function NotesListScreen() {
   const handleCreate = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.sequence([
-      Animated.timing(fabScale, { toValue: 0.85, duration: 100, useNativeDriver: true }),
-      Animated.spring(fabScale, { toValue: 1, friction: 3, useNativeDriver: true }),
+      Animated.timing(fabScale, {
+        toValue: 0.85,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(fabScale, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
     ]).start();
     const id = createNote();
     router.push(`/(notes)/${id}`);
@@ -472,7 +653,11 @@ export default function NotesListScreen() {
       setLongPressNote(null);
       Alert.alert("Delete Note", `Delete "${note.title || "Untitled"}"?`, [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteNote(note.id) },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteNote(note.id),
+        },
       ]);
     },
     [deleteNote],
@@ -521,10 +706,15 @@ export default function NotesListScreen() {
         {isFiltered ? "No notes found" : "No notes yet"}
       </Text>
       <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
-        {isFiltered ? "Try a different search or filter" : "Start capturing your ideas"}
+        {isFiltered
+          ? "Try a different search or filter"
+          : "Start capturing your ideas"}
       </Text>
       {!isFiltered && (
-        <Pressable style={[styles.emptyCta, { backgroundColor: theme.primary }]} onPress={handleCreate}>
+        <Pressable
+          style={[styles.emptyCta, { backgroundColor: theme.primary }]}
+          onPress={handleCreate}
+        >
           <ThemeIcon sf="plus" material="plus" size={18} color="#FFFFFF" />
           <Text style={styles.emptyCtaText}>Create note</Text>
         </Pressable>
@@ -533,7 +723,10 @@ export default function NotesListScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.bg }]}
+      edges={["top"]}
+    >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={[styles.title, { color: theme.text }]}>Notes</Text>
@@ -544,22 +737,55 @@ export default function NotesListScreen() {
         <View style={styles.headerActions}>
           <ListGridToggle value={layout} onChange={setLayout} />
           <Pressable
-            style={[styles.iconBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}
+            style={[
+              styles.iconBtn,
+              {
+                backgroundColor: theme.surfaceAlt,
+                borderColor: theme.borderLight,
+              },
+            ]}
             onPress={() => setShowTagManager(true)}
           >
-            <ThemeIcon sf="tag" material="tag-multiple-outline" size={18} color={theme.textSecondary} />
+            <ThemeIcon
+              sf="tag"
+              material="tag-multiple-outline"
+              size={18}
+              color={theme.textSecondary}
+            />
           </Pressable>
           <Pressable
-            style={[styles.iconBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}
+            style={[
+              styles.iconBtn,
+              {
+                backgroundColor: theme.surfaceAlt,
+                borderColor: theme.borderLight,
+              },
+            ]}
             onPress={() => router.back()}
           >
-            <ThemeIcon sf="xmark" material="close" size={20} color={theme.text} weight="semibold" />
+            <ThemeIcon
+              sf="xmark"
+              material="close"
+              size={20}
+              color={theme.text}
+              weight="semibold"
+            />
           </Pressable>
         </View>
       </View>
 
-      <View style={[styles.searchBar, { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight }]}>
-        <ThemeIcon sf="magnifyingglass" material="magnify" size={17} color={theme.textMuted} />
+      <View
+        style={[
+          styles.searchBar,
+          { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight },
+        ]}
+      >
+        <ThemeIcon
+          sf="magnifyingglass"
+          material="magnify"
+          size={17}
+          color={theme.textMuted}
+        />
         <TextInput
           style={[styles.searchInput, { color: theme.text }]}
           placeholder="Search notes…"
@@ -569,7 +795,12 @@ export default function NotesListScreen() {
         />
         {search ? (
           <Pressable onPress={() => setSearch("")} hitSlop={8}>
-            <ThemeIcon sf="xmark.circle.fill" material="close-circle" size={17} color={theme.textMuted} />
+            <ThemeIcon
+              sf="xmark.circle.fill"
+              material="close-circle"
+              size={17}
+              color={theme.textMuted}
+            />
           </Pressable>
         ) : null}
       </View>
@@ -580,26 +811,49 @@ export default function NotesListScreen() {
 
       <FlatList
         horizontal
-        data={[{ id: null, name: "All" } as { id: string | null; name: string }, ...tags]}
+        data={[
+          { id: null, name: "All" } as { id: string | null; name: string },
+          ...tags,
+        ]}
         keyExtractor={(item) => item.id ?? "all"}
         showsHorizontalScrollIndicator={false}
         style={styles.tagList}
         contentContainerStyle={styles.tagListContent}
         renderItem={({ item }) => {
           const isSelected = selectedTag === item.id;
-          const chipColor = item.id ? tagColors[item.id] || theme.primary : theme.primary;
+          const chipColor = item.id
+            ? tagColors[item.id] || theme.primary
+            : theme.primary;
           return (
             <Pressable
               style={[
                 styles.filterChip,
                 isSelected
-                  ? { backgroundColor: chipColor + "22", borderColor: chipColor }
-                  : { backgroundColor: theme.surfaceAlt, borderColor: theme.borderLight },
+                  ? {
+                      backgroundColor: chipColor + "22",
+                      borderColor: chipColor,
+                    }
+                  : {
+                      backgroundColor: theme.surfaceAlt,
+                      borderColor: theme.borderLight,
+                    },
               ]}
               onPress={() => setSelectedTag(isSelected ? null : item.id)}
             >
-              {item.id && <View style={[styles.filterDot, { backgroundColor: tagColors[item.id] || theme.primary }]} />}
-              <Text style={[styles.filterLabel, { color: isSelected ? chipColor : theme.textSecondary }]}>
+              {item.id && (
+                <View
+                  style={[
+                    styles.filterDot,
+                    { backgroundColor: tagColors[item.id] || theme.primary },
+                  ]}
+                />
+              )}
+              <Text
+                style={[
+                  styles.filterLabel,
+                  { color: isSelected ? chipColor : theme.textSecondary },
+                ]}
+              >
                 {item.id ? tagName[item.id] || item.id : "All"}
               </Text>
             </Pressable>
@@ -646,7 +900,9 @@ export default function NotesListScreen() {
         />
       )}
 
-      <Animated.View style={[styles.fabOuter, { transform: [{ scale: fabScale }] }]}>
+      <Animated.View
+        style={[styles.fabOuter, { transform: [{ scale: fabScale }] }]}
+      >
         <Pressable onPress={handleCreate}>
           <LinearGradient
             colors={[theme.primary, theme.accent]}
@@ -654,7 +910,13 @@ export default function NotesListScreen() {
             end={{ x: 1, y: 1 }}
             style={[styles.fab, { shadowColor: theme.primary }]}
           >
-            <ThemeIcon sf="square.and.pencil" material="pencil-plus-outline" size={26} color="#FFFFFF" weight="medium" />
+            <ThemeIcon
+              sf="square.and.pencil"
+              material="pencil-plus-outline"
+              size={26}
+              color="#FFFFFF"
+              weight="medium"
+            />
           </LinearGradient>
         </Pressable>
       </Animated.View>
@@ -677,22 +939,36 @@ export default function NotesListScreen() {
         tags={tags}
         notes={notes}
         onRename={(id, name) => {
-          Alert.prompt("Rename Tag", "Enter a new name:", [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Rename",
-              onPress: (text?: string) => {
-                if (text?.trim()) updateTag(id, { name: text.trim() });
+          Alert.prompt(
+            "Rename Tag",
+            "Enter a new name:",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Rename",
+                onPress: (text?: string) => {
+                  if (text?.trim()) updateTag(id, { name: text.trim() });
+                },
               },
-            },
-          ], "plain-text", name);
+            ],
+            "plain-text",
+            name,
+          );
         }}
         onDelete={(id) => {
           const tagName = tags.find((t) => t.id === id)?.name || "";
-          Alert.alert("Delete Tag", `Delete "${tagName}"? It will be removed from all notes.`, [
-            { text: "Cancel", style: "cancel" },
-            { text: "Delete", style: "destructive", onPress: () => deleteTag(id) },
-          ]);
+          Alert.alert(
+            "Delete Tag",
+            `Delete "${tagName}"? It will be removed from all notes.`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Delete",
+                style: "destructive",
+                onPress: () => deleteTag(id),
+              },
+            ],
+          );
         }}
         onCreate={(name) => {
           addTag(name, TAG_COLORS[tags.length % TAG_COLORS.length]);
@@ -715,8 +991,18 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   headerLeft: { flexDirection: "column" },
-  title: { fontSize: 34, fontWeight: "800", letterSpacing: -0.6, fontFamily: bodyFont },
-  subtitle: { fontSize: 13, fontWeight: "500", marginTop: 1, fontFamily: bodyFont },
+  title: {
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+    fontFamily: bodyFont,
+  },
+  subtitle: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 1,
+    fontFamily: bodyFont,
+  },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   iconBtn: {
     width: 34,
@@ -765,8 +1051,19 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: "hidden",
   },
-  gradientAccent: { position: "absolute", top: 0, left: 0, right: 0, height: 3 },
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 6 },
+  gradientAccent: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 6,
+  },
   noteTitle: { fontSize: 14, fontWeight: "700", flex: 1, fontFamily: bodyFont },
   cardMedia: { marginBottom: 6 },
   cardThumb: { width: "100%", height: 80, borderRadius: 12 },
@@ -792,8 +1089,19 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   thumbAudioText: { color: "#FFFFFF", fontSize: 9, fontWeight: "700" },
-  rowThumbCount: { position: "absolute", bottom: 3, right: 6, fontSize: 10, fontWeight: "700" },
-  notePreview: { fontSize: 12, lineHeight: 16, marginBottom: 8, fontFamily: bodyFont },
+  rowThumbCount: {
+    position: "absolute",
+    bottom: 3,
+    right: 6,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  notePreview: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 8,
+    fontFamily: bodyFont,
+  },
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
@@ -838,12 +1146,28 @@ const styles = StyleSheet.create({
   },
   rowThumbIcon: { alignItems: "center", justifyContent: "center" },
   rowBody: { flex: 1, marginRight: 10 },
-  rowTitleLine: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 3 },
+  rowTitleLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 3,
+  },
   rowTitle: { fontSize: 16, fontWeight: "700", flex: 1, fontFamily: bodyFont },
   rowPreview: { fontSize: 13, lineHeight: 18, fontFamily: bodyFont },
   rowDate: { fontSize: 12, fontFamily: bodyFont },
-  emptyState: { alignItems: "center", justifyContent: "center", paddingTop: 90, gap: 12 },
-  emptyLogo: { width: 120, height: 120, marginBottom: 8, resizeMode: "contain", opacity: 0.6 },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 90,
+    gap: 12,
+  },
+  emptyLogo: {
+    width: 120,
+    height: 120,
+    marginBottom: 8,
+    resizeMode: "contain",
+    opacity: 0.6,
+  },
   emptyTitle: { fontSize: 18, fontWeight: "700", fontFamily: bodyFont },
   emptySubtitle: { fontSize: 14, fontFamily: bodyFont },
   emptyCta: {
@@ -855,7 +1179,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginTop: 8,
   },
-  emptyCtaText: { color: "#FFF", fontSize: 14, fontWeight: "700", fontFamily: bodyFont },
+  emptyCtaText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
+    fontFamily: bodyFont,
+  },
   tagManagerList: { maxHeight: 320 },
   tagManagerListContent: { paddingBottom: 6, paddingHorizontal: 4 },
   tagManagerRow: {
@@ -865,8 +1194,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 10,
   },
-  tagManagerName: { flex: 1, fontSize: 15, fontWeight: "600", fontFamily: bodyFont },
-  tagManagerCount: { fontSize: 12, fontWeight: "500", marginRight: 8, fontFamily: bodyFont },
+  tagManagerName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    fontFamily: bodyFont,
+  },
+  tagManagerCount: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginRight: 8,
+    fontFamily: bodyFont,
+  },
   tagManagerAction: {
     width: 32,
     height: 32,

@@ -2,21 +2,21 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React from "react";
 import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+    useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { images } from "../../constants/images";
 import {
-  landingColors,
-  landingFonts,
-  landingRadii,
-  landingShadows,
+    landingColors,
+    landingFonts,
+    landingRadii,
+    landingShadows,
 } from "../../constants/landing";
+import { images } from "../../images";
 
 interface AuthShellProps {
   children: React.ReactNode;
@@ -25,8 +25,14 @@ interface AuthShellProps {
 }
 
 const PERKS = [
-  { icon: "compass-outline", label: "A path built around what you want to learn" },
-  { icon: "lightning-bolt-outline", label: "Quests and streaks that keep momentum" },
+  {
+    icon: "compass-outline",
+    label: "A path built around what you want to learn",
+  },
+  {
+    icon: "lightning-bolt-outline",
+    label: "Quests and streaks that keep momentum",
+  },
   { icon: "chart-line", label: "Progress you can actually see" },
 ] as const;
 
@@ -38,14 +44,20 @@ function BrandMark({ size = 34 }: { size?: number }) {
         style={{ width: size, height: size }}
         contentFit="contain"
       />
-      <Text style={[styles.brandText, size < 30 ? styles.brandTextSmall : null]}>
+      <Text
+        style={[styles.brandText, size < 30 ? styles.brandTextSmall : null]}
+      >
         Yuinx
       </Text>
     </View>
   );
 }
 
-export default function AuthShell({ children, backLabel, onBack }: AuthShellProps) {
+export default function AuthShell({
+  children,
+  backLabel,
+  onBack,
+}: AuthShellProps) {
   const { width, height } = useWindowDimensions();
   const wide = width >= 1100;
   const tablet = width >= 768;
@@ -61,7 +73,10 @@ export default function AuthShell({ children, backLabel, onBack }: AuthShellProp
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
-            { paddingHorizontal: horizontalPadding, paddingVertical: short ? 20 : 32 },
+            {
+              paddingHorizontal: horizontalPadding,
+              paddingVertical: short ? 20 : 32,
+            },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -94,7 +109,12 @@ export default function AuthShell({ children, backLabel, onBack }: AuthShellProp
                 </View>
               </View>
             ) : (
-              <View style={[styles.compactBrand, tablet ? styles.compactBrandTablet : null]}>
+              <View
+                style={[
+                  styles.compactBrand,
+                  tablet ? styles.compactBrandTablet : null,
+                ]}
+              >
                 <BrandMark size={tablet ? 34 : 30} />
                 {tablet ? (
                   <Text style={styles.compactTagline}>

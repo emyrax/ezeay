@@ -13,6 +13,7 @@ import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useThemeColors } from "../../hooks/useTheme";
 import { ConfettiLayer } from "../ConfettiLayer";
+import MascotAnimation from "../MascotAnimation";
 import ProgressBar from "../ProgressBar";
 import type { MissionDef } from "../../store/missionStore";
 
@@ -116,6 +117,7 @@ export default function MissionRewardOverlay({
   const remaining = Math.max(0, total - doneCount);
   const hasReward = !!reward && (reward.xp > 0 || reward.coins > 0);
   const allDone = doneCount >= total && total > 0;
+  const mascotAction = allDone ? "mascot_celebrating" : "mascot_jumping";
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onKeepGoing}>
@@ -132,7 +134,7 @@ export default function MissionRewardOverlay({
             ))}
             <Animated.View
               style={[
-                styles.iconHalo,
+                styles.mascotWrap,
                 {
                   transform: [
                     {
@@ -141,21 +143,26 @@ export default function MissionRewardOverlay({
                         outputRange: [0, -7],
                       }),
                     },
+                    { scale: iconScale },
                   ],
                 },
               ]}
             >
-              <Animated.View
-                style={[
-                  styles.iconCircle,
-                  { backgroundColor: theme.surface, borderColor: theme.borderLight },
-                  { transform: [{ scale: iconScale }] },
-                ]}
-              >
-                {reward && (
-                  <MaterialCommunityIcons name={reward.icon} size={44} color={accent} />
-                )}
-              </Animated.View>
+              <MascotAnimation
+                action={mascotAction}
+                height={180}
+                style={styles.mascot}
+              />
+              {reward && (
+                <View
+                  style={[
+                    styles.rewardBadge,
+                    { backgroundColor: theme.surface, borderColor: accent },
+                  ]}
+                >
+                  <MaterialCommunityIcons name={reward.icon} size={22} color={accent} />
+                </View>
+              )}
             </Animated.View>
           </View>
 
@@ -249,11 +256,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   stage: {
-    width: 160,
-    height: 160,
+    width: 180,
+    height: 210,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    marginBottom: 18,
   },
   ring: {
     position: "absolute",
@@ -262,23 +269,23 @@ const styles = StyleSheet.create({
     borderRadius: 58,
     borderWidth: 3,
   },
-  iconHalo: {
-    position: "absolute",
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    backgroundColor: "rgba(255,255,255,0.07)",
+  mascotWrap: {
     alignItems: "center",
     justifyContent: "center",
   },
-  iconCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: StyleSheet.hairlineWidth,
+  mascot: {
+    borderRadius: 24,
+  },
+  rewardBadge: {
+    position: "absolute",
+    right: -8,
+    bottom: -8,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
   },
   title: {
     fontSize: 26,

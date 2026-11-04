@@ -1,13 +1,13 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
-import { Image } from "expo-image";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { images } from "../../constants/images";
+import { Image } from "expo-image";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import {
-  landingColors,
-  landingFonts,
-  landingRadii,
+    landingColors,
+    landingFonts,
+    landingRadii,
 } from "../../constants/landing";
+import { images } from "../../images";
 
 export default function HeroVisual({ compact = false }: { compact?: boolean }) {
   const float = useRef(new Animated.Value(0)).current;
@@ -79,7 +79,12 @@ export default function HeroVisual({ compact = false }: { compact?: boolean }) {
         <View style={styles.statsRow}>
           <MiniStat icon="fire" value="7" label="day streak" tone="amber" />
           <MiniStat icon="trophy" value="12" label="trophies" tone="violet" />
-          <MiniStat icon="diamond-stone" value="840" label="coins" tone="green" />
+          <MiniStat
+            icon="diamond-stone"
+            value="840"
+            label="coins"
+            tone="green"
+          />
         </View>
 
         <View style={styles.questCard}>
@@ -115,7 +120,16 @@ export default function HeroVisual({ compact = false }: { compact?: boolean }) {
         style={[
           styles.floatCard,
           styles.floatStreak,
-          { transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [0, 8] }) }] },
+          {
+            transform: [
+              {
+                translateY: float.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 8],
+                }),
+              },
+            ],
+          },
         ]}
       >
         <MaterialCommunityIcons

@@ -1,37 +1,37 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
-import Head from "expo-router/head";
-import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { images } from "../../constants/images";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import Head from "expo-router/head";
+import { useEffect, useRef, useState } from "react";
 import {
-  landingColors,
-  landingFonts,
-  landingRadii,
+    Animated,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
+} from "react-native";
+import {
+    landingColors,
+    landingFonts,
+    landingRadii,
 } from "../../constants/landing";
 import { AFRICAN_COUNTRIES } from "../../data/countries";
 import { LANDING_NAV, LANDING_SUBJECTS } from "../../data/landing";
-import {
-  AfricaSection,
-  FaqSection,
-  FeaturesSection,
-  FinalCta,
-  HowItWorksSection,
-  MetricStrip,
-} from "./LandingSections";
-import HeroVisual from "./HeroVisual";
+import { images } from "../../images";
 import CountryFlag from "../onboarding/CountryFlag";
+import HeroVisual from "./HeroVisual";
+import {
+    AfricaSection,
+    FaqSection,
+    FeaturesSection,
+    FinalCta,
+    HowItWorksSection,
+    MetricStrip,
+} from "./LandingSections";
 
 function scrollToSection(id: string) {
   if (Platform.OS !== "web" || typeof document === "undefined") return;
@@ -196,11 +196,18 @@ export default function LandingPage() {
             <View style={[styles.heroCopy, isWide && styles.heroCopyWide]}>
               <View style={styles.heroPill}>
                 <View style={styles.heroPillDots}>
-                  {[AFRICAN_COUNTRIES[25], AFRICAN_COUNTRIES[38], AFRICAN_COUNTRIES[45]].map(
-                    (country) =>
-                      country ? (
-                        <CountryFlag key={country.code} country={country} size={16} />
-                      ) : null,
+                  {[
+                    AFRICAN_COUNTRIES[25],
+                    AFRICAN_COUNTRIES[38],
+                    AFRICAN_COUNTRIES[45],
+                  ].map((country) =>
+                    country ? (
+                      <CountryFlag
+                        key={country.code}
+                        country={country}
+                        size={16}
+                      />
+                    ) : null,
                   )}
                 </View>
                 <Text style={styles.heroPillText}>
@@ -307,7 +314,10 @@ export default function LandingPage() {
               <FooterColumn
                 title="Product"
                 links={[
-                  { label: "Features", action: () => scrollToSection("features") },
+                  {
+                    label: "Features",
+                    action: () => scrollToSection("features"),
+                  },
                   {
                     label: "How it works",
                     action: () => scrollToSection("how-it-works"),
@@ -325,8 +335,14 @@ export default function LandingPage() {
               <FooterColumn
                 title="Explore"
                 links={[
-                  { label: "Subjects", action: () => scrollToSection("features") },
-                  { label: "Across Africa", action: () => scrollToSection("africa") },
+                  {
+                    label: "Subjects",
+                    action: () => scrollToSection("features"),
+                  },
+                  {
+                    label: "Across Africa",
+                    action: () => scrollToSection("africa"),
+                  },
                 ]}
               />
             </View>
@@ -335,9 +351,7 @@ export default function LandingPage() {
             <Text style={styles.footerCopyright}>
               © 2026 Yuinx. Learn with intent.
             </Text>
-            <Text style={styles.footerCopyright}>
-              Made for curious minds.
-            </Text>
+            <Text style={styles.footerCopyright}>Made for curious minds.</Text>
           </View>
         </View>
       </ScrollView>
