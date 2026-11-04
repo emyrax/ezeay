@@ -27,7 +27,7 @@ import {
     getSchoolTypeOption,
 } from "../../data/onboarding";
 import { parseBirthdayDate, uniqueStrings } from "../../lib/onboarding/steps";
-import MascotAnimation from "../MascotAnimation";
+import MascotStage from "../mascot/MascotStage";
 import type {
     OnboardingAnswers,
     OnboardingErrors,
@@ -95,10 +95,12 @@ function WelcomeStep({ step, onSignIn }: StepContentProps) {
       <StepHeader step={step} />
       <View style={styles.welcomeVisual}>
         <View style={styles.welcomeGlow} />
-        <MascotAnimation
+        <MascotStage
           action="mascot_waving"
-          height={220}
-          style={styles.welcomeImage}
+          height={196}
+          stageColor="#183454"
+          fadeColor="#0E1524"
+          glow
         />
       </View>
       <View style={styles.bulletList}>
@@ -741,7 +743,7 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   welcomeVisual: {
-    height: 190,
+    height: 220,
     borderRadius: landingRadii.xl,
     borderWidth: 1,
     borderColor: landingColors.border,
@@ -756,9 +758,6 @@ const styles = StyleSheet.create({
     height: 230,
     borderRadius: 115,
     backgroundColor: "rgba(47,124,255,0.18)",
-  },
-  welcomeImage: {
-    borderRadius: 24,
   },
   bulletList: {
     gap: 10,

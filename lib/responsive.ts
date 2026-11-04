@@ -10,25 +10,44 @@ import {
 } from "../constants/layout";
 
 export interface ThreadsLayout {
-  mode: "mobile" | "twoPane" | "threePane";
+  mode: "mobile" | "twoPane" | "threePane" | "ultraWide";
   showSidebar: boolean;
   sidebarExpanded: boolean;
+  showLeftRail: boolean;
   showRightRail: boolean;
   sidebarWidth: number;
   feedMaxWidth: number | undefined;
+  leftRailWidth: number;
   railWidth: number;
   gap: number;
 }
 
 export function getThreadsLayout(width: number): ThreadsLayout {
+  if (width >= THREADS.ultraWideMinWidth) {
+    return {
+      mode: "ultraWide",
+      showSidebar: true,
+      sidebarExpanded: true,
+      showLeftRail: true,
+      showRightRail: true,
+      sidebarWidth: NAV.sidebarExpandedWidth,
+      feedMaxWidth: THREADS.feedMaxWidthUltraWide,
+      leftRailWidth: THREADS.leftRailWidth,
+      railWidth: THREADS.rightRailWidthUltraWide,
+      gap: THREADS.ultraWideGap,
+    };
+  }
+
   if (width >= THREADS.threePaneMinWidth) {
     return {
       mode: "threePane",
       showSidebar: true,
       sidebarExpanded: true,
+      showLeftRail: false,
       showRightRail: true,
       sidebarWidth: NAV.sidebarExpandedWidth,
       feedMaxWidth: THREADS.feedMaxWidth,
+      leftRailWidth: 0,
       railWidth: THREADS.rightRailWidth,
       gap: THREADS.columnGap,
     };
@@ -39,9 +58,11 @@ export function getThreadsLayout(width: number): ThreadsLayout {
       mode: "twoPane",
       showSidebar: true,
       sidebarExpanded: false,
+      showLeftRail: false,
       showRightRail: false,
       sidebarWidth: NAV.sidebarWidth,
       feedMaxWidth: THREADS.feedMaxWidthCompact,
+      leftRailWidth: 0,
       railWidth: 0,
       gap: 0,
     };
@@ -51,9 +72,11 @@ export function getThreadsLayout(width: number): ThreadsLayout {
     mode: "mobile",
     showSidebar: false,
     sidebarExpanded: false,
+    showLeftRail: false,
     showRightRail: false,
     sidebarWidth: 0,
     feedMaxWidth: undefined,
+    leftRailWidth: 0,
     railWidth: 0,
     gap: 0,
   };

@@ -7,6 +7,8 @@ import {
   View,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MascotAnimation from "../MascotAnimation";
+import MascotStage from "../mascot/MascotStage";
 import { AFRICAN_COUNTRIES } from "../../data/countries";
 import {
   LANDING_FAQS,
@@ -104,6 +106,15 @@ export function FeaturesSection() {
 
   return (
     <View style={styles.section} nativeID="features">
+      {width >= 1080 ? (
+        <View style={styles.featureMascot} pointerEvents="none">
+          <MascotAnimation
+            action="mascot_posing"
+            height={144}
+            framed={false}
+          />
+        </View>
+      ) : null}
       <SectionHeading
         eyebrow="WHY YUINX"
         title="Not another course library. A path with momentum."
@@ -255,10 +266,23 @@ export function FinalCta({
   onStart: () => void;
   onSignIn: () => void;
 }) {
+  const { width } = useWindowDimensions();
+
   return (
     <View style={styles.finalSection}>
       <View style={styles.finalCard}>
         <View style={styles.finalGlow} />
+        {width >= 1024 ? (
+          <View style={styles.finalMascot} pointerEvents="none">
+            <MascotStage
+              action="mascot_celebrating"
+              width={104}
+              stageColor="#133256"
+              fadeColor={landingColors.panel}
+              glow
+            />
+          </View>
+        ) : null}
         <Text style={styles.finalEyebrow}>YOUR NEXT LEVEL</Text>
         <Text style={styles.finalTitle}>
           Start with one subject.{"\n"}Keep going with a path.
@@ -305,6 +329,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     alignItems: "center",
     gap: 36,
+  },
+  featureMascot: {
+    position: "absolute",
+    top: 44,
+    right: 28,
+    opacity: 0.9,
   },
   heading: {
     alignItems: "center",
@@ -543,6 +573,12 @@ const styles = StyleSheet.create({
     height: 380,
     borderRadius: 260,
     backgroundColor: "rgba(47,124,255,0.18)",
+  },
+  finalMascot: {
+    position: "absolute",
+    right: 18,
+    bottom: -14,
+    opacity: 0.92,
   },
   finalEyebrow: {
     color: landingColors.blueSoft,

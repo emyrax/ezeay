@@ -1,5 +1,4 @@
 export const images = {
-  researching: require("../assets/images/Researching-bro.png"),
   welcomeBg: require("../assets/images/welcome-bg.png"),
   gradientQMark: require("../assets/images/icon.png"),
   goldCoinIcon: require("../assets/images/gold_coin_icon.png"),

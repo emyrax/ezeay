@@ -26,6 +26,7 @@ export function useResponsive() {
     showSidebar: threadsLayout.showSidebar,
     sidebarExpanded: threadsLayout.sidebarExpanded,
     isThreePane: threadsLayout.mode === "threePane",
+    isUltraWide: threadsLayout.mode === "ultraWide",
     gridColumns: (minCardWidth: number, gap?: number, max?: number) =>
       getGridColumns(width, minCardWidth, gap, max),
   };

@@ -18,6 +18,7 @@ interface MascotAnimationProps {
   height?: number;
   framed?: boolean;
   contentFit?: ImageProps["contentFit"];
+  contentPosition?: ImageProps["contentPosition"];
   style?: StyleProp<ViewStyle>;
   imageStyle?: StyleProp<ImageStyle>;
   accessibilityLabel?: string;
@@ -29,6 +30,7 @@ export default function MascotAnimation({
   height,
   framed,
   contentFit = "contain",
+  contentPosition,
   style,
   imageStyle,
   accessibilityLabel,
@@ -52,6 +54,7 @@ export default function MascotAnimation({
         source={failed ? images.yuinxLogoTrans : gamificationImages[action]}
         style={[styles.image, imageStyle]}
         contentFit={contentFit}
+        contentPosition={contentPosition}
         autoplay
         useAppleWebpCodec={false}
         recyclingKey={action}

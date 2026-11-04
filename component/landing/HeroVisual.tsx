@@ -8,6 +8,7 @@ import {
     landingRadii,
 } from "../../constants/landing";
 import { images } from "../../constants/images";
+import MascotAnimation from "../MascotAnimation";
 
 export default function HeroVisual({ compact = false }: { compact?: boolean }) {
   const float = useRef(new Animated.Value(0)).current;
@@ -108,10 +109,13 @@ export default function HeroVisual({ compact = false }: { compact?: boolean }) {
         </View>
 
         <View style={styles.mascotWrap}>
-          <Image
-            source={images.researching}
-            style={styles.mascot}
+          <MascotAnimation
+            action="mascot_emitting_energy"
+            width={150}
+            height={150}
+            framed={false}
             contentFit="contain"
+            style={styles.mascot}
           />
         </View>
       </Animated.View>

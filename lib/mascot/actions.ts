@@ -17,6 +17,13 @@ export const MASCOT_META: Record<GamificationAction, MascotMeta> = {
   mascot_waving: { aspectRatio: 360 / 640, opaque: true },
 };
 
+export const MASCOT_STAGE_COLORS: Partial<Record<GamificationAction, string>> = {
+  mascot_celebrating: "#133256",
+  mascot_disappointed: "#142D4F",
+  mascot_loading: "#113154",
+  mascot_waving: "#183454",
+};
+
 export const MASCOT_LABELS: Record<GamificationAction, string> = {
   mascot_celebrating: "Yuinx mascot celebrating",
   mascot_disappointed: "Yuinx mascot looking disappointed",

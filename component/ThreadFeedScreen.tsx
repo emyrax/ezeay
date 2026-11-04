@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -12,7 +14,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { NAV } from "../constants/layout";
+import { NAV, THREADS } from "../constants/layout";
 import { safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useFullscreen } from "../hooks/useFullscreen";
@@ -26,8 +28,10 @@ import type { FocusSubtopic } from "../types/learning";
 import type { ThreadPost } from "../types/thread";
 import ChapterThreadModal from "./ChapterThreadModal";
 import CommentsModal from "./CommentsModal";
+import DiscoveryRail from "./DiscoveryRail";
 import FocusRail from "./FocusRail";
 import MascotAnimation from "./MascotAnimation";
+import MascotStage from "./mascot/MascotStage";
 import ProfileCardModal from "./ProfileCardModal";
 import ResourceUploadSheet from "./ResourceUploadSheet";
 import SubtopicThreadCard from "./SubtopicThreadCard";
@@ -153,6 +157,7 @@ export default function ThreadFeedScreen() {
   }, []);
 
   const showRail = threadsLayout.showRightRail;
+  const showLeftRail = threadsLayout.showLeftRail;
   const bordered = threadsLayout.mode !== "mobile";
   const bottomPadding = isTabletUp ? 32 : tabBarInset + 88;
   const minimizedBottom = isTabletUp ? 24 : tabBarInset + 84;
@@ -160,16 +165,32 @@ export default function ThreadFeedScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      {showLeftRail ? (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <View style={[styles.ambientGlow, styles.ambientGlowOne]} />
+          <View style={[styles.ambientGlow, styles.ambientGlowTwo]} />
+        </View>
+      ) : null}
+
       <View
         style={[
           styles.workspace,
           showRail && styles.workspaceRow,
+          showLeftRail && styles.workspaceUltraWide,
           {
             gap: threadsLayout.gap,
             paddingHorizontal: bordered ? 24 : 0,
           },
         ]}
       >
+        {showLeftRail ? (
+          <DiscoveryRail
+            width={threadsLayout.leftRailWidth}
+            posts={posts}
+            onPressUser={handlePressProfile}
+          />
+        ) : null}
+
         <View
           style={[
             styles.feedColumn,
@@ -248,7 +269,7 @@ export default function ThreadFeedScreen() {
             contentContainerStyle={[
               styles.listContent,
               { paddingBottom: bottomPadding },
-              posts.length === 0 && styles.listContentEmpty,
+              posts.length === 0 && !loading && styles.listContentEmpty,
             ]}
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
@@ -272,17 +293,13 @@ export default function ThreadFeedScreen() {
             }
             ListEmptyComponent={
               loading ? (
-                <View style={styles.empty}>
-                  <MascotAnimation action="mascot_loading" height={110} />
-                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    Loading threads...
-                  </Text>
-                </View>
+                <ThreadFeedLoading colors={colors} />
               ) : loaded ? (
                 <View style={styles.empty}>
                   <MascotAnimation
                     action={error ? "mascot_disappointed" : "mascot_posing"}
                     height={124}
+                    framed={false}
                   />
                   <Text style={[styles.emptyTitle, { color: colors.text }]}>
                     {error ? "Threads couldn't load" : "No threads yet"}
@@ -388,6 +405,117 @@ export default function ThreadFeedScreen() {
   );
 }
 
+function ThreadFeedLoading({
+  colors,
+}: {
+  colors: ReturnType<typeof useThemeColors>;
+}) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulse]);
+
+  const opacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.45, 0.9],
+  });
+
+  return (
+    <View style={styles.loadingWrap}>
+      <MascotStage
+        action="mascot_loading"
+        width={94}
+        variant="inline"
+        stageColor="#113154"
+        fadeColor={colors.bg}
+        glow={false}
+      />
+      <Text style={[styles.loadingTitle, { color: colors.text }]}>
+        Loading threads...
+      </Text>
+      <Text style={[styles.loadingSubtitle, { color: colors.textSecondary }]}>
+        Finding the next chapter worth your attention.
+      </Text>
+
+      <Animated.View style={[styles.skeletonList, { opacity }]}>
+        {[0, 1, 2].map((index) => (
+          <View
+            key={index}
+            style={[
+              styles.skeletonCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.skeletonHeader}>
+              <View
+                style={[
+                  styles.skeletonAvatar,
+                  { backgroundColor: colors.surfaceAlt },
+                ]}
+              />
+              <View style={styles.skeletonHeaderText}>
+                <View
+                  style={[
+                    styles.skeletonLine,
+                    styles.skeletonName,
+                    { backgroundColor: colors.surfaceAlt },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.skeletonLine,
+                    styles.skeletonMeta,
+                    { backgroundColor: colors.surfaceAlt },
+                  ]}
+                />
+              </View>
+            </View>
+            <View
+              style={[
+                styles.skeletonLine,
+                styles.skeletonTitle,
+                { backgroundColor: colors.surfaceAlt },
+              ]}
+            />
+            <View
+              style={[
+                styles.skeletonLine,
+                styles.skeletonBody,
+                { backgroundColor: colors.surfaceAlt },
+              ]}
+            />
+            <View
+              style={[
+                styles.skeletonLine,
+                styles.skeletonBodyShort,
+                { backgroundColor: colors.surfaceAlt },
+              ]}
+            />
+          </View>
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
+
 function FilterChip({
   label,
   active,
@@ -423,6 +551,25 @@ function FilterChip({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  ambientGlow: {
+    position: "absolute",
+    borderRadius: 999,
+    opacity: 0.55,
+  },
+  ambientGlowOne: {
+    width: 560,
+    height: 560,
+    top: -220,
+    right: -120,
+    backgroundColor: "rgba(45, 141, 252, 0.07)",
+  },
+  ambientGlowTwo: {
+    width: 520,
+    height: 520,
+    bottom: -220,
+    left: -140,
+    backgroundColor: "rgba(124, 108, 255, 0.05)",
+  },
   workspace: {
     flex: 1,
     width: "100%",
@@ -432,6 +579,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "center",
+  },
+  workspaceUltraWide: {
+    maxWidth: THREADS.ultraWideMaxWidth,
+    alignSelf: "center",
   },
   feedColumn: {
     flex: 1,
@@ -506,6 +657,73 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingVertical: 40,
     gap: 8,
+  },
+  loadingWrap: {
+    width: "100%",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 24,
+  },
+  loadingTitle: {
+    fontFamily: safeFont,
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 10,
+  },
+  loadingSubtitle: {
+    fontFamily: safeFont,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    marginTop: 3,
+    marginBottom: 16,
+  },
+  skeletonList: {
+    width: "100%",
+    gap: 12,
+  },
+  skeletonCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 16,
+    gap: 10,
+  },
+  skeletonHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  skeletonAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  skeletonHeaderText: {
+    flex: 1,
+    gap: 6,
+  },
+  skeletonLine: {
+    height: 8,
+    borderRadius: 4,
+  },
+  skeletonName: {
+    width: "42%",
+  },
+  skeletonMeta: {
+    width: "30%",
+    height: 6,
+  },
+  skeletonTitle: {
+    width: "82%",
+    height: 12,
+    marginTop: 2,
+  },
+  skeletonBody: {
+    width: "100%",
+  },
+  skeletonBodyShort: {
+    width: "64%",
   },
   emptyTitle: {
     fontFamily: safeFont,

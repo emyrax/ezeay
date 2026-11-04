@@ -23,6 +23,7 @@ import { AFRICAN_COUNTRIES } from "../../data/countries";
 import { LANDING_NAV, LANDING_SUBJECTS } from "../../data/landing";
 import { images } from "../../constants/images";
 import CountryFlag from "../onboarding/CountryFlag";
+import MascotStage from "../mascot/MascotStage";
 import HeroVisual from "./HeroVisual";
 import {
     AfricaSection,
@@ -132,12 +133,12 @@ export default function LandingPage() {
                 style={styles.brandMark}
                 contentFit="contain"
               />
-               <Image
+              <Image
                 source={images.whtbrandYuinxTrans}
-                style={{width: 104 , height: 52,}}
+                style={{ width: 104, height: 52 }}
                 contentFit="contain"
               />
-                   </Pressable>
+            </Pressable>
 
             {!isCompact ? (
               <View style={styles.navLinks}>
@@ -292,10 +293,14 @@ export default function LandingPage() {
           <View style={styles.footerInner}>
             <View style={styles.footerBrand}>
               <View style={styles.footerBrandRow}>
-                <Image
-                  source={images.gradientQMark}
-                  style={styles.footerMark}
-                  contentFit="contain"
+                <MascotStage
+                  action="mascot_waving"
+                  width={46}
+                  height={52}
+                  variant="mark"
+                  contentPosition="top"
+                  stageColor="#183454"
+                  fadeColor={landingColors.bg}
                 />
                 <Text style={styles.footerBrandText}>Yuinx</Text>
               </View>
@@ -675,10 +680,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-  },
-  footerMark: {
-    width: 26,
-    height: 26,
   },
   footerBrandText: {
     color: landingColors.text,

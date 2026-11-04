@@ -35,12 +35,18 @@ export const NAV = {
 } as const;
 
 export const THREADS = {
+  ultraWideMinWidth: 1720,
   threePaneMinWidth: 1280,
   twoPaneMinWidth: 768,
   feedMaxWidth: 640,
   feedMaxWidthCompact: 680,
+  feedMaxWidthUltraWide: 660,
+  leftRailWidth: 272,
   rightRailWidth: 300,
+  rightRailWidthUltraWide: 320,
   columnGap: 20,
+  ultraWideGap: 24,
+  ultraWideMaxWidth: 1720,
 } as const;
 
 export const TOAST_MAX_WIDTH = 420;

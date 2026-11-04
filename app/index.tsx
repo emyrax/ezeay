@@ -1,11 +1,10 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import {
     Animated,
     Easing,
-    Image,
     Platform,
     Pressable,
     ScrollView,
@@ -15,10 +14,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LandingPage from "../component/landing/LandingPage";
+import MascotAnimation from "../component/MascotAnimation";
+import MascotStage from "../component/mascot/MascotStage";
 import { appTheme, safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
-import { images } from "../constants/images";
 
 export default function Index() {
   return Platform.OS === "web" ? <LandingPage /> : <NativeWelcome />;
@@ -89,10 +89,13 @@ function NativeWelcome() {
       ]}
     >
       <View style={styles.glowBackdrop} />
-      <Image
-        source={images.researching}
+      <MascotAnimation
+        action="mascot_emitting_energy"
+        width={260}
+        height={260}
+        framed={false}
+        contentFit="contain"
         style={styles.illustration}
-        resizeMode="contain"
       />
     </Animated.View>
   );
@@ -181,13 +184,15 @@ function NativeWelcome() {
           {/* Top brand header */}
           <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
             <View style={styles.brandRow}>
-              <View style={styles.brandBadge}>
-                <MaterialCommunityIcons
-                  name="infinity"
-                  size={24}
-                  color={appTheme.primary}
-                />
-              </View>
+              <MascotStage
+                action="mascot_waving"
+                width={34}
+                height={38}
+                variant="mark"
+                contentPosition="top"
+                stageColor="#183454"
+                fadeColor="#152A4D"
+              />
               <Text style={styles.brandTitle}>Yuinx</Text>
             </View>
           </Animated.View>
@@ -286,16 +291,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-  },
-  brandBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "rgba(149, 208, 253, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(149, 208, 253, 0.28)",
-    justifyContent: "center",
-    alignItems: "center",
   },
   brandTitle: {
     fontFamily: safeFont,

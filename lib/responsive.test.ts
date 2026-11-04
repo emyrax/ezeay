@@ -69,14 +69,16 @@ test("getExploreLayout enables the panel only on laptop and desktop", () => {
   });
 });
 
-test("getThreadsLayout switches between mobile, two-pane, and three-pane", () => {
+test("getThreadsLayout switches between mobile, two-pane, three-pane, and ultra-wide", () => {
   assert.deepEqual(getThreadsLayout(375), {
     mode: "mobile",
     showSidebar: false,
     sidebarExpanded: false,
+    showLeftRail: false,
     showRightRail: false,
     sidebarWidth: 0,
     feedMaxWidth: undefined,
+    leftRailWidth: 0,
     railWidth: 0,
     gap: 0,
   });
@@ -84,9 +86,11 @@ test("getThreadsLayout switches between mobile, two-pane, and three-pane", () =>
     mode: "twoPane",
     showSidebar: true,
     sidebarExpanded: false,
+    showLeftRail: false,
     showRightRail: false,
     sidebarWidth: 96,
     feedMaxWidth: 680,
+    leftRailWidth: 0,
     railWidth: 0,
     gap: 0,
   });
@@ -94,12 +98,28 @@ test("getThreadsLayout switches between mobile, two-pane, and three-pane", () =>
     mode: "threePane",
     showSidebar: true,
     sidebarExpanded: true,
+    showLeftRail: false,
     showRightRail: true,
     sidebarWidth: 260,
     feedMaxWidth: 640,
+    leftRailWidth: 0,
     railWidth: 300,
     gap: 20,
   });
+  assert.deepEqual(getThreadsLayout(1719), getThreadsLayout(1280));
+  assert.deepEqual(getThreadsLayout(1720), {
+    mode: "ultraWide",
+    showSidebar: true,
+    sidebarExpanded: true,
+    showLeftRail: true,
+    showRightRail: true,
+    sidebarWidth: 260,
+    feedMaxWidth: 660,
+    leftRailWidth: 272,
+    railWidth: 320,
+    gap: 24,
+  });
+  assert.deepEqual(getThreadsLayout(1920), getThreadsLayout(1720));
 });
 
 test("getGutter scales with the breakpoint", () => {

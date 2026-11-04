@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import MascotAnimation from "../../component/MascotAnimation";
+import MascotStage from "../../component/mascot/MascotStage";
 
 import { useThemeColors } from "../../hooks/useTheme";
 import { useAuth } from "../../contexts/AuthContext";
@@ -140,11 +141,17 @@ export default function FlashcardsScreen() {
         ListEmptyComponent={
           loading ? (
             <View style={styles.loadingState}>
-              <MascotAnimation action="mascot_loading" height={110} />
+              <MascotStage
+                action="mascot_loading"
+                width={94}
+                variant="inline"
+                stageColor="#113154"
+                fadeColor={theme.bg}
+              />
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <MascotAnimation action="mascot_posing" height={124} />
+              <MascotAnimation action="mascot_posing" height={124} framed={false} />
               <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
                 No flashcards due right now.
               </Text>

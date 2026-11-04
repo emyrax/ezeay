@@ -23,6 +23,7 @@ import {
 import { findAfricanCountry } from "../../data/countries";
 import { getProgress } from "../../lib/onboarding/steps";
 import type { OnboardingAnswers, OnboardingStep } from "../../types/onboarding";
+import MascotStage from "../mascot/MascotStage";
 import CountryFlag from "./CountryFlag";
 import { InlineError } from "./primitives";
 
@@ -94,12 +95,21 @@ export default function OnboardingShell({
           accessibilityRole="button"
           accessibilityLabel="Exit onboarding"
         >
-          <Image
-            source={images.gradientQMark}
-            style={styles.brandMark}
-            contentFit="contain"
+          <MascotStage
+            action="mascot_waving"
+            width={44}
+            height={48}
+            variant="mark"
+            contentPosition="top"
+            stageColor="#183454"
+            fadeColor="#07101D"
           />
-          <Text style={styles.brandText}>Yuinx</Text>
+          <Image
+            source={images.whtbrandYuinxTrans}
+            style={styles.brandWordmark}
+            contentFit="contain"
+            accessibilityLabel="Yuinx"
+          />
         </Pressable>
 
         <View style={styles.topMeta}>
@@ -358,15 +368,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 9,
   },
-  brandMark: {
-    width: 48,
-    height: 48,
-  },
-  brandText: {
-    color: landingColors.text,
-    fontFamily: landingFonts.heading,
-    fontSize: 18,
-    letterSpacing: -0.3,
+  brandWordmark: {
+    width: 86,
+    height: 38,
   },
   topMeta: {
     flexDirection: "row",

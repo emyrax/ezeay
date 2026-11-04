@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   MASCOT_META,
+  MASCOT_STAGE_COLORS,
   selectScoreMascotAction,
   selectTierMascotAction,
 } from "./actions";
@@ -27,6 +28,20 @@ describe("mascot actions", () => {
     for (const meta of Object.values(MASCOT_META)) {
       assert.ok(meta.aspectRatio > 0);
       assert.equal(typeof meta.opaque, "boolean");
+    }
+  });
+
+  it("defines stage colors only for opaque clips that need blending", () => {
+    assert.equal(MASCOT_STAGE_COLORS.mascot_loading, "#113154");
+    assert.equal(MASCOT_STAGE_COLORS.mascot_waving, "#183454");
+    assert.equal(MASCOT_STAGE_COLORS.mascot_celebrating, "#133256");
+    assert.equal(MASCOT_STAGE_COLORS.mascot_disappointed, "#142D4F");
+    assert.equal(MASCOT_STAGE_COLORS.mascot_posing, undefined);
+
+    for (const action of Object.keys(MASCOT_STAGE_COLORS) as Array<
+      keyof typeof MASCOT_STAGE_COLORS
+    >) {
+      assert.equal(MASCOT_META[action].opaque, true);
     }
   });
 });
