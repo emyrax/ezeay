@@ -20,7 +20,7 @@ import {
     landingRadii,
 } from "../../constants/landing";
 import { findAfricanCountry } from "../../data/countries";
-import { images } from "../../images";
+import { images } from "../../constants/images";
 import { getProgress } from "../../lib/onboarding/steps";
 import type { OnboardingAnswers, OnboardingStep } from "../../types/onboarding";
 import CountryFlag from "./CountryFlag";

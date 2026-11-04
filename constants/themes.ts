@@ -41,7 +41,7 @@ export const appTheme: ThemeColors = {
   glass: "rgba(27, 53, 96, 0.85)",
   text: "#ffffff",
   textSecondary: "#148cee",
-  textMuted: "#5F8FBF",
+  textMuted: "#a2aab3",
   primary: "#2d8dfc",
   primaryLight: "rgba(149, 208, 253, 0.16)",
   accent: "#1c9bfc",

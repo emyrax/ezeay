@@ -16,7 +16,7 @@ import {
     landingRadii,
     landingShadows,
 } from "../../constants/landing";
-import { images } from "../../images";
+import { images } from "../../constants/images";
 
 interface AuthShellProps {
   children: React.ReactNode;

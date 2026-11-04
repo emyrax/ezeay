@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
+import MascotAnimation from "../../component/MascotAnimation";
 import StudyMaterialCard from "../../component/StudyMaterialCard";
 import StudyUploadSheet from "../../component/StudyUploadSheet";
 import ErrorBoundary from "../../component/ErrorBoundary";
@@ -223,7 +224,7 @@ export default function StudyScreen() {
           ListEmptyComponent={
             !loading ? (
               <View style={styles.emptyState}>
-                <Ionicons name="library-outline" size={64} color={theme.textMuted} />
+                <MascotAnimation action="mascot_posing" height={140} />
                 <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
                   No study materials yet.
                 </Text>
@@ -242,7 +243,7 @@ export default function StudyScreen() {
 
         {processing && (
           <View style={[styles.processingBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <ActivityIndicator size="small" color={theme.primary} />
+            <MascotAnimation action="mascot_emitting_energy" height={48} />
             <Text style={[styles.processingText, { color: theme.textSecondary }]}>
               Processing with Gemini...
             </Text>

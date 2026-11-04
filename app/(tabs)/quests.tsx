@@ -31,6 +31,7 @@ import ConfirmDialog from "../../component/ConfirmDialog";
 import DropdownSelect, { DropdownOption } from "../../component/DropdownSelect";
 import ErrorBoundary from "../../component/ErrorBoundary";
 import GradientOutlineContainer from "../../component/GradientOutlineContainer";
+import MascotAnimation from "../../component/MascotAnimation";
 import ProgressBar from "../../component/ProgressBar";
 import QuestOverviewCard from "../../component/QuestOverviewCard";
 import {
@@ -41,7 +42,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { useResponsive, useTabBarInset } from "../../hooks/useResponsive";
 import { useThemeColors } from "../../hooks/useTheme";
-import { images } from "../../images";
+import { images } from "../../constants/images";
 import { api } from "../../lib/api";
 import { eventBus } from "../../lib/eventBus";
 import { useNavLock } from "../../lib/guard";
@@ -614,7 +615,7 @@ export default function QuestsScreen() {
         </Text>
       </View>
       {generating ? (
-        <ActivityIndicator size="small" color={theme.accent} />
+        <MascotAnimation action="mascot_emitting_energy" height={44} />
       ) : (
         <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
       )}
@@ -1144,11 +1145,7 @@ export default function QuestsScreen() {
               userCourses.length === 0 &&
               enrolledCourses.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Ionicons
-                    name="rocket-outline"
-                    size={48}
-                    color={theme.textMuted}
-                  />
+                  <MascotAnimation action="mascot_posing" height={120} />
                   <Text
                     style={[styles.emptyText, { color: theme.textSecondary }]}
                   >
@@ -1162,15 +1159,7 @@ export default function QuestsScreen() {
               userCourses.length > 0 &&
               filteredCourses.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Ionicons
-                    name={
-                      activeFilter === "favourites"
-                        ? "heart-outline"
-                        : "search-outline"
-                    }
-                    size={48}
-                    color={theme.textMuted}
-                  />
+                  <MascotAnimation action="mascot_posing" height={112} />
                   <Text
                     style={[styles.emptyText, { color: theme.textSecondary }]}
                   >
@@ -1252,14 +1241,14 @@ export default function QuestsScreen() {
                               </View>
                             </View>
                             <View style={styles.courseAction}>
-                              <ActivityIndicator
-                                color={theme.accent}
-                                size="small"
+                              <MascotAnimation
+                                action="mascot_emitting_energy"
+                                height={64}
                               />
                               <Text
                                 style={[
                                   styles.continueText,
-                                  { color: theme.textMuted, marginTop: 8 },
+                                  { color: theme.textMuted, marginTop: 4 },
                                 ]}
                               >
                                 Generating...
@@ -1482,11 +1471,7 @@ export default function QuestsScreen() {
                   <Text style={styles.coursesTitle}>Enrolled</Text>
                   {isEnrolledFilter && enrolledCourses.length === 0 && (
                     <View style={styles.emptyState}>
-                      <Ionicons
-                        name="book-outline"
-                        size={48}
-                        color={theme.textMuted}
-                      />
+                      <MascotAnimation action="mascot_posing" height={112} />
                       <Text
                         style={[
                           styles.emptyText,

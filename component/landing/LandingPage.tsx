@@ -21,7 +21,7 @@ import {
 } from "../../constants/landing";
 import { AFRICAN_COUNTRIES } from "../../data/countries";
 import { LANDING_NAV, LANDING_SUBJECTS } from "../../data/landing";
-import { images } from "../../images";
+import { images } from "../../constants/images";
 import CountryFlag from "../onboarding/CountryFlag";
 import HeroVisual from "./HeroVisual";
 import {

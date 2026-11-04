@@ -24,6 +24,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import MascotAnimation from "../../component/MascotAnimation";
 import GlassSheet from "../../component/notes/GlassSheet";
 import ListGridToggle, {
     NotesLayout,
@@ -33,7 +34,6 @@ import NotesLocalOnlyBanner from "../../component/notes/NotesLocalOnlyBanner";
 import ThemeIcon from "../../component/notes/ThemeIcon";
 import { bodyFont } from "../../constants/themes";
 import { useThemeColors } from "../../hooks/useTheme";
-import { images } from "../../images";
 import { useNoteStore } from "../../store/noteStore";
 import type { Note } from "../../types/note";
 
@@ -701,7 +701,7 @@ export default function NotesListScreen() {
 
   const emptyState = (
     <View style={styles.emptyState}>
-      <Image source={images.yuinxLogo} style={styles.emptyLogo} />
+      <MascotAnimation action="mascot_posing" height={140} />
       <Text style={[styles.emptyTitle, { color: theme.textSecondary }]}>
         {isFiltered ? "No notes found" : "No notes yet"}
       </Text>

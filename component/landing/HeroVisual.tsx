@@ -7,7 +7,7 @@ import {
     landingFonts,
     landingRadii,
 } from "../../constants/landing";
-import { images } from "../../images";
+import { images } from "../../constants/images";
 
 export default function HeroVisual({ compact = false }: { compact?: boolean }) {
   const float = useRef(new Animated.Value(0)).current;

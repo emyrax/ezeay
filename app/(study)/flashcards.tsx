@@ -1,7 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
+import MascotAnimation from "../../component/MascotAnimation";
 
 import { useThemeColors } from "../../hooks/useTheme";
 import { useAuth } from "../../contexts/AuthContext";
@@ -140,11 +140,11 @@ export default function FlashcardsScreen() {
         ListEmptyComponent={
           loading ? (
             <View style={styles.loadingState}>
-              <ActivityIndicator size="large" color={theme.primary} />
+              <MascotAnimation action="mascot_loading" height={110} />
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="cards" size={56} color={theme.textMuted} />
+              <MascotAnimation action="mascot_posing" height={124} />
               <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
                 No flashcards due right now.
               </Text>

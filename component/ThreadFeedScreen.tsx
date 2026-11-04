@@ -27,6 +27,7 @@ import type { ThreadPost } from "../types/thread";
 import ChapterThreadModal from "./ChapterThreadModal";
 import CommentsModal from "./CommentsModal";
 import FocusRail from "./FocusRail";
+import MascotAnimation from "./MascotAnimation";
 import ProfileCardModal from "./ProfileCardModal";
 import ResourceUploadSheet from "./ResourceUploadSheet";
 import SubtopicThreadCard from "./SubtopicThreadCard";
@@ -272,14 +273,17 @@ export default function ThreadFeedScreen() {
             ListEmptyComponent={
               loading ? (
                 <View style={styles.empty}>
-                  <ActivityIndicator size="large" color={colors.primary} />
+                  <MascotAnimation action="mascot_loading" height={110} />
                   <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                     Loading threads...
                   </Text>
                 </View>
               ) : loaded ? (
                 <View style={styles.empty}>
-                  <Ionicons name="chatbubbles-outline" size={40} color={colors.textMuted} />
+                  <MascotAnimation
+                    action={error ? "mascot_disappointed" : "mascot_posing"}
+                    height={124}
+                  />
                   <Text style={[styles.emptyTitle, { color: colors.text }]}>
                     {error ? "Threads couldn't load" : "No threads yet"}
                   </Text>

@@ -7,7 +7,7 @@ import { NAV } from "../constants/layout";
 import { NOTES_HREF, TAB_ITEMS } from "../constants/navigation";
 import { useResponsive } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
-import { images } from "../images";
+import { images } from "../constants/images";
 import { withAlpha } from "../lib/color";
 import { deriveHandle } from "../lib/identity";
 import { useUserStore } from "../store/userStore";

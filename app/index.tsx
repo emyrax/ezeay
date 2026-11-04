@@ -18,7 +18,7 @@ import LandingPage from "../component/landing/LandingPage";
 import { appTheme, safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
-import { images } from "../images";
+import { images } from "../constants/images";
 
 export default function Index() {
   return Platform.OS === "web" ? <LandingPage /> : <NativeWelcome />;

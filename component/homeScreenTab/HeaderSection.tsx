@@ -17,7 +17,7 @@ import { getNextLevel } from "../../data/levels";
 import { DAILY_ACTIVITY_GOAL } from "../../data/stats";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useThemeColors } from "../../hooks/useTheme";
-import { images } from "../../images";
+import { images } from "../../constants/images";
 import { useNavLock } from "../../lib/guard";
 import { getLevelProgress } from "../../services/LevelService";
 import { useCheckInStore } from "../../store/checkInStore";
