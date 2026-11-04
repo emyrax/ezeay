@@ -72,6 +72,15 @@ function readCorrectAnswer(
     if (index !== null) return index;
   }
 
+  for (const key of ["correctAnswer", "correct", "answer"] as const) {
+    const raw = value[key];
+    if (typeof raw !== "string" || !raw.trim()) continue;
+    const match = options.findIndex(
+      (option) => option.toLowerCase() === raw.trim().toLowerCase(),
+    );
+    if (match >= 0) return match;
+  }
+
   const answer = value.answer ?? value.correct;
   if (typeof answer === "number") {
     return Number.isInteger(answer) && answer >= 0 && answer < options.length

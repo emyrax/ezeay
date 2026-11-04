@@ -142,7 +142,7 @@ export default function ThreadQuizModal({
                 Building your quiz...
               </Text>
               <Text style={[styles.stateText, { color: colors.textSecondary }]}>
-                Creating 5 questions from this subtopic.
+                Creating questions from this subtopic.
               </Text>
             </View>
           ) : error && questions.length === 0 ? (

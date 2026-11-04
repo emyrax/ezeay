@@ -199,15 +199,7 @@ export async function generateQuizQuestions(
   prompt: string,
   apiKey?: string,
 ): Promise<Question[]> {
-  const parsed = await generateJsonContent<{ questions: unknown }>(
-    modelRef,
-    prompt,
-    apiKey,
-  );
-
-  if (!parsed.questions || !Array.isArray(parsed.questions)) {
-    throw aiOutputError("AI returned an invalid quiz structure. Please try again or switch models.");
-  }
+  const parsed = await generateJsonContent<unknown>(modelRef, prompt, apiKey);
 
   const questions = normalizeQuizQuestions(parsed, {
     maxQuestions: 5,
@@ -215,7 +207,12 @@ export async function generateQuizQuestions(
     idPrefix: "q",
   });
 
-  if (questions.length !== 5) {
+  if (questions.length === 0) {
+    throw aiOutputError(
+      "AI returned an invalid quiz structure. Please try again or switch models.",
+    );
+  }
+  if (questions.length < 3) {
     throw aiOutputError(
       "AI returned an incomplete quiz. Please try again or switch models.",
     );
