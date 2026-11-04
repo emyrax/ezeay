@@ -107,6 +107,48 @@ export function getModelOption(ref: string): AiModelOption | undefined {
   return AI_MODELS.find((m) => m.ref === ref);
 }
 
+const PROVIDER_FALLBACKS: Record<Exclude<AiProvider, "offline">, string[]> = {
+  gemini: [
+    "gemini::gemini-2.5-flash",
+    "gemini::gemini-2.5-flash-lite",
+    "gemini::gemini-3-flash-preview",
+    "gemini::gemini-3.1-flash-lite",
+  ],
+  openai: [
+    "openai::gpt-5-nano",
+    "openai::gpt-4o-mini",
+    "openai::gpt-5-mini",
+    "openai::gpt-5",
+  ],
+  anthropic: [
+    "anthropic::claude-haiku-4",
+    "anthropic::claude-3-5-haiku-latest",
+    "anthropic::claude-sonnet-4",
+  ],
+  openrouter: [
+    "openrouter::google/gemma-4-26b-a4b-it:free",
+    "openrouter::google/gemma-4-31b-it:free",
+    "openrouter::z-ai/glm-5.2:free",
+    "openrouter::nvidia/nemotron-3-ultra-550b-a55b:free",
+  ],
+};
+
+// Retry within the selected provider only. Cross-provider fallback would send a
+// client-supplied provider key to a different provider, which is both wrong and
+// unsafe.
+export function getFallbackModelRefs(ref: string, max = 3): string[] {
+  const parsed = parseModelRef(ref);
+  if (!parsed || parsed.provider === "offline") return [];
+  const seen = new Set<string>([ref]);
+  return PROVIDER_FALLBACKS[parsed.provider]
+    .filter((candidate) => {
+      if (seen.has(candidate) || !isModelAllowed(candidate)) return false;
+      seen.add(candidate);
+      return true;
+    })
+    .slice(0, Math.max(0, max));
+}
+
 export function effectiveRating(
   model: AiModelOption,
   userRatings: Record<string, number>,

@@ -3,24 +3,24 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { images } from "../../constants/images";
 import {
-    landingColors,
-    landingFonts,
-    landingRadii,
+  landingColors,
+  landingFonts,
+  landingRadii,
 } from "../../constants/landing";
 import { findAfricanCountry } from "../../data/countries";
-import { images } from "../../constants/images";
 import { getProgress } from "../../lib/onboarding/steps";
 import type { OnboardingAnswers, OnboardingStep } from "../../types/onboarding";
 import CountryFlag from "./CountryFlag";
@@ -359,8 +359,8 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   brandMark: {
-    width: 28,
-    height: 28,
+    width: 48,
+    height: 48,
   },
   brandText: {
     color: landingColors.text,

@@ -132,8 +132,12 @@ export default function LandingPage() {
                 style={styles.brandMark}
                 contentFit="contain"
               />
-              <Text style={styles.brandText}>Yuinx</Text>
-            </Pressable>
+               <Image
+                source={images.whtbrandYuinxTrans}
+                style={{width: 104 , height: 52,}}
+                contentFit="contain"
+              />
+                   </Pressable>
 
             {!isCompact ? (
               <View style={styles.navLinks}>
@@ -435,8 +439,8 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   brandMark: {
-    width: 32,
-    height: 32,
+    width: 50,
+    height: 50,
   },
   brandText: {
     color: landingColors.text,

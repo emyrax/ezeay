@@ -9,6 +9,7 @@ import {
   offlineGenerateObject,
 } from "../lib/providers/offline";
 import { shapeToSchema } from "../lib/offline/jsonSchema";
+import { normalizeQuizQuestions } from "../lib/quiz/normalize";
 import { buildStudyQuizPrompt, resolveMaterialContent } from "../lib/offline/studyPrompts";
 
 interface StudyQuizStore {
@@ -35,21 +36,15 @@ async function generateOfflineQuiz(
     shapeToSchema(prompt.jsonShape),
     { system: prompt.system },
   );
-  const questions = Array.isArray(data?.questions)
-    ? data.questions
-        .map((q, i) => ({
-          id: typeof q?.id === "string" ? q.id : `offline_q_${materialId}_${i + 1}`,
-          question: typeof q?.question === "string" ? q.question : "",
-          options: Array.isArray(q?.options) && q.options.length >= 2 ? q.options.map(String) : [],
-          correctAnswer:
-            Number.isInteger(q?.correctAnswer) && Number(q.correctAnswer) >= 0
-              ? Number(q.correctAnswer)
-              : 0,
-        }))
-        .filter((q) => q.question.trim() && q.options.length === 4)
-        .slice(0, 5)
-    : [];
-  return questions;
+  return normalizeQuizQuestions(data, {
+    maxQuestions: 5,
+    idPrefix: `offline_q_${materialId}_`,
+  }).map(({ id, question, options, correctAnswer }) => ({
+    id,
+    question,
+    options,
+    correctAnswer,
+  }));
 }
 
 export const useStudyQuizStore = create<StudyQuizStore>((set) => ({

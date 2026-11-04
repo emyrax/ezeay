@@ -16,6 +16,7 @@ import { drizzle } from "drizzle-orm/neon-http";
 import { eq, and, or, inArray, gte, desc, asc, isNull, isNotNull, ne, ilike, sql as drizzleSql, count, sum, gt, lt } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { initGemini, generateCourseContent, generateJsonContent, generateQuizQuestions, generateDailyBounties, generateThumbnailImage, generateTextWithFile, generateEmbedding, generateLessonScript, generateSpeech, TTS_MODEL, TTS_VOICE } from "../lib/gemini";
+import { normalizeQuizQuestions } from "../lib/quiz/normalize";
 import type { GeminiBounty } from "../lib/gemini";
 import { AI_MODEL_DEFAULT, getModelOption, isModelAllowed, parseModelRef } from "../lib/providers/modelRegistry";
 import { providerKeyStatus, initAiEngine, getGemini } from "./ai/text";
@@ -6023,11 +6024,27 @@ Return ONLY valid JSON with this exact structure:
 Do NOT include any markdown code fences. Return raw JSON only.`;
 
     const ai = aiRequestOptions(req);
-    const result = await generateJsonContent<{
-      questions: { id: string; question: string; options: string[]; correctAnswer: number }[];
-    }>(ai.modelRef, prompt, ai.apiKey);
+    const result = await generateJsonContent<unknown>(ai.modelRef, prompt, ai.apiKey);
+    const questions = normalizeQuizQuestions(result, {
+      maxQuestions: 5,
+      requireExactlyFour: true,
+      idPrefix: `study_${req.params.id}_`,
+    }).map(({ id, question, options, correctAnswer }) => ({
+      id,
+      question,
+      options,
+      correctAnswer,
+    }));
 
-    res.json(result);
+    if (questions.length < 3) {
+      const label = getModelOption(ai.modelRef)?.label ?? ai.modelRef;
+      res.status(422).json({
+        error: `"${label}" returned an incomplete quiz. Please try again or switch models.`,
+      });
+      return;
+    }
+
+    res.json({ questions });
   } catch (err) {
     sendRouteError(res, err, "[Server] POST /api/study/:id/quiz/generate failed");
   }
@@ -7028,43 +7045,15 @@ function normalizeAiStructured(
     return { flashcards: cards };
   }
   if (action === "quiz") {
-    const source = Array.isArray(result.questions)
-      ? result.questions
-      : Array.isArray(result.quiz)
-        ? result.quiz
-        : [];
-    const questions = source
-      .map((q, qi) => {
-        const o = (q && typeof q === "object" ? q : {}) as Record<string, unknown>;
-        const options = Array.isArray(o.options) ? o.options.map((x) => String(x)) : [];
-        const question = String(o.question ?? o.q ?? "");
-        if (!question.trim() || options.length === 0) return null;
-        let correctAnswer =
-          typeof o.correctAnswer === "number"
-            ? o.correctAnswer
-            : typeof o.correct === "number"
-              ? o.correct
-              : -1;
-        if (correctAnswer < 0 || correctAnswer >= options.length) {
-          const answerText = String(o.answer ?? o.correct ?? "").trim();
-          const byIndex = Number(answerText);
-          correctAnswer = Number.isInteger(byIndex)
-            ? byIndex >= 0 && byIndex < options.length
-              ? byIndex
-              : -1
-            : answerText
-              ? options.findIndex((opt) => opt.trim().toLowerCase() === answerText.toLowerCase())
-              : -1;
-        }
-        return {
-          id: String(o.id ?? qi),
-          question,
-          options,
-          correctAnswer,
-        };
-      })
-      .filter((q): q is { id: string; question: string; options: string[]; correctAnswer: number } => q !== null)
-      .slice(0, 8);
+    const questions = normalizeQuizQuestions(result, {
+      maxQuestions: 8,
+      idPrefix: "note_q_",
+    }).map(({ id, question, options, correctAnswer }) => ({
+      id,
+      question,
+      options,
+      correctAnswer,
+    }));
     return { questions };
   }
   return result;

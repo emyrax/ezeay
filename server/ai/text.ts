@@ -2,8 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI, { APIError } from "openai";
 import {
-  AI_MODEL_DEFAULT,
   AI_PROVIDER_LABELS,
+  getFallbackModelRefs,
   parseModelRef,
   type AiProvider,
 } from "../../lib/providers/modelRegistry";
@@ -383,8 +383,13 @@ async function runProvider(args: ProviderGenerateTextArgs): Promise<string> {
 function shouldFallback(err: unknown): boolean {
   if (err instanceof AiConfigError) return true;
   if (err instanceof AiProviderError) {
-    // Model unavailable (404) or provider temporarily down/overloaded (503).
-    return err.statusCode === 404 || err.statusCode === 503;
+    // Model unavailable (404), provider temporarily down/overloaded (503), or
+    // quota/rate limited (429). Try a sibling model before surfacing the error.
+    return (
+      err.statusCode === 404 ||
+      err.statusCode === 429 ||
+      err.statusCode === 503
+    );
   }
   return false;
 }
@@ -392,17 +397,33 @@ function shouldFallback(err: unknown): boolean {
 async function dispatch(args: ProviderGenerateTextArgs): Promise<string> {
   try {
     return await runProvider(args);
-  } catch (err) {
-    const fallback = parseModelRef(AI_MODEL_DEFAULT);
-    const alreadyDefault =
-      fallback !== null && fallback.provider === args.provider && fallback.id === args.id;
-    if (!fallback || alreadyDefault || !shouldFallback(err)) {
-      throw err;
+  } catch (firstError) {
+    if (!shouldFallback(firstError)) throw firstError;
+
+    const currentRef = `${args.provider}::${args.id}`;
+    let lastError = firstError;
+
+    for (const ref of getFallbackModelRefs(currentRef)) {
+      const fallback = parseModelRef(ref);
+      if (!fallback || fallback.provider === "offline") continue;
+
+      console.warn(
+        `[AI] ${currentRef} failed (${(lastError as Error).message}). Falling back to ${ref}.`,
+      );
+
+      try {
+        return await runProvider({
+          ...args,
+          provider: fallback.provider,
+          id: fallback.id,
+        });
+      } catch (fallbackError) {
+        lastError = fallbackError;
+        if (!shouldFallback(fallbackError)) throw fallbackError;
+      }
     }
-    console.warn(
-      `[AI] ${args.provider}::${args.id} failed (${(err as Error).message}). Falling back to ${AI_MODEL_DEFAULT}.`,
-    );
-    return runProvider({ ...args, provider: fallback.provider, id: fallback.id });
+
+    throw lastError;
   }
 }
 

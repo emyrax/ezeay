@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ImageStyle, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
-import { Image } from "expo-image";
+import { Image, type ImageProps } from "expo-image";
 import { appTheme } from "../constants/themes";
 import { images } from "../constants/images";
 import {
@@ -17,6 +17,7 @@ interface MascotAnimationProps {
   width?: number;
   height?: number;
   framed?: boolean;
+  contentFit?: ImageProps["contentFit"];
   style?: StyleProp<ViewStyle>;
   imageStyle?: StyleProp<ImageStyle>;
   accessibilityLabel?: string;
@@ -27,6 +28,7 @@ export default function MascotAnimation({
   width,
   height,
   framed,
+  contentFit = "contain",
   style,
   imageStyle,
   accessibilityLabel,
@@ -49,7 +51,7 @@ export default function MascotAnimation({
       <Image
         source={failed ? images.yuinxLogoTrans : gamificationImages[action]}
         style={[styles.image, imageStyle]}
-        contentFit="contain"
+        contentFit={contentFit}
         autoplay
         useAppleWebpCodec={false}
         recyclingKey={action}

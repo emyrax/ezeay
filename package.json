@@ -20,6 +20,7 @@
     "test:reels": "tsx --test --test-force-exit lib/reels/challenge.test.ts",
     "test:threads": "tsx --test --test-force-exit server/threadFeed.test.ts lib/threads/format.test.ts",
     "test:learning": "tsx --test --test-force-exit lib/quiz/grade.test.ts lib/focus/selectors.test.ts lib/lesson/visualLessonStatus.test.ts",
+    "test:quiz": "tsx --test --test-force-exit lib/quiz/normalize.test.ts lib/providers/modelRegistry.test.ts",
     "test:media": "tsx --test --test-force-exit scripts/mascotNaming.test.ts",
     "test:mascot": "tsx --test --test-force-exit lib/mascot/actions.test.ts",
     "media:mascots": "tsx scripts/process-mascot-media.ts",

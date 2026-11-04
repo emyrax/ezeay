@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import type { Chapter, Question } from "../types/chapter";
 import type { LessonScriptDraft } from "../types/lesson";
 import { normalizeLessonScript } from "./lesson/validateLessonScript";
+import { normalizeQuizQuestions } from "./quiz/normalize";
 import { generateText } from "./providers/generateText";
 
 const TEXT_MODEL = "gemini-2.5-flash";
@@ -208,10 +209,11 @@ export async function generateQuizQuestions(
     throw aiOutputError("AI returned an invalid quiz structure. Please try again or switch models.");
   }
 
-  const questions = parsed.questions
-    .map((raw, index) => normalizeQuizQuestion(raw, index))
-    .filter((question): question is Question => question !== null)
-    .slice(0, 5);
+  const questions = normalizeQuizQuestions(parsed, {
+    maxQuestions: 5,
+    requireExactlyFour: true,
+    idPrefix: "q",
+  });
 
   if (questions.length !== 5) {
     throw aiOutputError(
@@ -220,40 +222,6 @@ export async function generateQuizQuestions(
   }
 
   return questions;
-}
-
-function normalizeQuizQuestion(raw: unknown, index: number): Question | null {
-  if (!raw || typeof raw !== "object") return null;
-  const value = raw as Record<string, unknown>;
-  const question =
-    typeof value.question === "string"
-      ? value.question.trim()
-      : typeof value.text === "string"
-        ? value.text.trim()
-        : "";
-  const options = Array.isArray(value.options)
-    ? value.options
-        .filter((option): option is string => typeof option === "string")
-        .map((option) => option.trim())
-        .filter(Boolean)
-    : [];
-  const correctAnswer = Number.isInteger(value.correctAnswer)
-    ? Number(value.correctAnswer)
-    : Number.isInteger(value.correctAnswerIndex)
-      ? Number(value.correctAnswerIndex)
-      : -1;
-
-  if (!question || options.length !== 4) return null;
-  if (correctAnswer < 0 || correctAnswer >= options.length) return null;
-
-  const id =
-    typeof value.id === "string" && value.id.trim()
-      ? value.id.trim()
-      : `q${index + 1}`;
-  const explanation =
-    typeof value.explanation === "string" ? value.explanation.trim() : "";
-
-  return { id, question, options, correctAnswer, explanation };
 }
 
 export interface GeminiBounty {
