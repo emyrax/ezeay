@@ -216,7 +216,7 @@ export default function OnboardingShell({
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
                       <>
-                        <Text style={styles.nextText}>
+                        <Text style={styles.nextText} numberOfLines={1}>
                           {isLast ? "Create my account" : "Continue"}
                         </Text>
                         <MaterialCommunityIcons
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   footer: {
-    paddingHorizontal: 22,
+    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 18,
     borderTopWidth: 1,
@@ -565,14 +565,14 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 720,
     alignSelf: "center",
-    gap: 12,
+    gap: 8,
   },
   backButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingVertical: 10,
-    paddingRight: 12,
+    paddingRight: 8,
   },
   backButtonDisabled: {
     opacity: 0,
@@ -585,10 +585,11 @@ const styles = StyleSheet.create({
   footerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    flexShrink: 1,
+    gap: 6,
   },
   skipButton: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     paddingVertical: 12,
     borderRadius: landingRadii.pill,
   },
@@ -601,16 +602,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    minWidth: 154,
+    gap: 6,
+    minWidth: 140,
     height: 50,
-    paddingHorizontal: 22,
+    paddingHorizontal: 16,
     borderRadius: landingRadii.pill,
     backgroundColor: landingColors.blue,
+    flexShrink: 1,
   },
   nextText: {
     color: "#FFFFFF",
     fontFamily: landingFonts.bodySemiBold,
-    fontSize: 15,
+    fontSize: 14,
   },
 });

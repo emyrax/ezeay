@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useThemeColors } from "../../hooks/useTheme";
 import { bodyFont } from "../../constants/themes";
+import { createShadow } from "@/lib/shadow";
 
 interface InfoTipProps {
   lines: string[];
@@ -119,10 +120,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     gap: 8,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
+    ...createShadow("#000000", 0, 8, 16, 0.18),
     elevation: 12,
   },
   cardRight: { right: 0 },

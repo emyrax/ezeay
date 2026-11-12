@@ -15,6 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AudioClip, NoteImage } from "../types/note";
 import type { LessonAudioClip, LessonScriptDraft } from "../types/lesson";
+import type { TutorCitation, TutorMessageAttachment } from "../types/tutor";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -203,6 +204,12 @@ export const studyMaterials = pgTable("study_materials", {
   timetable: text("timetable"),
   tags: text("tags").notNull().default("[]"),
   cheatsheet: text("cheatsheet"),
+  examBoard: text("exam_board"),
+  examYear: integer("exam_year"),
+  paperCode: text("paper_code"),
+  paperType: text("paper_type"),
+  durationMinutes: integer("duration_minutes"),
+  isPastPaper: boolean("is_past_paper").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }),
 }, (table) => ({
@@ -577,5 +584,308 @@ export const threadPostComments = pgTable(
   },
   (table) => ({
     threadCommentPostIdx: index("thread_post_comments_post_idx").on(table.postId),
+  }),
+);
+
+export const agentProfiles = pgTable(
+  "agent_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    avatar: text("avatar").notNull().default("school-outline"),
+    instructions: text("instructions").notNull().default(""),
+    persona: text("persona").notNull().default("custom"),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    agentProfilesUserUpdatedIdx: index("agent_profiles_user_updated_idx").on(
+      table.userId,
+      table.updatedAt,
+    ),
+  }),
+);
+
+export const tutorConversations = pgTable(
+  "tutor_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    agentProfileId: uuid("agent_profile_id").references(() => agentProfiles.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull().default("New chat"),
+    persona: text("persona").notNull().default("patient_tutor"),
+    mode: text("mode").notNull().default("materials"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => ({
+    tutorConversationsUserUpdatedIdx: index("tutor_conversations_user_updated_idx").on(
+      table.userId,
+      table.updatedAt,
+    ),
+  }),
+);
+
+export const tutorMessages = pgTable(
+  "tutor_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => tutorConversations.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+    kind: text("kind").notNull().default("chat"),
+    content: text("content").notNull(),
+    citations: jsonb("citations").$type<TutorCitation[]>().notNull().default([]),
+    attachments: jsonb("attachments")
+      .$type<TutorMessageAttachment[]>()
+      .notNull()
+      .default([]),
+    model: text("model"),
+    tokensIn: integer("tokens_in"),
+    tokensOut: integer("tokens_out"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    tutorMessagesConversationCreatedIdx: index("tutor_messages_conversation_created_idx").on(
+      table.conversationId,
+      table.createdAt,
+    ),
+    tutorMessagesUserCreatedIdx: index("tutor_messages_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const tutorPreferences = pgTable("tutor_preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  persona: text("persona").notNull().default("patient_tutor"),
+  instructions: text("instructions").notNull().default(""),
+  examType: text("exam_type").notNull().default(""),
+  examDate: text("exam_date"),
+  locale: text("locale").notNull().default("en-NG"),
+  timezone: text("timezone").notNull().default("Africa/Lagos"),
+  dailyMessageLimit: integer("daily_message_limit").notNull().default(30),
+  dailyToolLimit: integer("daily_tool_limit").notNull().default(20),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const agentMemories = pgTable(
+  "agent_memories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull().default("fact"),
+    content: text("content").notNull(),
+    fileName: text("file_name"),
+    mimeType: text("mime_type"),
+    fileUrl: text("file_url"),
+    sizeBytes: integer("size_bytes"),
+    extractedText: text("extracted_text"),
+    sourceConversationId: uuid("source_conversation_id").references(
+      () => tutorConversations.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    agentMemoriesUserUpdatedIdx: index("agent_memories_user_updated_idx").on(
+      table.userId,
+      table.updatedAt,
+    ),
+  }),
+);
+
+export const agentIntegrations = pgTable(
+  "agent_integrations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    toolkit: text("toolkit").notNull(),
+    connectedAccountId: text("connected_account_id"),
+    sessionId: text("session_id"),
+    status: text("status").notNull().default("disconnected"),
+    scopes: jsonb("scopes").$type<string[]>().notNull().default([]),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    agentIntegrationsUserToolkitIdx: uniqueIndex("agent_integrations_user_toolkit_idx").on(
+      table.userId,
+      table.toolkit,
+    ),
+  }),
+);
+
+export const agentRoutines = pgTable(
+  "agent_routines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    prompt: text("prompt").notNull(),
+    scheduleCron: text("schedule_cron").notNull().default("0 7 * * *"),
+    timezone: text("timezone").notNull().default("Africa/Lagos"),
+    toolScopes: jsonb("tool_scopes").$type<string[]>().notNull().default([]),
+    enabled: boolean("enabled").notNull().default(true),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    lastResult: text("last_result"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    agentRoutinesUserEnabledIdx: index("agent_routines_user_enabled_idx").on(
+      table.userId,
+      table.enabled,
+    ),
+    agentRoutinesNextRunIdx: index("agent_routines_next_run_idx").on(table.nextRunAt),
+  }),
+);
+
+export const agentRoutineRuns = pgTable(
+  "agent_routine_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    routineId: uuid("routine_id")
+      .notNull()
+      .references(() => agentRoutines.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("queued"),
+    output: text("output"),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    agentRoutineRunsUserCreatedIdx: index("agent_routine_runs_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+    agentRoutineRunsRoutineCreatedIdx: index("agent_routine_runs_routine_created_idx").on(
+      table.routineId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const agentToolRuns = pgTable(
+  "agent_tool_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id").references(
+      () => tutorConversations.id,
+      { onDelete: "set null" },
+    ),
+    messageId: uuid("message_id").references(() => tutorMessages.id, {
+      onDelete: "set null",
+    }),
+    tool: text("tool").notNull(),
+    args: jsonb("args").$type<Record<string, unknown>>().notNull().default({}),
+    result: jsonb("result").$type<Record<string, unknown> | null>(),
+    status: text("status").notNull().default("pending"),
+    approval: text("approval").notNull().default("auto"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    agentToolRunsUserCreatedIdx: index("agent_tool_runs_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+    agentToolRunsConversationCreatedIdx: index("agent_tool_runs_conversation_created_idx").on(
+      table.conversationId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const agentPracticeAttempts = pgTable(
+  "agent_practice_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    materialId: text("material_id").references(() => studyMaterials.id, {
+      onDelete: "cascade",
+    }),
+    topic: text("topic"),
+    examBoard: text("exam_board"),
+    examYear: integer("exam_year"),
+    correct: integer("correct").notNull().default(0),
+    total: integer("total").notNull().default(0),
+    scorePct: integer("score_pct").notNull().default(0),
+    durationSeconds: integer("duration_seconds"),
+    awardedXp: integer("awarded_xp").notNull().default(0),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    agentPracticeAttemptsIdempotencyIdx: uniqueIndex(
+      "agent_practice_attempts_idempotency_idx",
+    ).on(table.userId, table.idempotencyKey),
+    agentPracticeAttemptsUserCreatedIdx: index("agent_practice_attempts_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const agentSyllabusProgress = pgTable(
+  "agent_syllabus_progress",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    examCode: text("exam_code").notNull(),
+    subject: text("subject").notNull(),
+    topicId: text("topic_id").notNull(),
+    status: text("status").notNull().default("not_started"),
+    confidence: integer("confidence").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    agentSyllabusProgressUnique: uniqueIndex("agent_syllabus_progress_unique_idx").on(
+      table.userId,
+      table.examCode,
+      table.subject,
+      table.topicId,
+    ),
+    agentSyllabusProgressUserExamIdx: index("agent_syllabus_progress_user_exam_idx").on(
+      table.userId,
+      table.examCode,
+    ),
   }),
 );

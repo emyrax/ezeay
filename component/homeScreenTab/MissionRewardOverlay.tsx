@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeColors } from "../../hooks/useTheme";
 import { ConfettiLayer } from "../ConfettiLayer";
 import MascotAnimation from "../MascotAnimation";
@@ -46,6 +47,7 @@ export default function MissionRewardOverlay({
   onNextMission,
 }: MissionRewardOverlayProps) {
   const theme = useThemeColors();
+  const insets = useSafeAreaInsets();
   const accent = reward ? MISSION_ACCENTS[reward.key] : theme.primary;
 
   const iconScale = useRef(new Animated.Value(0.3)).current;
@@ -123,6 +125,20 @@ export default function MissionRewardOverlay({
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onKeepGoing}>
       <Animated.View style={[styles.backdropWrap, { opacity: backdropOpacity }]}>
         <ConfettiLayer />
+
+        <TouchableOpacity
+          style={[
+            styles.closeButton,
+            { top: insets.top + 12, backgroundColor: theme.surfaceAlt },
+          ]}
+          onPress={onKeepGoing}
+          activeOpacity={0.8}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Close reward celebration"
+        >
+          <MaterialCommunityIcons name="close" size={22} color={theme.text} />
+        </TouchableOpacity>
 
         <View style={styles.content}>
           <View style={styles.stage}>
@@ -249,6 +265,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
+  },
+  closeButton: {
+    position: "absolute",
+    right: 20,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   content: {
     width: "100%",

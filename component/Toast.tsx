@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TOAST_MAX_WIDTH } from "../constants/layout";
 import { eventBus } from "../lib/eventBus";
 import { useThemeColors } from "../hooks/useTheme";
+import { createShadow } from "@/lib/shadow";
 
 interface ToastMessage {
   id: number;
@@ -174,10 +175,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderLeftWidth: 3,
     elevation: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    ...createShadow("#000", 0, 6, 8, 0.35),
   },
   iconWrap: {
     width: 40,

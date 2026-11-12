@@ -19,6 +19,7 @@ import { safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useFullscreen } from "../hooks/useFullscreen";
 import { useResponsive, useTabBarInset } from "../hooks/useResponsive";
+import { useStatsLayout } from "../hooks/useStatsLayout";
 import { useThemeColors } from "../hooks/useTheme";
 import { eventBus } from "../lib/eventBus";
 import { threadLessonHref } from "../lib/threads/format";
@@ -29,20 +30,28 @@ import type { ThreadPost } from "../types/thread";
 import ChapterThreadModal from "./ChapterThreadModal";
 import CommentsModal from "./CommentsModal";
 import DiscoveryRail from "./DiscoveryRail";
-import FocusRail from "./FocusRail";
 import MascotAnimation from "./MascotAnimation";
 import MascotStage from "./mascot/MascotStage";
 import ProfileCardModal from "./ProfileCardModal";
 import ResourceUploadSheet from "./ResourceUploadSheet";
+import StatsLeftRail from "./stats/StatsLeftRail";
+import StatsRightRail from "./stats/StatsRightRail";
 import SubtopicThreadCard from "./SubtopicThreadCard";
 import ThreadQuizModal from "./ThreadQuizModal";
 import VisualLessonModal from "./VisualLessonModal";
+import { createShadow } from "@/lib/shadow";
 
-export default function ThreadFeedScreen() {
+export default function ThreadFeedScreen({
+  variant = "default",
+}: {
+  variant?: "default" | "explore";
+}) {
   const { getToken } = useAuth();
   const colors = useThemeColors();
   const router = useRouter();
   const { isTabletUp, threadsLayout } = useResponsive();
+  const exploreLayout = useStatsLayout();
+  const isExplore = variant === "explore";
   const tabBarInset = useTabBarInset(NAV.tabBarHeight + NAV.tabBarBottomInset + 16);
 
   const posts = useThreadStore((s) => s.posts);
@@ -156,9 +165,25 @@ export default function ThreadFeedScreen() {
     setCollapsed((current) => (current === nextCollapsed ? current : nextCollapsed));
   }, []);
 
-  const showRail = threadsLayout.showRightRail;
-  const showLeftRail = threadsLayout.showLeftRail;
-  const bordered = threadsLayout.mode !== "mobile";
+  const showRail = isExplore
+    ? exploreLayout.showRightRail
+    : threadsLayout.showRightRail;
+  const showLeftRail = isExplore
+    ? exploreLayout.showLeftRail
+    : threadsLayout.showLeftRail;
+  const bordered = isExplore
+    ? exploreLayout.bordered
+    : threadsLayout.mode !== "mobile";
+  const layoutGap = isExplore ? exploreLayout.gap : threadsLayout.gap;
+  const leftRailWidth = isExplore
+    ? exploreLayout.leftRailWidth
+    : threadsLayout.leftRailWidth;
+  const rightRailWidth = isExplore
+    ? exploreLayout.rightRailWidth
+    : threadsLayout.railWidth;
+  const feedMaxWidth = isExplore
+    ? exploreLayout.feedMaxWidth
+    : threadsLayout.feedMaxWidth;
   const bottomPadding = isTabletUp ? 32 : tabBarInset + 88;
   const minimizedBottom = isTabletUp ? 24 : tabBarInset + 84;
   const minimizedRight = isTabletUp ? 24 : 16;
@@ -176,19 +201,30 @@ export default function ThreadFeedScreen() {
         style={[
           styles.workspace,
           showRail && styles.workspaceRow,
-          showLeftRail && styles.workspaceUltraWide,
+          showLeftRail && !isExplore && styles.workspaceUltraWide,
+          isExplore && styles.workspaceExplore,
           {
-            gap: threadsLayout.gap,
+            gap: layoutGap,
             paddingHorizontal: bordered ? 24 : 0,
           },
         ]}
       >
         {showLeftRail ? (
-          <DiscoveryRail
-            width={threadsLayout.leftRailWidth}
-            posts={posts}
-            onPressUser={handlePressProfile}
-          />
+          isExplore ? (
+            <StatsLeftRail
+              width={leftRailWidth}
+              posts={posts}
+              onPressUser={handlePressProfile}
+              onPressProfile={() => router.push("/(tabs)/profile" as never)}
+              onExploreCamp={() => router.push("/(tabs)" as never)}
+            />
+          ) : (
+            <DiscoveryRail
+              width={leftRailWidth}
+              posts={posts}
+              onPressUser={handlePressProfile}
+            />
+          )
         ) : null}
 
         <View
@@ -196,7 +232,7 @@ export default function ThreadFeedScreen() {
             styles.feedColumn,
             bordered && styles.feedColumnBordered,
             {
-              maxWidth: threadsLayout.feedMaxWidth,
+              maxWidth: feedMaxWidth,
               borderColor: colors.border,
             },
           ]}
@@ -323,7 +359,12 @@ export default function ThreadFeedScreen() {
         </View>
 
         {showRail ? (
-          <FocusRail width={threadsLayout.railWidth} onOpenFocus={handleOpenFocus} />
+          <StatsRightRail
+            width={rightRailWidth}
+            posts={posts}
+            onOpenFocus={handleOpenFocus}
+            onOpenComments={(postId) => setCommentsPostId(postId)}
+          />
         ) : null}
       </View>
 
@@ -577,16 +618,19 @@ const styles = StyleSheet.create({
   },
   workspaceRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "center",
   },
   workspaceUltraWide: {
     maxWidth: THREADS.ultraWideMaxWidth,
     alignSelf: "center",
   },
+  workspaceExplore: {
+    maxWidth: 1720,
+    alignSelf: "center",
+  },
   feedColumn: {
     flex: 1,
-    width: "100%",
     height: "100%",
     minWidth: 0,
   },
@@ -760,9 +804,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     elevation: 6,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
+    ...createShadow("#000000", 0, 4, 6, 0.25),
   },
 });

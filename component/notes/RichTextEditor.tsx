@@ -28,6 +28,7 @@ import {
   parseMarkdownRuns,
   toggleMarkdown,
 } from "../../lib/notes/formatting";
+import { createShadow } from "@/lib/shadow";
 
 const FONT_SIZE = 17;
 const LINE_HEIGHT = 28;
@@ -581,10 +582,7 @@ const styles = StyleSheet.create({
     right: 0,
     borderRadius: 20,
     borderWidth: 1,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
+    ...createShadow("#000000", 0, 6, 12, 0.2),
     elevation: 10,
     overflow: "hidden",
   },

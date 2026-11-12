@@ -247,7 +247,11 @@ export default function MissionsSection() {
     [doneMap],
   );
 
-  const overlayVisible = !!missionStore.pendingReward && !spinStore.wheelVisible;
+  const CELEBRATION_THRESHOLD = 70;
+  const overlayVisible =
+    percent >= CELEBRATION_THRESHOLD &&
+    !!missionStore.pendingReward &&
+    !spinStore.wheelVisible;
 
   const handleKeepGoing = useCallback(() => {
     useMissionStore.getState().dismissReward();

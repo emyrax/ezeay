@@ -89,6 +89,13 @@ test("spin validates auth before touching the database", async () => {
   assert.equal(res.body.code, "unauthorized");
 });
 
+test("tutor quiz is auth-gated", async () => {
+  const res = await request(app)
+    .post("/api/tutor/quiz")
+    .send({ topic: "Chemical bonding" });
+  assert.equal(res.status, 401);
+});
+
 test("reel daily progress is auth-gated", async () => {
   const res = await request(app).get("/api/reels/daily");
   assert.equal(res.status, 401);

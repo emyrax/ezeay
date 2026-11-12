@@ -9,6 +9,7 @@ import {
   View,
   type GestureResponderEvent,
 } from "react-native";
+import { createShadow } from "@/lib/shadow";
 import { useThemeColors } from "../../hooks/useTheme";
 import type { AudioClip } from "../../types/note";
 import GlassSheet from "./GlassSheet";
@@ -204,7 +205,7 @@ export default function VoicePlayerSheet({
               colors={[theme.primary, theme.accent]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.playButton, { shadowColor: theme.primary }]}
+              style={[styles.playButton, createShadow(theme.primary, 0, 4, 10, 0.4)]}
             >
               <ThemeIcon
                 sf={isPlaying ? "pause.fill" : "play.fill"}
@@ -312,9 +313,7 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 3,
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
+    ...createShadow("#000000", 0, 2, 5, 0.3),
     elevation: 4,
   },
   timeRow: {
@@ -349,9 +348,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.35)",
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
   transcriptSection: {

@@ -40,6 +40,24 @@ jobs:
       - name: Typecheck
         run: npm --prefix server run typecheck
 
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install root deps
+        run: npm ci
+      - name: Install server deps
+        run: npm ci --prefix server
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test
+
   web-export:
     name: Web export
     runs-on: ubuntu-latest

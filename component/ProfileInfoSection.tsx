@@ -27,6 +27,7 @@ import {
   requiresDegree,
   supportsGrade,
 } from "../data/onboarding";
+import { createShadow } from "@/lib/shadow";
 
 const COLLAR_OPTIONS: { value: CollarType; label: string }[] = [
   { value: "white", label: "White Collar" }, { value: "yellow", label: "Yellow Collar" }, { value: "both", label: "Both" },
@@ -1122,10 +1123,7 @@ const infoStyles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    ...createShadow("#000000", 0, 2, 6, 0.2),
     elevation: 4,
     zIndex: 10,
   },

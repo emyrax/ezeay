@@ -4,8 +4,6 @@
 node_modules/
 .env
 serviceKey.json
-*.json
-!vercel.json
 # Expo
 .expo/
 dist/
@@ -46,7 +44,6 @@ server/dist/
 *.tsbuildinfo
 
 app-example
- uiError
 # generated native folders
 /ios
 /android

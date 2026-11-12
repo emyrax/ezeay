@@ -52,7 +52,7 @@ export default function ProfileScreen() {
   const theme = useThemeColors();
   const { width } = useWindowDimensions();
   const { isWeb } = useResponsive();
-  const tabBarInset = useTabBarInset(96);
+  const tabBarInset = useTabBarInset(98);
 
   const isDesktop = width >= BREAKPOINTS.laptop;
   const isTablet =

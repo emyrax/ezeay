@@ -7,6 +7,7 @@ import { withAlpha } from "../../lib/color";
 import { getLevelProgress } from "../../services/LevelService";
 import type { UserProfile } from "../../types/user";
 import type { ProfileIconName } from "./types";
+import { createShadow } from "@/lib/shadow";
 
 interface Props {
   profile: UserProfile | null;
@@ -156,7 +157,7 @@ export default function ProfileStatCard({ profile, wide = false }: Props) {
             {
               width: xpPercent,
               backgroundColor: theme.primary,
-              shadowColor: theme.primary,
+              ...createShadow(theme.primary, 0, 0, 6, 0.6),
             },
           ]}
         />
@@ -180,10 +181,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     padding: 18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
+    ...createShadow("#000", 0, 14, 24, 0.12),
     elevation: 8,
   },
   cardWide: {
@@ -261,9 +259,6 @@ const styles = StyleSheet.create({
   xpFill: {
     height: "100%",
     borderRadius: 3,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 6,
     elevation: 3,
   },
   xpFooter: {

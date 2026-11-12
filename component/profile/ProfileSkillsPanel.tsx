@@ -11,6 +11,7 @@ import type {
 } from "../../types/user";
 import type { ProfileIconName } from "./types";
 import { formatProfileDate, getSkillLevel } from "./profileUtils";
+import { createShadow } from "@/lib/shadow";
 
 interface Props {
   profile: UserProfile | null;
@@ -423,10 +424,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     padding: 18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
+    ...createShadow("#000", 0, 10, 18, 0.08),
     elevation: 5,
   },
   cardHeader: {
@@ -595,10 +593,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 28,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
+    ...createShadow("#000", 0, 12, 20, 0.1),
     elevation: 6,
   },
   emptyIcon: {

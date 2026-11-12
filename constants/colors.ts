@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { createShadow } from "@/lib/shadow";
 
 export const safeFont = Platform.OS === "ios" ? "Arial" : "sans-serif";
 
@@ -33,10 +34,7 @@ export const heroGradientMid = "#0065d8";
 export const heroGradientEnd = "#00D68F";
 
 export const heroCardShadow = {
-  shadowColor: "#152a4d",
-  shadowOffset: { width: 0, height: 0 },
-  shadowOpacity: 0.06,
-  shadowRadius: 20,
+  ...createShadow("#152a4d", 0, 0, 20, 0.06),
   elevation: 4,
 };
 

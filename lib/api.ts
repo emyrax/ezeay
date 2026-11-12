@@ -16,6 +16,38 @@ import type {
 } from "../types/courseGeneration";
 import type { CollarType, Availability, Education, WorkExperience, Certification } from "../types/user";
 import type { StudyMaterial, StudyQuiz, QuizAttempt, StudySuggestion } from "../types/study";
+import type {
+  TutorChatInput,
+  TutorChatResponse,
+  TutorConversation,
+  TutorMessage,
+  TutorMode,
+  TutorPersona,
+  TutorPlan,
+  TutorPreferences,
+  TutorQuiz,
+  TutorQuizInput,
+} from "../types/tutor";
+import type {
+  AgentActionResult,
+  AgentChatInput,
+  AgentChatResponse,
+  AgentChatStreamDone,
+  AgentExecutionRecord,
+  AgentIntegrationConnectResponse,
+  AgentIntegrationsResponse,
+  AgentMemoryInput,
+  AgentMemoryRecord,
+  AgentMemoryUpdateInput,
+  AgentMemoryUploadInput,
+  AgentPendingAction,
+  AgentProfile,
+  AgentProfileInput,
+  AgentRoutine,
+  AgentRoutineInput,
+  AgentRoutineRun,
+  AgentStep,
+} from "../types/agent";
 import type { Flashcard, FlashcardQuality, FlashcardReviewResult } from "../types/flashcard";
 import type {
   CommunityOverview,
@@ -200,17 +232,25 @@ export interface NotesChatTurn {
   content: string;
 }
 
-interface SseHandlers {
-  onDelta: (text: string) => void;
-  onDone: () => void;
-  onError: (message: string) => void;
+export interface TutorChatStreamDone {
+  type: "done";
+  conversationId: string;
+  message: TutorMessage | null;
+  userMessageId?: string;
 }
 
-async function readSse(
+interface SseHandlers<TDone = void> {
+  onDelta: (text: string) => void;
+  onDone: (payload: TDone) => void;
+  onError: (message: string) => void;
+  onStep?: (step: AgentStep) => void;
+}
+
+async function readSse<TDone = void>(
   path: string,
   body: string,
   headers: Record<string, string>,
-  handlers: SseHandlers,
+  handlers: SseHandlers<TDone>,
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -239,6 +279,7 @@ async function readSse(
   const decoder = new TextDecoder();
   let buffer = "";
   let finished = false;
+  let errored = false;
 
   const processBlock = (block: string) => {
     const dataLine = block
@@ -251,13 +292,17 @@ async function readSse(
         type?: string;
         text?: string;
         message?: string;
+        step?: AgentStep;
       };
       if (payload.type === "delta" && typeof payload.text === "string") {
         handlers.onDelta(payload.text);
+      } else if (payload.type === "step" && payload.step) {
+        handlers.onStep?.(payload.step);
       } else if (payload.type === "done") {
         finished = true;
-        handlers.onDone();
+        handlers.onDone(payload as TDone);
       } else if (payload.type === "error") {
+        errored = true;
         handlers.onError(String(payload.message ?? "Stream failed."));
       }
     } catch {
@@ -282,7 +327,7 @@ async function readSse(
   }
 
   if (buffer.trim()) processBlock(buffer);
-  if (!finished && !signal?.aborted) {
+  if (!finished && !errored && !signal?.aborted) {
     handlers.onError("Connection closed before the answer finished. Try again.");
   }
 }
@@ -970,6 +1015,378 @@ export const api = {
           token: token ?? undefined,
         }),
       ),
+  },
+
+  tutor: {
+    conversations: {
+      list: (token: string) =>
+        apiFetch<{ conversations: TutorConversation[] }>(
+          `/api/tutor/conversations`,
+          { token },
+        ),
+
+      create: (
+        data: { title?: string; persona?: TutorPersona; mode?: TutorMode },
+        token: string,
+      ) =>
+        apiFetch<{ conversation: TutorConversation }>(
+          `/api/tutor/conversations`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+            token,
+          },
+        ),
+
+      get: (id: string, token: string) =>
+        apiFetch<{
+          conversation: TutorConversation;
+          messages: TutorMessage[];
+        }>(`/api/tutor/conversations/${id}`, { token }),
+
+      remove: (id: string, token: string) =>
+        apiFetch<void>(`/api/tutor/conversations/${id}`, {
+          method: "DELETE",
+          token,
+        }),
+    },
+
+    preferences: {
+      get: (token: string) =>
+        apiFetch<{ preferences: TutorPreferences }>(
+          `/api/tutor/preferences`,
+          { token },
+        ),
+
+      update: (data: Partial<TutorPreferences>, token: string) =>
+        apiFetch<{ preferences: TutorPreferences }>(
+          `/api/tutor/preferences`,
+          {
+            method: "PUT",
+            body: JSON.stringify(data),
+            token,
+          },
+        ),
+    },
+
+    chat: (
+      data: TutorChatInput,
+      token: string,
+      opts?: { modelRef?: string },
+    ) =>
+      apiFetch<TutorChatResponse>(`/api/tutor/chat`, {
+        method: "POST",
+        body: JSON.stringify({ ...data, stream: false }),
+        token,
+        headers: aiModelHeaders(opts?.modelRef),
+        timeoutMs: 60_000,
+      }),
+
+    chatStream: (
+      data: Omit<TutorChatInput, "stream">,
+      token: string,
+      handlers: SseHandlers<TutorChatStreamDone>,
+      opts?: { modelRef?: string; signal?: AbortSignal },
+    ) =>
+      readSse(
+        `/api/tutor/chat`,
+        JSON.stringify({ ...data, stream: true }),
+        {
+          "Content-Type": "application/json",
+          ...aiModelHeaders(opts?.modelRef),
+          Authorization: `Bearer ${token}`,
+        },
+        handlers,
+        opts?.signal,
+      ),
+
+    plan: (
+      data: {
+        examType?: string;
+        examDate: string;
+        subjects: string[];
+        daysPerWeek: number;
+        minutesPerDay: number;
+        timezone?: string;
+      },
+      token: string,
+    ) =>
+      apiFetch<{ plan: TutorPlan }>(`/api/tutor/plan`, {
+        method: "POST",
+        body: JSON.stringify(data),
+        token,
+      }),
+
+    quiz: (
+      data: TutorQuizInput,
+      token: string,
+      opts?: { modelRef?: string },
+    ) =>
+      apiFetch<{ quiz: TutorQuiz }>(`/api/tutor/quiz`, {
+        method: "POST",
+        body: JSON.stringify(data),
+        token,
+        headers: aiModelHeaders(opts?.modelRef),
+        timeoutMs: 60_000,
+      }),
+  },
+
+  agent: {
+    chat: (
+      data: Omit<AgentChatInput, "stream">,
+      token: string,
+      opts?: { modelRef?: string },
+    ) =>
+      apiFetch<AgentChatResponse>(`/api/agent/chat`, {
+        method: "POST",
+        body: JSON.stringify({ ...data, stream: false }),
+        token,
+        headers: aiModelHeaders(opts?.modelRef),
+        timeoutMs: 90_000,
+      }),
+
+    chatStream: (
+      data: Omit<AgentChatInput, "stream">,
+      token: string,
+      handlers: SseHandlers<AgentChatStreamDone>,
+      opts?: { modelRef?: string; signal?: AbortSignal },
+    ) =>
+      readSse(
+        `/api/agent/chat`,
+        JSON.stringify({ ...data, stream: true }),
+        {
+          "Content-Type": "application/json",
+          ...aiModelHeaders(opts?.modelRef),
+          Authorization: `Bearer ${token}`,
+        },
+        handlers,
+        opts?.signal,
+      ),
+
+    actions: {
+      list: (token: string) =>
+        apiFetch<{ actions: AgentPendingAction[] }>("/api/agent/actions", {
+          token,
+        }),
+
+      approve: (
+        id: string,
+        result: { ok: boolean; summary?: string; error?: string } | undefined,
+        token: string,
+      ) =>
+        apiFetch<AgentActionResult>(
+          `/api/agent/actions/${encodeURIComponent(id)}/approve`,
+          {
+            method: "POST",
+            body: JSON.stringify({ result }),
+            token,
+          },
+        ),
+
+      reject: (id: string, token: string) =>
+        apiFetch<AgentActionResult>(
+          `/api/agent/actions/${encodeURIComponent(id)}/reject`,
+          {
+            method: "POST",
+            token,
+          },
+        ),
+    },
+
+    memories: {
+      list: (token: string) =>
+        apiFetch<{ memories: AgentMemoryRecord[] }>("/api/agent/memories", {
+          token,
+        }),
+
+      create: (data: AgentMemoryInput, token: string) =>
+        apiFetch<{ memory: AgentMemoryRecord }>("/api/agent/memories", {
+          method: "POST",
+          body: JSON.stringify(data),
+          token,
+        }),
+
+      update: (id: string, data: AgentMemoryUpdateInput, token: string) =>
+        apiFetch<{ memory: AgentMemoryRecord }>(
+          `/api/agent/memories/${encodeURIComponent(id)}`,
+          {
+            method: "PUT",
+            body: JSON.stringify(data),
+            token,
+          },
+        ),
+
+      upload: (data: AgentMemoryUploadInput, token: string) =>
+        apiFetch<{ memory: AgentMemoryRecord; extractionFailed: boolean }>(
+          "/api/agent/memories/upload",
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+            token,
+            timeoutMs: 180_000,
+          },
+        ),
+
+      remove: (id: string, token: string) =>
+        apiFetch<{ deleted: boolean }>(
+          `/api/agent/memories/${encodeURIComponent(id)}`,
+          {
+            method: "DELETE",
+            token,
+          },
+        ),
+    },
+
+    profiles: {
+      list: (token: string) =>
+        apiFetch<{ profiles: AgentProfile[] }>("/api/agent/profiles", {
+          token,
+        }),
+
+      create: (data: AgentProfileInput, token: string) =>
+        apiFetch<{ profile: AgentProfile }>("/api/agent/profiles", {
+          method: "POST",
+          body: JSON.stringify(data),
+          token,
+        }),
+
+      update: (id: string, data: Partial<AgentProfileInput>, token: string) =>
+        apiFetch<{ profile: AgentProfile }>(
+          `/api/agent/profiles/${encodeURIComponent(id)}`,
+          {
+            method: "PUT",
+            body: JSON.stringify(data),
+            token,
+          },
+        ),
+
+      setDefault: (id: string, token: string) =>
+        apiFetch<{ profile: AgentProfile }>(
+          `/api/agent/profiles/${encodeURIComponent(id)}/default`,
+          {
+            method: "POST",
+            token,
+          },
+        ),
+
+      remove: (id: string, token: string) =>
+        apiFetch<{ deleted: boolean }>(
+          `/api/agent/profiles/${encodeURIComponent(id)}`,
+          {
+            method: "DELETE",
+            token,
+          },
+        ),
+    },
+
+    integrations: {
+      list: (token: string) =>
+        apiFetch<AgentIntegrationsResponse>("/api/agent/integrations", {
+          token,
+        }),
+
+      connect: (toolkit: string, token: string) =>
+        apiFetch<AgentIntegrationConnectResponse>(
+          `/api/agent/integrations/${encodeURIComponent(toolkit)}/connect`,
+          {
+            method: "POST",
+            token,
+            timeoutMs: 30_000,
+          },
+        ),
+
+      sync: (toolkit: string, token: string) =>
+        apiFetch<{ toolkit: AgentIntegrationsResponse["toolkits"][number] }>(
+          `/api/agent/integrations/${encodeURIComponent(toolkit)}/sync`,
+          {
+            method: "POST",
+            token,
+            timeoutMs: 30_000,
+          },
+        ),
+
+      disconnect: (toolkit: string, token: string) =>
+        apiFetch<{ toolkit: AgentIntegrationsResponse["toolkits"][number] }>(
+          `/api/agent/integrations/${encodeURIComponent(toolkit)}`,
+          {
+            method: "DELETE",
+            token,
+            timeoutMs: 30_000,
+          },
+        ),
+    },
+
+    routines: {
+      list: (token: string) =>
+        apiFetch<{ routines: AgentRoutine[] }>("/api/agent/routines", {
+          token,
+        }),
+
+      create: (data: AgentRoutineInput, token: string) =>
+        apiFetch<{ routine: AgentRoutine }>("/api/agent/routines", {
+          method: "POST",
+          body: JSON.stringify(data),
+          token,
+        }),
+
+      update: (id: string, data: Partial<AgentRoutineInput>, token: string) =>
+        apiFetch<{ routine: AgentRoutine }>(
+          `/api/agent/routines/${encodeURIComponent(id)}`,
+          {
+            method: "PUT",
+            body: JSON.stringify(data),
+            token,
+          },
+        ),
+
+      toggle: (id: string, enabled: boolean, token: string) =>
+        apiFetch<{ routine: AgentRoutine }>(
+          `/api/agent/routines/${encodeURIComponent(id)}/toggle`,
+          {
+            method: "POST",
+            body: JSON.stringify({ enabled }),
+            token,
+          },
+        ),
+
+      run: (id: string, token: string) =>
+        apiFetch<{ run: AgentRoutineRun }>(
+          `/api/agent/routines/${encodeURIComponent(id)}/run`,
+          {
+            method: "POST",
+            token,
+            timeoutMs: 120_000,
+          },
+        ),
+
+      runs: (id: string, token: string) =>
+        apiFetch<{ runs: AgentRoutineRun[] }>(
+          `/api/agent/routines/${encodeURIComponent(id)}/runs`,
+          {
+            token,
+          },
+        ),
+
+      remove: (id: string, token: string) =>
+        apiFetch<{ deleted: boolean }>(
+          `/api/agent/routines/${encodeURIComponent(id)}`,
+          {
+            method: "DELETE",
+            token,
+          },
+        ),
+    },
+
+    history: (token: string, opts?: { kind?: "tool" | "routine"; limit?: number }) => {
+      const params = new URLSearchParams();
+      if (opts?.kind) params.set("kind", opts.kind);
+      if (opts?.limit) params.set("limit", String(opts.limit));
+      const qs = params.toString();
+      return apiFetch<{ executions: AgentExecutionRecord[] }>(
+        `/api/agent/history${qs ? `?${qs}` : ""}`,
+        { token },
+      );
+    },
   },
 
   notes: {

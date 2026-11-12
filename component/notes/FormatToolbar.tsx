@@ -4,6 +4,7 @@ import { useThemeColors } from "../../hooks/useTheme";
 import { bodyFont } from "../../constants/themes";
 import ThemeIcon from "./ThemeIcon";
 import { FormatTool } from "../../lib/notes/formatting";
+import { createShadow } from "@/lib/shadow";
 
 interface FormatToolbarProps {
   anim: Animated.Value;
@@ -116,10 +117,7 @@ const styles = StyleSheet.create({
     right: 16,
     borderRadius: 20,
     borderWidth: 1,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
+    ...createShadow("#000000", 0, 6, 12, 0.2),
     elevation: 10,
     overflow: "hidden",
     paddingVertical: 6,

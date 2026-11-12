@@ -11,10 +11,12 @@ import {
     View,
 } from "react-native";
 import Svg, { Circle } from "react-native-svg";
+import { NOTES_HREF } from "../../constants/navigation";
 import { fontFamily } from "../../constants/themes";
 import { useAuth } from "../../contexts/AuthContext";
 import { getNextLevel } from "../../data/levels";
 import { DAILY_ACTIVITY_GOAL } from "../../data/stats";
+import { useFeatureFlags } from "../../hooks/useFeatureFlags";
 import { useResponsive } from "../../hooks/useResponsive";
 import { useThemeColors } from "../../hooks/useTheme";
 import { images } from "../../constants/images";
@@ -41,11 +43,14 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 export default function HeaderSection() {
   const profile = useUserStore((s) => s.profile);
   const theme = useThemeColors();
-  const { isWebWide } = useResponsive();
+  const { isWebWide, showSidebar } = useResponsive();
   const router = useRouter();
   const { navigate } = useNavLock();
   const { getToken } = useAuth();
   const { width } = useWindowDimensions();
+  const { tutor: tutorEnabled } = useFeatureFlags();
+  const wideHeader = isWebWide || showSidebar;
+  const compact = width < 390;
   const [showAppManager, setShowAppManager] = useState(false);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const lastCheckInDate = useCheckInStore((s) => s.lastCheckInDate);
@@ -93,7 +98,7 @@ export default function HeaderSection() {
       colors={[theme.gradientStart, theme.gradientMid, theme.gradientEnd]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={[styles.gradient, isWebWide && styles.gradientWide]}
+      style={[styles.gradient, wideHeader && styles.gradientWide]}
     >
       <View style={styles.glassOverlay} />
       <View
@@ -116,6 +121,21 @@ export default function HeaderSection() {
           </LinearGradient>
         </View>
         <View style={styles.headerActions}>
+          {tutorEnabled ? (
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => navigate(() => router.push(NOTES_HREF as any))}
+              accessibilityRole="button"
+              accessibilityLabel="Open Notes"
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name="notebook-multiple"
+                size={22}
+                color="#FFFFFF"
+              />
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity style={styles.iconBtn}>
             <MaterialCommunityIcons
               name="bell-outline"
@@ -154,7 +174,7 @@ export default function HeaderSection() {
         />
       </View>
 
-      <View style={styles.progressRow}>
+      <View style={[styles.progressRow, compact && styles.progressRowCompact]}>
         <View style={styles.ringWrap}>
           <Svg width={RING_SIZE} height={RING_SIZE}>
             <Circle
@@ -187,7 +207,13 @@ export default function HeaderSection() {
         </View>
 
         <View style={styles.xpInfo}>
-          <Text style={styles.xpValue}>{xp.toLocaleString()} XP</Text>
+          <Text
+            style={[styles.xpValue, compact && styles.xpValueCompact]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {xp.toLocaleString()} XP
+          </Text>
           <Text style={styles.xpNext}>
             {levelProgress.xpForNext > 0
               ? `${levelProgress.xpProgress.toLocaleString()} / ${levelProgress.xpForNext.toLocaleString()}`
@@ -254,7 +280,7 @@ export default function HeaderSection() {
         </View>
 
         <TouchableOpacity
-          style={styles.checkInTrigger}
+          style={[styles.checkInTrigger, compact && styles.checkInTriggerCompact]}
           onPress={() => setShowCheckIn(true)}
           activeOpacity={0.7}
         >
@@ -538,6 +564,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 14,
   },
+  progressRowCompact: {
+    gap: 10,
+  },
   ringWrap: {
     width: RING_SIZE,
     height: RING_SIZE,
@@ -570,12 +599,16 @@ const styles = StyleSheet.create({
   },
   xpInfo: {
     flex: 1,
+    minWidth: 0,
   },
   xpValue: {
     color: "#FFFFFF",
     fontSize: 22,
     fontWeight: "800",
     fontFamily,
+  },
+  xpValueCompact: {
+    fontSize: 19,
   },
   xpNext: {
     color: "rgba(255,255,255,0.6)",
@@ -586,6 +619,7 @@ const styles = StyleSheet.create({
   statRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     marginTop: 6,
     gap: 6,
   },
@@ -596,6 +630,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     gap: 4,
+    flexShrink: 1,
   },
   chipText: {
     color: "rgba(255, 255, 255, 0.85)",
@@ -607,6 +642,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    maxWidth: "100%",
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -614,6 +650,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   milestoneText: {
+    flexShrink: 1,
     color: "rgba(255,255,255,0.75)",
     fontSize: 10,
     fontWeight: "600",
@@ -672,6 +709,9 @@ const styles = StyleSheet.create({
   checkInTrigger: {
     marginRight: 10,
     position: "relative",
+  },
+  checkInTriggerCompact: {
+    marginRight: 0,
   },
   checkInIconBg: {
     width: 44,

@@ -7,7 +7,7 @@ export default function ExploreScreen() {
   return (
     <View style={styles.root}>
       <ErrorBoundary>
-        <ThreadFeedScreen />
+        <ThreadFeedScreen variant="explore" />
       </ErrorBoundary>
     </View>
   );

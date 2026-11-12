@@ -64,7 +64,7 @@ export default function RivalRadar() {
           <TouchableOpacity
             style={styles.rivalRow}
             activeOpacity={0.7}
-            onPress={() => router.push("/(tabs)/stats" as Href)}
+            onPress={() => router.push("/(tabs)/explore" as Href)}
           >
             <CommunityAvatar uid={rival.uid} photoURL={rival.photoURL} size={48} />
             <View style={styles.rivalInfo}>

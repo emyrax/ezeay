@@ -1,4 +1,5 @@
-export const landingColors = {
+
+import { createShadow } from "@/lib/shadow";export const landingColors = {
   bg: "#070A10",
   bgSoft: "#0A101C",
   panel: "#0E1524",
@@ -39,17 +40,11 @@ export const landingRadii = {
 
 export const landingShadows = {
   glow: {
-    shadowColor: landingColors.blue,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
+    ...createShadow(landingColors.blue, 0, 0, 24, 0.35),
     elevation: 8,
   },
   card: {
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.35,
-    shadowRadius: 30,
+    ...createShadow("#000000", 0, 14, 30, 0.35),
     elevation: 10,
   },
 } as const;

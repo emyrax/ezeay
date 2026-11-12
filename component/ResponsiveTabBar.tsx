@@ -6,26 +6,32 @@ import { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NAV } from "../constants/layout";
-import { NOTES_HREF, TAB_ITEMS, type TabItem } from "../constants/navigation";
+import {
+  NOTES_HREF,
+  TAB_ITEMS,
+  TUTOR_HREF,
+  type TabItem,
+} from "../constants/navigation";
+import { useFeatureFlags } from "../hooks/useFeatureFlags";
 import { useThemeColors } from "../hooks/useTheme";
 import { withAlpha } from "../lib/color";
 
 function TabButton({
   route,
   isFocused,
-  isNotesActive,
+  isCenterActive,
   onPress,
   tab,
   theme,
 }: {
   route: { name: string };
   isFocused: boolean;
-  isNotesActive: boolean;
+  isCenterActive: boolean;
   onPress: () => void;
   tab: TabItem | undefined;
   theme: ReturnType<typeof useThemeColors>;
 }) {
-  const showActive = isFocused && !isNotesActive;
+  const showActive = isFocused && !isCenterActive;
   return (
     <Pressable
       onPress={onPress}
@@ -83,13 +89,18 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
   const theme = useThemeColors();
   const router = useRouter();
   const segments = useSegments();
-  const isNotesActive = segments[0] === "(notes)";
+  const { tutor: tutorEnabled, agent: agentEnabled } = useFeatureFlags();
+  const centerEnabled = tutorEnabled || agentEnabled;
+  const isCenterActive = centerEnabled
+    ? segments[0] === "(tutor)"
+    : segments[0] === "(notes)";
+  const centerHref = centerEnabled ? TUTOR_HREF : NOTES_HREF;
 
   const glowAnim = useRef(new Animated.Value(0.3)).current;
   const pressScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (isNotesActive) {
+    if (isCenterActive) {
       const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, {
@@ -109,7 +120,7 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
     } else {
       glowAnim.setValue(0.3);
     }
-  }, [isNotesActive, glowAnim]);
+  }, [isCenterActive, glowAnim]);
 
   const leftRoutes = state.routes.slice(0, 2);
   const rightRoutes = state.routes.slice(2);
@@ -135,7 +146,7 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
         key={route.key}
         route={route}
         isFocused={isFocused}
-        isNotesActive={isNotesActive}
+        isCenterActive={isCenterActive}
         onPress={onPress}
         tab={tab}
         theme={theme}
@@ -172,12 +183,14 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
               styles.glowRing,
               {
                 backgroundColor: theme.tabActive,
-                opacity: isNotesActive ? glowAnim : 0,
+                opacity: isCenterActive ? glowAnim : 0,
               },
             ]}
           />
           <Pressable
-            onPress={() => router.push(NOTES_HREF)}
+            onPress={() => router.push(centerHref as any)}
+            accessibilityRole="button"
+            accessibilityLabel={tutorEnabled ? "Open AI Tutor" : "Open Notes"}
             onPressIn={() =>
               Animated.spring(pressScale, {
                 toValue: 0.88,
@@ -210,7 +223,7 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
               >
                 <View style={[styles.resultIcon, styles.centerLogo]}>
                   <MaterialCommunityIcons
-                    name="notebook-multiple"
+                    name={tutorEnabled ? "school-outline" : "notebook-multiple"}
                     size={22}
                     color={theme.primary}
                   />

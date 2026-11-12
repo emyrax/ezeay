@@ -40,7 +40,7 @@ export const appTheme: ThemeColors = {
   surfaceAlt: "#213E6E",
   glass: "rgba(27, 53, 96, 0.85)",
   text: "#ffffff",
-  textSecondary: "#148cee",
+  textSecondary: "#b5cee2",
   textMuted: "#a2aab3",
   primary: "#2d8dfc",
   primaryLight: "rgba(149, 208, 253, 0.16)",

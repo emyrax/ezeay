@@ -1,8 +1,10 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import React, { useCallback, useState } from "react";
+import * as Linking from "expo-linking";
+import React, { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +14,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -22,52 +25,57 @@ import { useThemeColors } from "../hooks/useTheme";
 import { api } from "../lib/api";
 import { uploadImage } from "../lib/cloudinary";
 import {
+  buildXIntentUrl,
+  deriveResourceContent,
+  inferResourceType,
+} from "../lib/community/resourceComposer";
+import { eventBus } from "../lib/eventBus";
+import {
   MAX_THREAD_ATTACHMENT_BYTES,
   exceedsThreadAttachmentLimit,
   formatFileSize,
 } from "../lib/uploadLimits";
 import { uploadFile } from "../lib/uploadFile";
-import type { ExploreResourcePost, ReelHookMeta, ResourceType } from "../types/community";
+import type { ExploreResourcePost } from "../types/community";
+import CommunityAvatar from "./CommunityAvatar";
 
 interface ResourceUploadSheetProps {
   visible: boolean;
   onClose: () => void;
   onSuccess: (post: ExploreResourcePost) => void;
+  onStartSpace?: () => void;
 }
 
-const RESOURCE_TYPES: {
-  type: ResourceType;
-  label: string;
-  icon: string;
-  desc: string;
-  proOnly?: boolean;
-}[] = [
-  { type: "handwritten", label: "Handwritten", icon: "draw", desc: "Notes, formulas, sketches" },
-  { type: "pdf", label: "PDF Document", icon: "file-pdf-box", desc: "Cheatsheets, guides, papers" },
-  { type: "image", label: "Image / Diagram", icon: "image", desc: "Infographics, mind maps" },
-  { type: "text", label: "Text / Summary", icon: "file-document-outline", desc: "Excerpts, outlines, notes" },
-  { type: "audio", label: "Audio Lecture", icon: "file-music", desc: "Recorded lectures and audio notes", proOnly: true },
-  { type: "other", label: "Other File", icon: "folder-open-outline", desc: "Presentations, data, code" },
-];
+interface Attachment {
+  uri: string;
+  name: string;
+  size: number;
+  mimeType: string;
+}
 
-export default function ResourceUploadSheet({ visible, onClose, onSuccess }: ResourceUploadSheetProps) {
+const APP_URL = (
+  process.env.EXPO_PUBLIC_APP_URL || "https://yuinx.app"
+).replace(/\/$/, "");
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+export default function ResourceUploadSheet({
+  visible,
+  onClose,
+  onSuccess,
+  onStartSpace,
+}: ResourceUploadSheetProps) {
   const theme = useThemeColors();
   const { getToken, profile } = useAuth();
   const isPro = profile?.isPro ?? false;
-  const resourceTypes = RESOURCE_TYPES.filter((item) => !item.proOnly || isPro);
+  const inputRef = useRef<TextInput>(null);
 
-  const [resourceType, setResourceType] = useState<ResourceType>("handwritten");
-  const [fileUri, setFileUri] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string>("");
-  const [fileSize, setFileSize] = useState<number>(0);
-  const [mimeType, setMimeType] = useState<string>("application/octet-stream");
-
-  const [title, setTitle] = useState("");
-  const [summary, setSummary] = useState("");
-  const [hook, setHook] = useState("");
-
-  const [generatingChallenge, setGeneratingChallenge] = useState(false);
-  const [challengePreview, setChallengePreview] = useState<ReelHookMeta | null>(null);
+  const [caption, setCaption] = useState("");
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const [noteOnly, setNoteOnly] = useState(false);
+  const [shareToX, setShareToX] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
   const buzz = useCallback(() => {
@@ -76,155 +84,129 @@ export default function ResourceUploadSheet({ visible, onClose, onSuccess }: Res
     }
   }, []);
 
-  const clearFile = () => {
-    setFileUri(null);
-    setFileName("");
-    setFileSize(0);
-    setMimeType("application/octet-stream");
-  };
-
-  const selectResourceType = (type: ResourceType) => {
-    if (type !== resourceType) clearFile();
-    setResourceType(type);
-  };
-
-  const resetForm = () => {
-    clearFile();
-    setTitle("");
-    setSummary("");
-    setHook("");
-    setChallengePreview(null);
-    setGeneratingChallenge(false);
+  const resetForm = useCallback(() => {
+    setCaption("");
+    setAttachment(null);
+    setNoteOnly(false);
+    setShareToX(false);
     setPublishing(false);
-  };
+  }, []);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (publishing) return;
     resetForm();
     onClose();
-  };
+  }, [onClose, publishing, resetForm]);
 
-  const handlePickDocument = async () => {
-    buzz();
-    try {
-      const res = await DocumentPicker.getDocumentAsync({
-        type: resourceType === "audio" ? ["audio/*"] : ["*/*"],
-        copyToCacheDirectory: true,
-      });
-
-      if (res.canceled || !res.assets || res.assets.length === 0) return;
-      const asset = res.assets[0];
-
-      if (asset.size && exceedsThreadAttachmentLimit(asset.size)) {
-        Alert.alert(
-          "File Too Large",
-          `Maximum supported file size is ${formatFileSize(MAX_THREAD_ATTACHMENT_BYTES)}.`,
-        );
-        return;
-      }
-      if (asset.size === 0) {
-        Alert.alert("Empty File", "The selected file is empty. Please pick a valid file.");
-        return;
-      }
-
-      setFileUri(asset.uri);
-      setFileName(asset.name || "upload");
-      setFileSize(asset.size || 1024);
-      setMimeType(asset.mimeType || "application/octet-stream");
-      if (!title) {
-        const cleanName = (asset.name || "")
-          .replace(/\.[^/.]+$/, "")
-          .replace(/[-_]/g, " ")
-          .trim();
-        if (cleanName) setTitle(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
-      }
-    } catch (err: any) {
-      console.error("[ResourceUpload] Doc picker error:", err);
-      Alert.alert("Picker Error", "Failed to choose file.");
+  const validateSize = (size: number | undefined) => {
+    if (!size) return true;
+    if (size === 0) {
+      Alert.alert("Empty File", "That file is empty. Pick a different file.");
+      return false;
     }
+    if (exceedsThreadAttachmentLimit(size)) {
+      Alert.alert(
+        "File Too Large",
+        `Attachments are limited to ${formatFileSize(MAX_THREAD_ATTACHMENT_BYTES)}.`,
+      );
+      return false;
+    }
+    return true;
   };
 
-  const handlePickImage = async () => {
+  const pickImage = async () => {
     buzz();
     try {
-      const res = await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.85,
       });
-
-      if (res.canceled || !res.assets || res.assets.length === 0) return;
-      const asset = res.assets[0];
-
-      if (asset.fileSize && exceedsThreadAttachmentLimit(asset.fileSize)) {
-        Alert.alert(
-          "Image Too Large",
-          `Maximum supported size is ${formatFileSize(MAX_THREAD_ATTACHMENT_BYTES)}.`,
-        );
-        return;
-      }
-
-      setFileUri(asset.uri);
-      setFileName(asset.fileName || `image_${Date.now()}.jpg`);
-      setFileSize(asset.fileSize || 100_000);
-      setMimeType(asset.mimeType || "image/jpeg");
-    } catch (err: any) {
-      console.error("[ResourceUpload] Image picker error:", err);
-      Alert.alert("Picker Error", "Failed to choose image.");
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (!validateSize(asset.fileSize)) return;
+      setAttachment({
+        uri: asset.uri,
+        name: asset.fileName || `image_${Date.now()}.jpg`,
+        size: asset.fileSize || 100_000,
+        mimeType: asset.mimeType || "image/jpeg",
+      });
+      setNoteOnly(false);
+    } catch (error) {
+      console.error("[ResourceComposer] Image picker failed:", error);
+      Alert.alert("Photo Error", "Couldn't open your photo library.");
     }
   };
 
-  const handleGenerateChallenge = async () => {
-    if (!title.trim() || !summary.trim()) {
-      Alert.alert("Missing Information", "Please enter a title and brief summary first.");
+  const pickDocument = async (kind: "document" | "audio" = "document") => {
+    if (kind === "audio" && !isPro) {
+      Alert.alert(
+        "Audio is a Pro feature",
+        "Upgrade to share recorded lectures and audio notes.",
+      );
       return;
     }
     buzz();
-    setGeneratingChallenge(true);
     try {
-      const token = await getToken();
-      if (!token) throw new Error("Not signed in");
-      const generated = await api.community.resources.generateChallenge(
-        {
-          title: title.trim(),
-          summary: summary.trim(),
-          resourceType,
-        },
-        token,
-      );
-      setChallengePreview(generated);
-      if (!hook.trim() && generated.hook) {
-        setHook(generated.hook);
-      }
-    } catch (err: any) {
-      console.error("[ResourceUpload] Challenge generation failed:", err);
-      Alert.alert("Challenge Preview", "Couldn't generate a challenge preview right now, but you can still publish!");
-    } finally {
-      setGeneratingChallenge(false);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: kind === "audio" ? ["audio/*"] : ["*/*"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (!validateSize(asset.size)) return;
+      setAttachment({
+        uri: asset.uri,
+        name: asset.name || (kind === "audio" ? "audio.m4a" : "resource.pdf"),
+        size: asset.size || 1024,
+        mimeType:
+          asset.mimeType ||
+          (kind === "audio" ? "audio/mpeg" : "application/octet-stream"),
+      });
+      setNoteOnly(false);
+    } catch (error) {
+      console.error("[ResourceComposer] Document picker failed:", error);
+      Alert.alert("File Error", "Couldn't open the file picker.");
     }
   };
 
+  const startNote = () => {
+    buzz();
+    setAttachment(null);
+    setNoteOnly(true);
+    inputRef.current?.focus();
+  };
+
+  const clearAttachment = () => {
+    buzz();
+    setAttachment(null);
+    setNoteOnly(false);
+  };
+
   const handlePublish = async () => {
-    const isTextResource = resourceType === "text";
-    if (!fileUri && !isTextResource) {
-      Alert.alert("No File Selected", "Please select a file or image to share.");
-      return;
-    }
-    if (fileUri && exceedsThreadAttachmentLimit(fileSize)) {
+    const cleanCaption = caption.trim();
+    if (!cleanCaption && !attachment) {
       Alert.alert(
-        "File Too Large",
-        `Thread attachments are limited to ${formatFileSize(MAX_THREAD_ATTACHMENT_BYTES)}.`,
+        "Nothing to share",
+        "Write a caption or attach a file before publishing.",
       );
       return;
     }
-    if (!title.trim()) {
-      Alert.alert("Title Required", "Please give this resource a title.");
+    if (attachment && exceedsThreadAttachmentLimit(attachment.size)) {
+      Alert.alert(
+        "File Too Large",
+        `Attachments are limited to ${formatFileSize(MAX_THREAD_ATTACHMENT_BYTES)}.`,
+      );
       return;
     }
-    if (!summary.trim()) {
-      Alert.alert("Summary Required", "Please provide a 1-2 sentence summary of what learners will get.");
-      return;
-    }
+
+    const resourceType = inferResourceType({
+      hasFile: !!attachment,
+      fileName: attachment?.name,
+      mimeType: attachment?.mimeType,
+      noteOnly,
+    });
+    const content = deriveResourceContent(cleanCaption, attachment?.name);
 
     buzz();
     setPublishing(true);
@@ -232,399 +214,392 @@ export default function ResourceUploadSheet({ visible, onClose, onSuccess }: Res
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
 
-      // 1. Upload file (text resources can publish from the summary alone)
       let storageUrl = "";
-      const isImg =
-        !!fileUri &&
-        (mimeType.startsWith("image/") ||
-          resourceType === "image" ||
-          resourceType === "handwritten");
-      if (fileUri) {
-        if (isImg) {
+      const isImage = !!attachment && resourceType === "image";
+      if (attachment) {
+        if (isImage) {
           try {
-            storageUrl = await uploadImage(fileUri, getToken, { endpoint: "/api/community/thread-uploads/image" });
+            storageUrl = await uploadImage(attachment.uri, getToken, {
+              endpoint: "/api/community/thread-uploads/image",
+            });
           } catch {
             storageUrl = await uploadFile(
-              fileUri,
-              fileName || "resource.jpg",
-              mimeType,
+              attachment.uri,
+              attachment.name,
+              attachment.mimeType,
               getToken,
               { endpoint: "/api/community/thread-uploads" },
             );
           }
         } else {
           storageUrl = await uploadFile(
-            fileUri,
-            fileName || (resourceType === "audio" ? "lecture.m4a" : "resource.pdf"),
-            mimeType,
+            attachment.uri,
+            attachment.name,
+            attachment.mimeType,
             getToken,
             { endpoint: "/api/community/thread-uploads" },
           );
         }
       }
 
-      // 2. Generate challenge if not already generated
-      let challengeData = challengePreview;
-      if (!challengeData) {
-        try {
-          challengeData = await api.community.resources.generateChallenge(
-            {
-              title: title.trim(),
-              summary: summary.trim(),
-              resourceType,
-            },
-            token,
-          );
-        } catch {
-          challengeData = {
-            hook: hook.trim() || `Master ${title.trim()}`,
-            hookTone: "curious",
-            challengeType: "multiple-choice",
-            challengePrompt: "What is the key insight of this resource?",
-            challengeOptions: ["Core conceptual pattern", "Passive memorization", "Trial and error"],
-            correctChoiceIndex: 0,
-            revealText: summary.trim() || "Studying peer insights reinforces memory retention.",
-            shareCopy: `Discovered a great study resource on Yuinx: ${title.trim()}!`,
-            xpReward: 20,
-          };
-        }
+      let challengeData;
+      try {
+        challengeData = await api.community.resources.generateChallenge(
+          {
+            title: content.title,
+            summary: content.summary,
+            resourceType,
+          },
+          token,
+        );
+      } catch {
+        challengeData = {
+          hook: content.hook || `Master ${content.title}`,
+          hookTone: "curious" as const,
+          challengeType: "multiple-choice" as const,
+          challengePrompt: "What is the key insight of this resource?",
+          challengeOptions: [
+            "Core conceptual pattern",
+            "Passive memorization",
+            "Trial and error",
+          ],
+          correctChoiceIndex: 0,
+          revealText:
+            content.summary || "Peer insights make studying stickier.",
+          shareCopy: `Discovered a great study resource on Yuinx: ${content.title}!`,
+          xpReward: 20,
+        };
       }
 
-      // 3. Post to community
-      const payload = {
-        title: title.trim(),
-        summary: summary.trim(),
-        hook: hook.trim() || challengeData?.hook || `Master ${title.trim()}`,
-        challengeType: challengeData?.challengeType || "multiple-choice",
-        challengePrompt: challengeData?.challengePrompt || "What is the core takeaway?",
-        challengeOptions: challengeData?.challengeOptions || ["Focus on principles", "Memorize raw answers"],
-        correctChoiceIndex: challengeData?.correctChoiceIndex ?? 0,
-        revealText: challengeData?.revealText || summary.trim(),
-        shareCopy: challengeData?.shareCopy || `Check out ${title.trim()} on Yuinx!`,
-        resourceType,
-        fileName: fileName || (isTextResource ? "text-note" : "resource"),
-        fileSizeBytes: fileSize,
-        mimeType: isTextResource && !fileUri ? "text/plain" : mimeType,
-        storageUrl,
-        previewUrl: isImg && storageUrl ? storageUrl : undefined,
-        previewText: summary.trim(),
-        tags: [resourceType, "peer-resource"],
-        difficulty: "All Levels",
+      const result = await api.community.resources.create(
+        {
+          title: content.title,
+          summary: content.summary,
+          hook: content.hook || challengeData.hook || `Master ${content.title}`,
+          challengeType: challengeData.challengeType || "multiple-choice",
+          challengePrompt:
+            challengeData.challengePrompt || "What is the core takeaway?",
+          challengeOptions: challengeData.challengeOptions || [
+            "Focus on principles",
+            "Memorize raw answers",
+          ],
+          correctChoiceIndex: challengeData.correctChoiceIndex ?? 0,
+          revealText: challengeData.revealText || content.summary,
+          shareCopy:
+            challengeData.shareCopy || `Check out ${content.title} on Yuinx!`,
+          resourceType,
+          fileName: attachment?.name || "text-note",
+          fileSizeBytes: attachment?.size ?? 0,
+          mimeType: attachment?.mimeType || "text/plain",
+          storageUrl,
+          previewUrl: isImage && storageUrl ? storageUrl : undefined,
+          previewText: content.summary,
+          tags: [resourceType, "peer-resource"],
+          difficulty: "All Levels",
+        },
+        token,
+      );
+
+      const finish = () => {
+        onSuccess(result.post);
+        handleClose();
       };
 
-      const res = await api.community.resources.create(payload, token);
-      buzz();
-      Alert.alert("Published!", "Your resource is now live on the Threads feed.", [
-        {
-          text: "View in Threads",
-          onPress: () => {
-            onSuccess(res.post);
-            handleClose();
-          },
-        },
-      ]);
-    } catch (err: any) {
-      console.error("[ResourceUpload] Publish failed:", err);
-      Alert.alert("Upload Failed", err.message || "Failed to publish resource. Please try again.");
+      if (shareToX) {
+        const xUrl = buildXIntentUrl(
+          cleanCaption || content.summary,
+          `${APP_URL}/threads/${result.post.id}`,
+        );
+        Alert.alert(
+          "Published!",
+          "Your post is live on Threads. Open X to share it with your followers.",
+          [
+            { text: "Not now", onPress: finish },
+            {
+              text: "Share to X",
+              onPress: () => {
+                Linking.openURL(xUrl).catch(() => {
+                  eventBus.emit("toast:error", {
+                    title: "Couldn't open X",
+                    message: "Open x.com to share your post.",
+                  });
+                });
+                finish();
+              },
+            },
+          ],
+        );
+      } else {
+        eventBus.emit("toast:success", {
+          title: "Published to Threads",
+          message: "Your resource is live. +20 XP",
+        });
+        finish();
+      }
+    } catch (error) {
+      console.error("[ResourceComposer] Publish failed:", error);
+      Alert.alert(
+        "Couldn't publish",
+        errorMessage(error, "Something went wrong. Please try again."),
+      );
     } finally {
       setPublishing(false);
     }
   };
 
+  const canPublish =
+    !publishing && (caption.trim().length > 0 || attachment !== null);
+  const attachmentIcon = attachment
+    ? inferResourceType({
+        hasFile: true,
+        fileName: attachment.name,
+        mimeType: attachment.mimeType,
+      })
+    : "text";
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={handleClose}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.modalOverlay}
+        style={styles.overlay}
       >
         <Pressable style={styles.backdrop} onPress={handleClose} />
-        <View style={[styles.sheetContainer, { backgroundColor: theme.surface }]}>
-          <View style={[styles.handleBar, { backgroundColor: theme.border }]} />
+        <View style={[styles.sheet, { backgroundColor: theme.surface }]}>
+          <View style={[styles.handle, { backgroundColor: theme.border }]} />
 
-          {/* Header */}
-          <View style={styles.sheetHeader}>
-            <View>
-              <Text style={[styles.sheetTitle, { color: theme.text }]}>Share Resource</Text>
-              <Text style={[styles.sheetSubtitle, { color: theme.textSecondary }]}>
-                Publish notes, PDFs & challenges to Threads
+          <View style={styles.header}>
+            <View style={styles.headerCopy}>
+              <Text style={[styles.title, { color: theme.text }]}>Create post</Text>
+              <Text style={[styles.subtitle, { color: theme.textMuted }]}>
+                Share a resource with your learning community
               </Text>
             </View>
-            <Pressable onPress={handleClose} hitSlop={12} style={styles.closeBtn}>
+            <Pressable
+              onPress={handleClose}
+              hitSlop={12}
+              style={styles.closeBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Close composer"
+            >
               <Ionicons name="close" size={22} color={theme.textMuted} />
             </Pressable>
           </View>
 
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scroll}
           >
-            {/* Step 1: Resource Type */}
-            <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>Resource Type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeRow}>
-              {resourceTypes.map((item) => {
-                const isSelected = resourceType === item.type;
-                return (
-                  <Pressable
-                    key={item.type}
-                    onPress={() => {
-                      buzz();
-                      selectResourceType(item.type);
-                    }}
+            <View style={styles.authorRow}>
+              <CommunityAvatar
+                uid={profile?.uid ?? "me"}
+                photoURL={profile?.photoURL}
+                size={46}
+              />
+              <View style={styles.authorCopy}>
+                <Text style={[styles.authorName, { color: theme.text }]}>
+                  {profile?.displayName || "Learner"}
+                </Text>
+                <Text style={[styles.authorMeta, { color: theme.textMuted }]}>
+                  Posting to Threads · Everyone
+                </Text>
+              </View>
+            </View>
+
+            <TextInput
+              ref={inputRef}
+              value={caption}
+              onChangeText={setCaption}
+              placeholder="Share something you're learning, a useful note, or a resource worth discussing..."
+              placeholderTextColor={theme.textMuted}
+              style={[styles.captionInput, { color: theme.text }]}
+              multiline
+              maxLength={800}
+              textAlignVertical="top"
+            />
+
+            {attachment ? (
+              <View
+                style={[
+                  styles.attachmentCard,
+                  { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
+                ]}
+              >
+                {attachmentIcon === "image" ? (
+                  <Image
+                    source={{ uri: attachment.uri }}
+                    style={styles.attachmentImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View
                     style={[
-                      styles.typeChip,
-                      {
-                        backgroundColor: isSelected ? theme.primary + "22" : theme.surfaceAlt,
-                        borderColor: isSelected ? theme.primary : theme.border,
-                      },
+                      styles.attachmentIcon,
+                      { backgroundColor: theme.primary + "18" },
                     ]}
                   >
                     <MaterialCommunityIcons
-                      name={item.icon as any}
-                      size={18}
-                      color={isSelected ? theme.primary : theme.textMuted}
+                      name={
+                        attachmentIcon === "audio"
+                          ? "file-music"
+                          : attachmentIcon === "pdf"
+                            ? "file-pdf-box"
+                            : "file-document-outline"
+                      }
+                      size={28}
+                      color={theme.primary}
                     />
-                    <Text
-                      style={[
-                        styles.typeLabel,
-                        { color: isSelected ? theme.primary : theme.text, fontWeight: isSelected ? "700" : "500" },
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {/* Step 2: File Picker */}
-            <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-              {resourceType === "text"
-                ? `Optional File (< ${formatFileSize(MAX_THREAD_ATTACHMENT_BYTES)})`
-                : `Upload File (< ${formatFileSize(MAX_THREAD_ATTACHMENT_BYTES)})`}
-            </Text>
-            <Text style={[styles.helperText, { color: theme.textMuted }]}>
-              Attachments are limited to 5 MB. Audio lectures require Pro.
-            </Text>
-            {fileUri ? (
-              <View style={[styles.fileCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
-                <View style={[styles.fileIconWrap, { backgroundColor: theme.primary + "18" }]}>
-                  <MaterialCommunityIcons
-                    name={
-                      resourceType === "pdf"
-                        ? "file-pdf-box"
-                        : resourceType === "image" || resourceType === "handwritten"
-                          ? "image"
-                          : resourceType === "audio"
-                            ? "file-music"
-                            : "file-document"
-                    }
-                    size={28}
-                    color={theme.primary}
-                  />
-                </View>
-                <View style={styles.fileMeta}>
-                  <Text style={[styles.fileName, { color: theme.text }]} numberOfLines={1}>
-                    {fileName}
+                  </View>
+                )}
+                <View style={styles.attachmentCopy}>
+                  <Text
+                    style={[styles.attachmentName, { color: theme.text }]}
+                    numberOfLines={1}
+                  >
+                    {attachment.name}
                   </Text>
-                  <Text style={[styles.fileSub, { color: theme.textMuted }]}>
-                    {formatFileSize(fileSize)} · {mimeType.split("/")[1] || "file"}
+                  <Text style={[styles.attachmentMeta, { color: theme.textMuted }]}>
+                    {formatFileSize(attachment.size)} ·{" "}
+                    {attachment.mimeType.split("/")[1] || "file"}
                   </Text>
                 </View>
                 <Pressable
-                  onPress={() => {
-                    buzz();
-                    clearFile();
-                  }}
+                  onPress={clearAttachment}
                   hitSlop={10}
-                  style={styles.removeFileBtn}
+                  style={styles.removeBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove attachment"
                 >
-                  <Ionicons name="trash-outline" size={18} color="#FF5252" />
+                  <Ionicons name="close-circle" size={22} color={theme.textMuted} />
                 </Pressable>
               </View>
-            ) : (
-              <View style={styles.pickButtonRow}>
-                <Pressable
-                  onPress={resourceType === "image" || resourceType === "handwritten" ? handlePickImage : handlePickDocument}
-                  style={[styles.pickerActionBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
-                >
-                  <Ionicons
-                    name={
-                      resourceType === "image" || resourceType === "handwritten"
-                        ? "images-outline"
-                        : "document-attach-outline"
-                    }
-                    size={22}
-                    color={theme.primary}
-                  />
-                  <Text style={[styles.pickerActionText, { color: theme.text }]}>
-                    {resourceType === "image" || resourceType === "handwritten"
-                      ? "Choose Photo or Note"
-                      : resourceType === "audio"
-                        ? "Choose Audio File"
-                        : "Choose Document / PDF"}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handlePickDocument}
-                  style={[styles.pickerSecondaryBtn, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
-                >
-                  <Ionicons name="folder-outline" size={18} color={theme.textMuted} />
-                  <Text style={[styles.pickerSecondaryText, { color: theme.textSecondary }]}>Browse Files</Text>
-                </Pressable>
-              </View>
-            )}
+            ) : null}
 
-            {/* Step 3: Title and Summary */}
-            <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>Resource Title</Text>
-            <TextInput
-              value={title}
-              onChangeText={setTitle}
-              placeholder="e.g. Master Calculus in 10 Formulas"
-              placeholderTextColor={theme.textMuted}
-              style={[
-                styles.input,
-                { backgroundColor: theme.surfaceAlt, color: theme.text, borderColor: theme.border },
-              ]}
-              maxLength={120}
-            />
-
-            <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>Brief Summary</Text>
-            <TextInput
-              value={summary}
-              onChangeText={setSummary}
-              placeholder="What makes this resource helpful? (2-3 sentences)"
-              placeholderTextColor={theme.textMuted}
-              style={[
-                styles.textArea,
-                { backgroundColor: theme.surfaceAlt, color: theme.text, borderColor: theme.border },
-              ]}
-              multiline
-              numberOfLines={3}
-              maxLength={300}
-            />
-
-            <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-              Curiosity Hook (Optional)
-            </Text>
-            <TextInput
-              value={hook}
-              onChangeText={setHook}
-              placeholder="e.g. The 1 theorem everyone forgets on finals"
-              placeholderTextColor={theme.textMuted}
-              style={[
-                styles.input,
-                { backgroundColor: theme.surfaceAlt, color: theme.text, borderColor: theme.border },
-              ]}
-              maxLength={140}
-            />
-
-            {/* Step 4: AI Challenge Generator */}
-            <View style={styles.challengeActionRow}>
-              <Pressable
-                onPress={handleGenerateChallenge}
-                disabled={generatingChallenge || !title.trim() || !summary.trim()}
+            {noteOnly && !attachment ? (
+              <View
                 style={[
-                  styles.challengeGenBtn,
-                  {
-                    backgroundColor: theme.surfaceAlt,
-                    borderColor: theme.primary,
-                    opacity: !title.trim() || !summary.trim() ? 0.4 : 1,
-                  },
+                  styles.noteBadge,
+                  { backgroundColor: theme.primary + "14" },
                 ]}
               >
-                {generatingChallenge ? (
-                  <ActivityIndicator size="small" color={theme.primary} />
-                ) : (
-                  <MaterialCommunityIcons name="lightning-bolt" size={18} color={theme.primary} />
-                )}
-                <Text style={[styles.challengeGenText, { color: theme.primary }]}>
-                  {generatingChallenge ? "Generating Challenge..." : "Preview AI Retention Challenge"}
+                <MaterialCommunityIcons
+                  name="text-box-outline"
+                  size={15}
+                  color={theme.primary}
+                />
+                <Text style={[styles.noteBadgeText, { color: theme.primary }]}>
+                  Text note
+                </Text>
+              </View>
+            ) : null}
+
+            <View
+              style={[styles.xRow, { borderColor: theme.border }]}
+            >
+              <View style={[styles.xIcon, { backgroundColor: theme.surfaceAlt }]}>
+                <Text style={[styles.xGlyph, { color: theme.text }]}>𝕏</Text>
+              </View>
+              <View style={styles.xCopy}>
+                <Text style={[styles.xTitle, { color: theme.text }]}>
+                  Also share to X
+                </Text>
+                <Text style={[styles.xMeta, { color: theme.textMuted }]}>
+                  Opens a pre-filled post after publishing. You can edit it first.
+                </Text>
+              </View>
+              <Switch
+                value={shareToX}
+                onValueChange={(value) => {
+                  buzz();
+                  setShareToX(value);
+                }}
+                trackColor={{
+                  false: theme.border,
+                  true: theme.primary + "80",
+                }}
+                thumbColor={shareToX ? theme.primary : theme.textMuted}
+              />
+            </View>
+
+            <View style={[styles.toolbar, { borderColor: theme.border }]}>
+              <ToolAction
+                icon="image-outline"
+                label="Photo"
+                color={theme.text}
+                iconColor="#4ADE80"
+                onPress={pickImage}
+              />
+              <ToolAction
+                icon="document-text-outline"
+                label="Document"
+                color={theme.text}
+                iconColor="#60A5FA"
+                onPress={() => pickDocument("document")}
+              />
+              <ToolAction
+                icon={isPro ? "musical-notes-outline" : "lock-closed-outline"}
+                label="Audio"
+                color={isPro ? theme.text : theme.textMuted}
+                iconColor={isPro ? "#F59E0B" : theme.textMuted}
+                onPress={() => pickDocument("audio")}
+              />
+              <ToolAction
+                icon="create-outline"
+                label="Note"
+                color={noteOnly ? theme.primary : theme.text}
+                iconColor={noteOnly ? theme.primary : "#A78BFA"}
+                onPress={startNote}
+              />
+              <ToolAction
+                icon="radio-outline"
+                label="Space"
+                color={theme.text}
+                iconColor="#FB7185"
+                onPress={() => {
+                  buzz();
+                  if (onStartSpace) {
+                    onStartSpace();
+                    return;
+                  }
+                  eventBus.emit("toast:info", {
+                    title: "Live Spaces",
+                    message: "Audio Spaces are available in the dev build.",
+                  });
+                }}
+              />
+            </View>
+
+            <View style={styles.footer}>
+              <Text style={[styles.footerHint, { color: theme.textMuted }]}>
+                {caption.length > 0 ? `${caption.length}/800` : "Publishing adds +20 XP"}
+              </Text>
+              <Pressable
+                onPress={handlePublish}
+                disabled={!canPublish}
+                style={[
+                  styles.publishBtn,
+                  {
+                    backgroundColor: theme.primary,
+                    opacity: canPublish ? 1 : 0.45,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Publish post"
+                accessibilityState={{ disabled: !canPublish }}
+              >
+                {publishing ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : null}
+                <Text style={styles.publishText}>
+                  {publishing ? "Publishing..." : "Post"}
                 </Text>
               </Pressable>
             </View>
-
-            {challengePreview && (
-              <View style={[styles.previewCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
-                <View style={styles.previewHeader}>
-                  <Text style={[styles.previewBadge, { color: theme.primary }]}>AI CHALLENGE PAYOFF</Text>
-                  <Text style={[styles.previewTone, { color: theme.textMuted }]}>
-                    {challengePreview.hookTone?.toUpperCase() || "CURIOUS"}
-                  </Text>
-                </View>
-                <Text style={[styles.previewPrompt, { color: theme.text }]}>
-                  {challengePreview.challengePrompt}
-                </Text>
-                <View style={styles.previewOptions}>
-                  {challengePreview.challengeOptions?.map((opt, i) => (
-                    <View
-                      key={opt}
-                      style={[
-                        styles.previewOptionChip,
-                        {
-                          backgroundColor:
-                            i === challengePreview.correctChoiceIndex
-                              ? theme.primary + "18"
-                              : "rgba(255,255,255,0.03)",
-                          borderColor:
-                            i === challengePreview.correctChoiceIndex ? theme.primary : theme.border,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.previewOptionText,
-                          {
-                            color:
-                              i === challengePreview.correctChoiceIndex ? theme.primary : theme.textSecondary,
-                          },
-                        ]}
-                      >
-                        {opt} {i === challengePreview.correctChoiceIndex ? "✓ (Correct)" : ""}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-                {challengePreview.revealText && (
-                  <Text style={[styles.previewReveal, { color: theme.textMuted }]}>
-                    Insight: {challengePreview.revealText}
-                  </Text>
-                )}
-              </View>
-            )}
-
-            {/* Step 5: Publish Action Button */}
-            <Pressable
-              onPress={handlePublish}
-              disabled={
-                publishing ||
-                (!fileUri && resourceType !== "text") ||
-                !title.trim() ||
-                !summary.trim()
-              }
-              style={[
-                styles.publishBtn,
-                {
-                  backgroundColor: theme.primary,
-                  opacity:
-                    publishing ||
-                    (!fileUri && resourceType !== "text") ||
-                    !title.trim() ||
-                    !summary.trim()
-                      ? 0.5
-                      : 1,
-                },
-              ]}
-            >
-              {publishing ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <MaterialCommunityIcons name="send" size={18} color="#FFFFFF" />
-              )}
-              <Text style={styles.publishBtnText}>
-                {publishing ? "Uploading & Publishing..." : "Publish to Threads (+20 XP)"}
-              </Text>
-            </Pressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -632,8 +607,36 @@ export default function ResourceUploadSheet({ visible, onClose, onSuccess }: Res
   );
 }
 
+function ToolAction({
+  icon,
+  label,
+  color,
+  iconColor,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  color: string;
+  iconColor: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.toolAction}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Ionicons name={icon} size={21} color={iconColor} />
+      <Text style={[styles.toolLabel, { color }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  modalOverlay: {
+  overlay: {
     flex: 1,
     justifyContent: "flex-end",
   },
@@ -643,244 +646,218 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "rgba(0,0,0,0.68)",
   },
-  sheetContainer: {
+  sheet: {
+    width: "100%",
+    maxWidth: 680,
+    maxHeight: "92%",
+    alignSelf: "center",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    maxHeight: "90%",
-    paddingTop: 12,
+    paddingTop: 10,
     paddingHorizontal: 20,
-    paddingBottom: Platform.OS === "ios" ? 36 : 24,
+    paddingBottom: Platform.OS === "ios" ? 30 : 18,
   },
-  handleBar: {
-    width: 40,
+  handle: {
+    width: 42,
     height: 4,
     borderRadius: 2,
     alignSelf: "center",
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  sheetHeader: {
+  header: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 14,
   },
-  sheetTitle: {
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  title: {
     fontFamily: safeFont,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "800",
+    letterSpacing: -0.3,
   },
-  sheetSubtitle: {
+  subtitle: {
     fontFamily: safeFont,
-    fontSize: 13,
+    fontSize: 12,
     marginTop: 2,
   },
   closeBtn: {
     padding: 4,
   },
-  scrollContent: {
-    paddingBottom: 20,
+  scroll: {
+    paddingBottom: 10,
   },
-  sectionLabel: {
-    fontFamily: safeFont,
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginTop: 14,
-    marginBottom: 8,
-  },
-  helperText: {
-    fontFamily: safeFont,
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: "500",
-    marginTop: -4,
-    marginBottom: 8,
-  },
-  typeRow: {
-    gap: 8,
-    paddingBottom: 4,
-  },
-  typeChip: {
+  authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
+    gap: 11,
   },
-  typeLabel: {
+  authorCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  authorName: {
     fontFamily: safeFont,
-    fontSize: 12,
+    fontSize: 15,
+    fontWeight: "800",
   },
-  fileCard: {
+  authorMeta: {
+    fontFamily: safeFont,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  captionInput: {
+    fontFamily: safeFont,
+    fontSize: 17,
+    lineHeight: 24,
+    minHeight: 128,
+    maxHeight: 230,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  attachmentCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 12,
+    padding: 11,
     borderRadius: 16,
     borderWidth: 1,
   },
-  fileIconWrap: {
-    width: 44,
-    height: 44,
+  attachmentImage: {
+    width: 58,
+    height: 58,
+    borderRadius: 12,
+  },
+  attachmentIcon: {
+    width: 52,
+    height: 52,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  fileMeta: {
+  attachmentCopy: {
     flex: 1,
+    minWidth: 0,
   },
-  fileName: {
+  attachmentName: {
     fontFamily: safeFont,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  fileSub: {
+  attachmentMeta: {
     fontFamily: safeFont,
     fontSize: 11,
-    marginTop: 2,
+    marginTop: 3,
   },
-  removeFileBtn: {
-    padding: 8,
+  removeBtn: {
+    padding: 6,
   },
-  pickButtonRow: {
+  noteBadge: {
+    alignSelf: "flex-start",
     flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    marginTop: 4,
+  },
+  noteBadgeText: {
+    fontFamily: safeFont,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  xRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingVertical: 11,
+    marginTop: 12,
   },
-  pickerActionBtn: {
-    flex: 1.4,
-    flexDirection: "row",
+  xIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1,
   },
-  pickerActionText: {
+  xGlyph: {
     fontFamily: safeFont,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "800",
   },
-  pickerSecondaryBtn: {
+  xCopy: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1,
+    minWidth: 0,
   },
-  pickerSecondaryText: {
-    fontFamily: safeFont,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  input: {
-    fontFamily: safeFont,
-    fontSize: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  textArea: {
-    fontFamily: safeFont,
-    fontSize: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    textAlignVertical: "top",
-    minHeight: 76,
-  },
-  challengeActionRow: {
-    marginTop: 14,
-    marginBottom: 4,
-  },
-  challengeGenBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  challengeGenText: {
+  xTitle: {
     fontFamily: safeFont,
     fontSize: 13,
     fontWeight: "700",
   },
-  previewCard: {
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  previewHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  previewBadge: {
-    fontFamily: safeFont,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  previewTone: {
+  xMeta: {
     fontFamily: safeFont,
     fontSize: 10,
-    fontWeight: "700",
+    lineHeight: 14,
+    marginTop: 1,
   },
-  previewPrompt: {
-    fontFamily: safeFont,
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 8,
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 4,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
   },
-  previewOptions: {
-    gap: 6,
-    marginBottom: 8,
-  },
-  previewOptionChip: {
+  toolAction: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
     paddingVertical: 6,
-    paddingHorizontal: 10,
     borderRadius: 10,
-    borderWidth: 1,
   },
-  previewOptionText: {
+  toolLabel: {
     fontFamily: safeFont,
-    fontSize: 12,
+    fontSize: 10,
+    fontWeight: "600",
   },
-  previewReveal: {
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 14,
+  },
+  footerHint: {
+    flex: 1,
     fontFamily: safeFont,
     fontSize: 11,
-    lineHeight: 16,
-    fontStyle: "italic",
   },
   publishBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: 18,
-    marginTop: 20,
-    marginBottom: 10,
+    gap: 7,
+    minWidth: 92,
+    minHeight: 44,
+    paddingHorizontal: 22,
+    borderRadius: 22,
   },
-  publishBtnText: {
-    fontFamily: safeFont,
-    fontSize: 15,
-    fontWeight: "800",
+  publishText: {
     color: "#FFFFFF",
+    fontFamily: safeFont,
+    fontSize: 14,
+    fontWeight: "800",
   },
 });
-

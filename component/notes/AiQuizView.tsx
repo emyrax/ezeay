@@ -22,7 +22,7 @@ export interface AiQuizQuestion {
 
 interface AiQuizViewProps {
   questions: AiQuizQuestion[];
-  onComplete?: () => void;
+  onComplete?: (result: { correct: number; total: number }) => void;
 }
 
 const CONFETTI_COLORS = ["#38BDF8", "#F59E0B", "#34D399", "#A78BFA", "#FB7185"];
@@ -239,7 +239,7 @@ export default function AiQuizView({ questions, onComplete }: AiQuizViewProps) {
   const handleNext = () => {
     if (index + 1 >= questions.length) {
       setDone(true);
-      onComplete?.();
+      onComplete?.({ correct: score, total: questions.length });
     } else {
       setIndex((i) => i + 1);
       setSelected(null);

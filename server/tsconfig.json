@@ -8,12 +8,17 @@
     "rootDir": "..",
     "downlevelIteration": true,
     "baseUrl": "..",
+    "paths": {
+      "drizzle-orm": ["./node_modules/drizzle-orm"],
+      "drizzle-orm/*": ["./node_modules/drizzle-orm/*"]
+    },
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "declaration": false
   },
   "include": [
     "index.ts",
+    "agent/**/*.ts",
     "../db/**/*.ts",
     "../types/**/*.ts",
     "../lib/gemini.ts",

@@ -70,7 +70,7 @@ function NavigationGuard() {
   const prevReadyRef = useRef<boolean>(false);
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [restoreStuck, setRestoreStuck] = useState(false);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [onboardingElapsedFor, setOnboardingElapsedFor] = useState<string | null>(null);
   const strayArmedRef = useRef(false);
 
   const ready = !!user && !!profile && !loading && loadedOnce && !accountError;
@@ -102,21 +102,25 @@ function NavigationGuard() {
     };
   }, [user, ready, restoreStuck, accountError]);
 
+  // Give the profile loader a brief moment before forcing onboarding, so a
+  // just-created profile can land on its first tab without a redirect flash.
+  const shouldOnboard = ready && !!profile && !profile.onBoarded;
+  const needsOnboarding =
+    shouldOnboard && onboardingElapsedFor === profile?.uid;
+
+  useEffect(() => {
+    if (!shouldOnboard || !profile?.uid) return;
+    const uid = profile.uid;
+    const timer = setTimeout(() => setOnboardingElapsedFor(uid), 700);
+    return () => clearTimeout(timer);
+  }, [shouldOnboard, profile?.uid]);
+
   // The Clerk OAuth deep-link callback (ezeay://.../oauth-native-callback)
   // re-enters the app and can push a stray route (e.g. (notes)/[noteId]) a beat
   // AFTER the one-shot becameReady redirect already ran. Arm a short "post-auth"
   // window on becameReady; while armed, any non-(tabs) route for a ready user is
   // forced back to home so the stray can never stick. It disarms the moment the
   // tab home renders, so normal in-session navigation is never intercepted.
-  useEffect(() => {
-    if (!ready || !profile || profile.onBoarded) {
-      setNeedsOnboarding(false);
-      return;
-    }
-    const timer = setTimeout(() => setNeedsOnboarding(true), 700);
-    return () => clearTimeout(timer);
-  }, [ready, profile]);
-
   useEffect(() => {
     if (!loading) {
       SplashScreen.hideAsync();

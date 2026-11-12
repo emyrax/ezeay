@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type Vie
 import { useResponsive } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
 import type { CommunityFeedPost } from "../types/community";
+import { createShadow } from "@/lib/shadow";
 
 export interface UpNextItem {
   key: string;
@@ -248,10 +249,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 20,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
+    ...createShadow("#000", 0, 10, 24, 0.12),
     elevation: 6,
   },
   header: {

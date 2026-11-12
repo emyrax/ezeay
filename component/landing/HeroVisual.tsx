@@ -1,7 +1,14 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import {
     landingColors,
     landingFonts,
@@ -9,8 +16,10 @@ import {
 } from "../../constants/landing";
 import { images } from "../../constants/images";
 import MascotAnimation from "../MascotAnimation";
+import { createShadow } from "@/lib/shadow";
 
 export default function HeroVisual({ compact = false }: { compact?: boolean }) {
+  const { width: windowWidth } = useWindowDimensions();
   const float = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -39,8 +48,14 @@ export default function HeroVisual({ compact = false }: { compact?: boolean }) {
     outputRange: [0, -10],
   });
 
-  const width = compact ? 310 : 430;
-  const height = compact ? 390 : 470;
+  const width = Math.max(232, Math.min(compact ? 310 : 430, windowWidth - 48));
+  const height = Math.round(
+    width * ((compact ? 390 : 470) / (compact ? 310 : 430)),
+  );
+  const frameWidth = Math.min(compact ? 290 : 330, width - 18);
+  const frameHeight = Math.round(
+    frameWidth * ((compact ? 390 : 430) / (compact ? 290 : 330)),
+  );
 
   return (
     <View style={[styles.wrap, { width, height }]}>
@@ -48,6 +63,7 @@ export default function HeroVisual({ compact = false }: { compact?: boolean }) {
       <Animated.View
         style={[
           styles.frame,
+          { width: frameWidth, height: frameHeight },
           compact && styles.frameCompact,
           { transform: [{ translateY: translate }] },
         ]}
@@ -202,23 +218,19 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(47,124,255,0.14)",
   },
   frame: {
-    width: 330,
-    height: 430,
+    width: "100%",
+    maxWidth: 330,
     borderRadius: 30,
     borderWidth: 1,
     borderColor: landingColors.borderStrong,
     backgroundColor: landingColors.panel,
     padding: 18,
     overflow: "hidden",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: 0.45,
-    shadowRadius: 48,
+    ...createShadow("#000000", 0, 24, 48, 0.45),
     elevation: 16,
   },
   frameCompact: {
-    width: 290,
-    height: 390,
+    maxWidth: 290,
     padding: 15,
   },
   frameTop: {
@@ -399,10 +411,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: landingColors.borderStrong,
     backgroundColor: landingColors.panelRaised,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
+    ...createShadow("#000000", 0, 10, 20, 0.35),
     elevation: 10,
   },
   floatStreak: {

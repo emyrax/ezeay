@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TOAST_MAX_WIDTH } from "../constants/layout";
 import { useThemeColors } from "../hooks/useTheme";
+import { createShadow } from "@/lib/shadow";
 
 interface Props {
   visible: boolean;
@@ -98,10 +99,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     elevation: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    ...createShadow("#000", 0, 8, 12, 0.4),
     backdropFilter: "blur(12px)",
   },
   iconWrap: {

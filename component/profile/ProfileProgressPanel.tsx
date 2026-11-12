@@ -6,6 +6,7 @@ import { useThemeColors } from "../../hooks/useTheme";
 import { withAlpha } from "../../lib/color";
 import type { Course, UserProfile } from "../../types/user";
 import type { ProfileIconName } from "./types";
+import { createShadow } from "@/lib/shadow";
 
 interface Props {
   profile: UserProfile | null;
@@ -169,7 +170,7 @@ export default function ProfileProgressPanel({
             No active courses yet. Pick a realm and start your first quest.
           </Text>
           <Pressable
-            onPress={() => router.push("/stats")}
+            onPress={() => router.push("/explore")}
             style={({ pressed }) => [
               styles.inlineBtn,
               {
@@ -267,7 +268,7 @@ export default function ProfileProgressPanel({
           </Text>
         </Pressable>
         <Pressable
-          onPress={() => router.push("/stats")}
+          onPress={() => router.push("/explore")}
           style={({ pressed }) => [
             styles.quickBtn,
             {
@@ -330,10 +331,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     padding: 18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
+    ...createShadow("#000", 0, 10, 18, 0.08),
     elevation: 5,
   },
   cardHeader: {

@@ -30,7 +30,7 @@ export const ALL_APPS: QuickApp[] = [
     label: "Courses",
     route: "/(tabs)/quests",
   },
-  { id: "stats", icon: "chart-bar", label: "Stats", route: "/(tabs)/stats" },
+  { id: "stats", icon: "chart-bar", label: "Stats", route: "/(tabs)/explore" },
   {
     id: "profile",
     icon: "account-circle",

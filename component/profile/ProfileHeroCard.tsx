@@ -18,6 +18,7 @@ import { useThemeColors } from "../../hooks/useTheme";
 import { withAlpha } from "../../lib/color";
 import type { UserProfile } from "../../types/user";
 import { AVAILABILITY_CONFIG, formatProfileDate, getInitials } from "./profileUtils";
+import { createShadow } from "@/lib/shadow";
 
 interface Props {
   profile: UserProfile | null;
@@ -117,7 +118,7 @@ export default function ProfileHeroCard({
               {
                 borderColor: theme.surface,
                 backgroundColor: theme.surface,
-                shadowColor: theme.shadow,
+                ...createShadow(theme.shadow, 0, 10, 18, 0.25),
               },
             ]}
           >
@@ -385,10 +386,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.18,
-    shadowRadius: 28,
+    ...createShadow("#000", 0, 18, 28, 0.18),
     elevation: 10,
   },
   banner: {
@@ -467,9 +465,6 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: "center",
     justifyContent: "center",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 18,
     elevation: 8,
   },
   avatarPress: {

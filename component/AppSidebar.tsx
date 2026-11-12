@@ -4,12 +4,14 @@ import { usePathname, useRouter, useSegments } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NAV } from "../constants/layout";
-import { NOTES_HREF, TAB_ITEMS } from "../constants/navigation";
+import { NOTES_HREF, TAB_ITEMS, TUTOR_HREF } from "../constants/navigation";
+import { useFeatureFlags } from "../hooks/useFeatureFlags";
 import { useResponsive } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
 import { images } from "../constants/images";
 import { withAlpha } from "../lib/color";
 import { deriveHandle } from "../lib/identity";
+import { createShadow } from "@/lib/shadow";
 import { useUserStore } from "../store/userStore";
 import CommunityAvatar from "./CommunityAvatar";
 
@@ -22,7 +24,12 @@ export default function AppSidebar() {
   const { sidebarExpanded } = useResponsive();
   const profile = useUserStore((state) => state.profile);
   const currentPath = pathname === "" ? "/" : pathname;
-  const isNotesActive = segments[0] === "(notes)";
+  const { tutor: tutorEnabled, agent: agentEnabled } = useFeatureFlags();
+  const centerEnabled = tutorEnabled || agentEnabled;
+  const isCenterActive = centerEnabled
+    ? segments[0] === "(tutor)"
+    : segments[0] === "(notes)";
+  const centerHref = centerEnabled ? TUTOR_HREF : NOTES_HREF;
   const handle = deriveHandle(profile?.displayName, profile?.uid ?? "");
   const role = profile?.isPro ? "PRO" : "LEARNER";
 
@@ -36,7 +43,7 @@ export default function AppSidebar() {
           borderRightColor: theme.tabBorder,
           paddingTop: insets.top + 20,
           paddingBottom: insets.bottom + 20,
-          shadowColor: theme.shadow,
+          ...createShadow(theme.shadow, 2, 0, 12, 0.18),
         },
       ]}
     >
@@ -168,15 +175,15 @@ export default function AppSidebar() {
       <View style={styles.spacer} />
 
       <Pressable
-        onPress={() => router.push(NOTES_HREF)}
+        onPress={() => router.push(centerHref as any)}
         style={[
           styles.item,
           sidebarExpanded ? styles.itemExpanded : styles.itemCompact,
           sidebarExpanded &&
-            isNotesActive && { backgroundColor: theme.surface },
+            isCenterActive && { backgroundColor: theme.surface },
         ]}
         accessibilityRole="button"
-        accessibilityLabel="Open Notes"
+        accessibilityLabel={tutorEnabled ? "Open AI Tutor" : "Open Notes"}
       >
         <LinearGradient
           colors={[theme.accent, theme.tabInactive]}
@@ -184,11 +191,11 @@ export default function AppSidebar() {
           end={{ x: 1, y: 1 }}
           style={[
             styles.notesButton,
-            { borderColor: isNotesActive ? theme.tabActive : theme.tabBorder },
+            { borderColor: isCenterActive ? theme.tabActive : theme.tabBorder },
           ]}
         >
           <MaterialCommunityIcons
-            name="notebook-multiple"
+            name={tutorEnabled ? "school-outline" : "notebook-multiple"}
             size={22}
             color={theme.primary}
           />
@@ -198,12 +205,12 @@ export default function AppSidebar() {
             styles.label,
             sidebarExpanded ? styles.labelExpanded : styles.labelCompact,
             {
-              color: isNotesActive ? theme.tabActive : theme.tabInactive,
-              fontWeight: isNotesActive ? "700" : "500",
+              color: isCenterActive ? theme.tabActive : theme.tabInactive,
+              fontWeight: isCenterActive ? "700" : "500",
             },
           ]}
         >
-          NOTES
+          {tutorEnabled ? "TUTOR" : "NOTES"}
         </Text>
       </Pressable>
     </View>
@@ -213,9 +220,6 @@ export default function AppSidebar() {
 const styles = StyleSheet.create({
   rail: {
     borderRightWidth: 1,
-    shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
     zIndex: 30,
   },
   railCompact: {

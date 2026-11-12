@@ -86,6 +86,13 @@
       ],
       "expo-sharing",
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow Yuinx to add study sessions and reminders to your calendar.",
+          "remindersPermission": "Allow Yuinx to add study reminders to your reminders."
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "Allow Yuinx to use your current location to set your profile location and find universities near you."

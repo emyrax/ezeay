@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { fontFamily } from "../../constants/themes";
 import { useThemeColors } from "../../hooks/useTheme";
 import { withAlpha } from "../../lib/color";
+import { createShadow } from "@/lib/shadow";
 
 interface Props {
   onSignOut: () => void;
@@ -58,10 +59,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     paddingHorizontal: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
+    ...createShadow("#000", 0, 8, 16, 0.08),
     elevation: 4,
   },
   row: {

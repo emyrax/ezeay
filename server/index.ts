@@ -11,8 +11,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { verifyToken } from "@clerk/backend";
-import { neon, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { db, sql, DB_HOST } from "./db";
 import { eq, and, or, inArray, gte, desc, asc, isNull, isNotNull, ne, ilike, sql as drizzleSql, count, sum, gt, lt } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { initGemini, generateCourseContent, generateJsonContent, generateQuizQuestions, generateDailyBounties, generateThumbnailImage, generateTextWithFile, generateEmbedding, generateLessonScript, generateSpeech, TTS_MODEL, TTS_VOICE } from "../lib/gemini";
@@ -48,6 +47,9 @@ import {
   userChallenges,
   threadPostLikes,
   threadPostComments,
+  tutorConversations,
+  tutorMessages,
+  tutorPreferences,
 } from "../db/schema";
 import { generateFallbackBounties } from "./bountyTemplates";
 import { buildCourseGenerationPrompt, buildThumbnailGenerationPrompt, buildResourceChallengePrompt } from "./prompts/courseGeneration";
@@ -65,6 +67,13 @@ import {
   ProfilePayloadError,
 } from "./profilePayload";
 import { latexToSvg } from "./math/mathjax";
+import { chunkText, cosineSimilarity, createRag } from "./rag";
+import { registerTutorRoutes, type TutorDb } from "./tutor/routes";
+import { registerAgentRoutes } from "./agent/routes";
+import { createAgentMemory } from "./agent/memory";
+import { cleanText } from "./agent/sanitize";
+import { runDueRoutines } from "./agent/routines";
+import type { AgentToolDb } from "./agent/tools";
 import { pcmRateFromMime, pcmToWav } from "./audio/pcmToWav";
 import { lessonAudioDeliveryUrl } from "./audio/deliveryUrl";
 import { lessonSourceHash } from "../lib/lesson/validateLessonScript";
@@ -188,7 +197,11 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS ?? 60_000);
-const TIMEOUT_EXEMPT_PREFIXES = ["/api/notes/ai/chat"];
+const TIMEOUT_EXEMPT_PREFIXES = [
+  "/api/notes/ai/chat",
+  "/api/agent/chat",
+  "/api/agent/memories/upload",
+];
 const LESSON_GENERATE_PATH =
   /^\/api\/courses\/[^/]+\/lessons\/\d+\/\d+\/generate$/;
 
@@ -258,6 +271,10 @@ const AI_ROUTES = [
   "/api/notes/ai",
   "/api/notes/ai/chat",
   "/api/schedule/suggest",
+  "/api/tutor/chat",
+  "/api/tutor/plan",
+  "/api/tutor/quiz",
+  "/api/agent/chat",
 ];
 
 type AiBucket = { count: number; resetAt: number };
@@ -346,36 +363,31 @@ function abortIdempotent(key: string): void {
   idempotencyInFlight.delete(key);
 }
 
+function sendUnauthorized(res: Response, error = "Invalid token"): void {
+  res.status(401).json({ error, code: "unauthorized" });
+}
+
 async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     await verifyClerkToken(req.headers.authorization);
     next();
   } catch (err) {
-    res.status(401).json({ error: isTokenError(err) ? "Invalid token" : "Unauthorized" });
+    sendUnauthorized(res, isTokenError(err) ? "Invalid token" : "Unauthorized");
   }
 }
 
-const DATABASE_URL = process.env.NEON_DATABASE_URL;
-const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
+const CLERK_SECRET_KEY =
+  process.env.CLERK_SECRET_KEY ??
+  (process.env.NODE_ENV === "test" ? "sk_test_placeholder" : undefined);
 
-if (!DATABASE_URL) {
-  console.error("[Server] Missing NEON_DATABASE_URL");
-  process.exit(1);
-}
-
-const DB_HOST = (() => {
-  try {
-    return new URL(DATABASE_URL).host;
-  } catch {
-    return "unknown";
-  }
-})();
 if (!CLERK_SECRET_KEY) {
   console.error("[Server] Missing CLERK_SECRET_KEY");
   process.exit(1);
 }
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY ??
+  (process.env.NODE_ENV === "test" ? "test-placeholder" : undefined);
 if (!GEMINI_API_KEY) {
   console.error("[Server] Missing GEMINI_API_KEY — AI features (quiz generation, course generation) will not work");
   process.exit(1);
@@ -405,7 +417,7 @@ function aiRequestOptions(req: Request): { modelRef: string; apiKey?: string } {
 
 function sendRouteError(res: Response, err: unknown, label = "[Server] Request failed"): void {
   if (isTokenError(err)) {
-    res.status(401).json({ error: "Invalid token" });
+    sendUnauthorized(res);
     return;
   }
   const anyErr = err as any;
@@ -455,47 +467,33 @@ function sendRouteError(res: Response, err: unknown, label = "[Server] Request f
   res.status(status).json(body);
 }
 
-const rawSql = neon(DATABASE_URL);
+const { upsertKnowledgeChunks, searchKnowledgeChunks } = createRag({
+  sql,
+  embed: (text) => generateEmbedding(genAI, text),
+});
 
-neonConfig.fetchFunction = (url: any, init: any) => {
-  const timeoutSignal = AbortSignal.timeout(15000);
-  const signal = init?.signal
-    ? AbortSignal.any([init.signal, timeoutSignal])
-    : timeoutSignal;
-  return fetch(url, { ...init, signal });
-};
+registerTutorRoutes(app, {
+  db: db as unknown as TutorDb,
+  verifyClerkToken: (authHeader) => verifyClerkToken(authHeader).then((claims) => ({ sub: claims.sub })),
+  aiRequestOptions,
+  sendRouteError,
+  generateJsonContent,
+  generateQuizQuestions,
+  getGemini,
+  embed: (text) => generateEmbedding(genAI, text),
+  searchKnowledgeChunks,
+});
 
-function isTransientDbError(err: any): boolean {
-  if (!err) return false;
-  const message = `${err?.message ?? ""} ${err?.code ?? ""}`;
-  return (
-    /fetch failed/i.test(message) ||
-    /ConnectTimeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|AbortError|TimeoutError|UND_ERR_|aborted due to timeout/i.test(message)
-  );
-}
-
-async function runWithRetry<T>(run: () => Promise<T>): Promise<T> {
-  let attempt = 0;
-  for (;;) {
-    try {
-      return await run();
-    } catch (err) {
-      if (!isTransientDbError(err) || attempt >= 2) throw err;
-      attempt++;
-      await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
-    }
-  }
-}
-
-const sql = Object.assign(
-  (...args: Parameters<typeof rawSql>) => runWithRetry(() => rawSql(...args)),
-  {
-    query: (...args: Parameters<typeof rawSql.query>) => runWithRetry(() => rawSql.query(...args)),
-  },
-) as typeof rawSql;
-
-const db = drizzle(sql, {
-  schema: { users, levels, trophies, courses, courseEnrollments, userTrophies, studyMaterials, studyFlashcards, quizAttempts, knowledgeChunks, noteChats, notes, bountyClaims, spinClaims, userDailyActivity, communityPosts, communityPostReactions, communityPostComments, reelChallengeAttempts, reelDailyProgress },
+registerAgentRoutes(app, {
+  db: db as unknown as AgentToolDb,
+  verifyClerkToken: (authHeader) =>
+    verifyClerkToken(authHeader).then((claims) => ({ sub: claims.sub })),
+  aiRequestOptions,
+  sendRouteError,
+  generateJsonContent,
+  generateText,
+  embed: (text) => generateEmbedding(genAI, text),
+  searchKnowledgeChunks,
 });
 
 app.get("/api/health", async (_req, res) => {
@@ -793,7 +791,7 @@ app.get("/api/users/me", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/users/me failed");
@@ -822,7 +820,7 @@ app.get("/api/users/:id", async (req, res) => {
     res.json(mapUser(row as unknown as UserRow));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/users/:id failed");
@@ -860,7 +858,7 @@ app.post("/api/users", async (req, res) => {
       return;
     }
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/users failed");
@@ -886,7 +884,7 @@ app.put("/api/users/:id", async (req, res) => {
       return;
     }
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] PUT /api/users/:id failed");
@@ -963,7 +961,7 @@ app.post("/api/users/:id/checkin", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/users/:id/checkin failed");
@@ -1002,7 +1000,7 @@ app.post("/api/users/:id/activity", async (req, res) => {
     res.json({ date, count: inserted[0]?.count ?? 0 });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/users/:id/activity failed");
@@ -1033,7 +1031,7 @@ app.get("/api/users/:id/activity", async (req, res) => {
     res.json({ days, daysData: rows, activity: rows, totalDays: rows.length });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/users/:id/activity failed");
@@ -1123,7 +1121,7 @@ app.get("/api/community/overview", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/overview failed");
@@ -1419,7 +1417,7 @@ app.get("/api/community/feed", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/feed failed");
@@ -1739,7 +1737,7 @@ app.get("/api/community/subtopic-feed", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/subtopic-feed failed");
@@ -1863,7 +1861,7 @@ app.get("/api/community/chapters/:chapterKey/thread", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/chapters/:chapterKey/thread failed");
@@ -1883,7 +1881,7 @@ app.get("/api/community/users/:id/thread-profile", async (req, res) => {
     res.json({ user: buildThreadUser(targetId, context) });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/users/:id/thread-profile failed");
@@ -1925,7 +1923,7 @@ app.post("/api/community/users/:id/follow", async (req, res) => {
     res.json({ following: true, followersCount: Number(agg?.value ?? 0) });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/users/:id/follow failed");
@@ -1951,7 +1949,7 @@ app.delete("/api/community/users/:id/follow", async (req, res) => {
     res.json({ following: false, followersCount: Number(agg?.value ?? 0) });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/community/users/:id/follow failed");
@@ -1999,7 +1997,7 @@ app.post("/api/community/users/:id/challenge", async (req, res) => {
     res.json({ challenged: true, challengeId });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/users/:id/challenge failed");
@@ -2042,7 +2040,7 @@ app.post("/api/community/threads/:postId/like", async (req, res) => {
     res.json({ liked: !existing, likesCount: Number(agg?.value ?? 0) });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/threads/:postId/like failed");
@@ -2089,7 +2087,7 @@ app.get("/api/community/threads/:postId/comments", async (req, res) => {
     res.json({ comments });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/threads/:postId/comments failed");
@@ -2133,7 +2131,7 @@ app.post("/api/community/threads/:postId/comments", async (req, res) => {
     res.status(201).json({ comment });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/threads/:postId/comments failed");
@@ -2411,7 +2409,7 @@ app.get("/api/reels/daily", async (req, res) => {
     res.json(await readReelDailyProgress(claims.sub));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/reels/daily failed");
@@ -2559,7 +2557,7 @@ app.post("/api/community/feed/:courseId/challenge", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/feed/:courseId/challenge failed");
@@ -2621,7 +2619,7 @@ app.post("/api/community/feed/:id/like", async (req, res) => {
     res.json({ liked, likeCount: Number(agg[0]?.count ?? 0) });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/feed/:id/like failed");
@@ -2665,7 +2663,7 @@ app.post("/api/community/feed/:id/view", async (req, res) => {
     res.json({ viewCount: Number(updated[0]?.views ?? 0) });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/feed/:id/view failed");
@@ -2700,7 +2698,7 @@ app.post("/api/community/thread-uploads", async (req, res) => {
     res.json({ url: saved.path, size: saved.size });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     if (err?.statusCode) {
@@ -2731,7 +2729,7 @@ app.post("/api/community/thread-uploads/image", async (req, res) => {
     res.json({ secure_url });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/thread-uploads/image failed");
@@ -2766,7 +2764,7 @@ app.post("/api/community/resources/challenge-preview", async (req, res) => {
     res.json(parsed);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/resources/challenge-preview failed");
@@ -2889,7 +2887,7 @@ app.post("/api/community/resources", async (req, res) => {
     res.status(201).json({ post: postData });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/resources failed");
@@ -3008,7 +3006,7 @@ app.get("/api/community/posts", async (req, res) => {
     res.json({ posts });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/community/posts failed");
@@ -3063,7 +3061,7 @@ app.post("/api/community/posts", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/posts failed");
@@ -3118,7 +3116,7 @@ app.post("/api/community/posts/:id/reactions", async (req, res) => {
     res.status(201).json({ active: true, reaction });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/posts/:id/reactions failed");
@@ -3178,7 +3176,7 @@ app.post("/api/community/posts/:id/comments", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/community/posts/:id/comments failed");
@@ -3195,7 +3193,7 @@ app.get("/api/levels", async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/levels failed");
@@ -3211,7 +3209,7 @@ app.get("/api/trophies", async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/trophies failed");
@@ -3277,7 +3275,7 @@ app.post("/api/bounties/generate", async (req, res) => {
     claims = await verifyClerkToken(req.headers.authorization);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/bounties/generate failed");
@@ -3375,7 +3373,7 @@ app.post("/api/bounties/claim", async (req, res) => {
   } catch (err: any) {
     if (idemKey) abortIdempotent(idemKey);
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/bounties/claim failed");
@@ -3439,7 +3437,7 @@ app.get("/api/spin/status", async (req, res) => {
     res.json(await readSpinStatus(claims.sub));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/spin/status failed");
@@ -3547,7 +3545,7 @@ app.post("/api/spin", async (req, res) => {
   } catch (err: any) {
     if (idemKey) abortIdempotent(idemKey);
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/spin failed");
@@ -3583,7 +3581,7 @@ app.get("/api/courses", async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/courses failed");
@@ -3628,7 +3626,7 @@ app.get("/api/courses/:id", async (req, res) => {
     res.json(row);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/courses/:id failed");
@@ -3861,7 +3859,7 @@ app.post("/api/courses/:id/thumbnail", async (req, res) => {
     }
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/courses/:id/thumbnail failed");
@@ -3932,7 +3930,7 @@ app.patch("/api/courses/:id", async (req, res) => {
     res.json(updated);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] PATCH /api/courses/:id failed");
@@ -3969,7 +3967,7 @@ app.delete("/api/courses/:id", async (req, res) => {
     res.json({ id: req.params.id });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/courses/:id failed");
@@ -4072,7 +4070,7 @@ app.post("/api/uploads/cloudinary", async (req, res) => {
     res.json({ secure_url });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/uploads/cloudinary failed");
@@ -4342,7 +4340,7 @@ app.get(
       res.json(mapLessonRow(row));
     } catch (err) {
       if (isTokenError(err)) {
-        res.status(401).json({ error: "Invalid token" });
+        sendUnauthorized(res);
         return;
       }
       sendRouteError(res, err, "[Server] GET lesson failed");
@@ -4469,7 +4467,7 @@ app.post(
       res.status(existing ? 200 : 201).json(mapLessonRow(row));
     } catch (err) {
       if (isTokenError(err)) {
-        res.status(401).json({ error: "Invalid token" });
+        sendUnauthorized(res);
         return;
       }
       sendRouteError(res, err, "[Server] POST lesson generate failed");
@@ -4626,7 +4624,7 @@ app.post("/api/lessons/:id/audio", async (req, res) => {
     res.json(payload);
   } catch (err) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST lesson audio failed");
@@ -4718,7 +4716,7 @@ app.post("/api/lessons/:id/explain", async (req, res) => {
     res.json({ text: text.slice(0, 1600) });
   } catch (err) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST lesson explain failed");
@@ -4782,7 +4780,7 @@ app.get("/api/enrollments", async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/enrollments failed");
@@ -4853,7 +4851,7 @@ app.post("/api/enrollments", async (req, res) => {
     res.status(201).json(values);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     if (err?.code === "23505") {
@@ -4915,7 +4913,7 @@ app.put("/api/enrollments/:id", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] PUT /api/enrollments/:id failed");
@@ -4950,7 +4948,7 @@ app.delete("/api/enrollments/:id", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/enrollments/:id failed");
@@ -4971,7 +4969,7 @@ app.get("/api/user-trophies", async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/user-trophies failed");
@@ -5039,7 +5037,7 @@ app.post("/api/user-trophies", async (req, res) => {
     res.status(201).json(values);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/user-trophies failed");
@@ -5141,7 +5139,7 @@ app.post("/api/user-trophies/check", async (req, res) => {
     res.json({ awarded });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/user-trophies/check failed");
@@ -5282,108 +5280,6 @@ async function fetchFileBytes(fileUrl: string): Promise<{ buffer: Buffer; mimeTy
   const contentType = res.headers.get("content-type");
   const mimeType = contentType ? contentType.split(";")[0] : mimeFromExtension(res.url);
   return { buffer, mimeType };
-}
-
-function chunkText(text: string, maxLength = 1500, overlap = 150): string[] {
-  const clean = text.replace(/\r/g, "").trim();
-  if (!clean) return [];
-  const chunks: string[] = [];
-  const paragraphs = clean.split(/\n\n+/);
-  let current = "";
-  for (const para of paragraphs) {
-    const trimmed = para.trim();
-    if (!trimmed) continue;
-    if (trimmed.length > maxLength) {
-      if (current.trim()) chunks.push(current.trim());
-      current = "";
-      let rest = trimmed;
-      while (rest.length > maxLength) {
-        chunks.push(rest.slice(0, maxLength));
-        rest = rest.slice(maxLength - overlap);
-      }
-      current = rest;
-      continue;
-    }
-    const candidate = current.trim() ? `${current}\n\n${trimmed}` : trimmed;
-    if (candidate.length <= maxLength) {
-      current = candidate;
-    } else {
-      chunks.push(current.trim());
-      current = trimmed;
-    }
-  }
-  if (current.trim()) chunks.push(current.trim());
-  return chunks;
-}
-
-function cosineSimilarity(a: number[], b: number[]): number {
-  const n = Math.min(a.length, b.length);
-  let dot = 0;
-  let na = 0;
-  let nb = 0;
-  for (let i = 0; i < n; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
-  }
-  if (na === 0 || nb === 0) return 0;
-  return dot / (Math.sqrt(na) * Math.sqrt(nb));
-}
-
-async function upsertKnowledgeChunks(
-  userId: string,
-  sourceType: string,
-  sourceId: string,
-  title: string,
-  content: string,
-): Promise<void> {
-  const chunks = chunkText(content);
-  if (chunks.length === 0) return;
-
-  await sql`DELETE FROM knowledge_chunks WHERE user_id = ${userId} AND source_type = ${sourceType} AND source_id = ${sourceId}`;
-
-  for (let i = 0; i < chunks.length; i++) {
-    const embedding = await generateEmbedding(genAI, chunks[i]).catch(() => null);
-    if (!embedding) continue;
-    const id = `kc_${crypto.randomUUID()}`;
-    await sql`
-      INSERT INTO knowledge_chunks (id, user_id, source_type, source_id, title, content, chunk_index, embedding)
-      VALUES (${id}, ${userId}, ${sourceType}, ${sourceId}, ${title}, ${chunks[i]}, ${i}, ${JSON.stringify(embedding)}::vector)
-    `;
-  }
-}
-
-async function searchKnowledgeChunks(
-  userId: string,
-  queryEmbedding: number[],
-  sourceTypes: string[],
-  sourceIds?: string[],
-  limit = 6,
-): Promise<{ id: string; title: string; content: string; sourceType: string; sourceId: string }[]> {
-  const typeFilter =
-    sourceTypes.length > 0 ? sql`AND source_type IN (${sourceTypes})` : sql``;
-  const idFilter =
-    sourceIds && sourceIds.length > 0 ? sql`AND source_id IN (${sourceIds})` : sql``;
-  const vec = JSON.stringify(queryEmbedding);
-
-  const rows = await sql`
-    SELECT id, title, content, source_type, source_id
-    FROM knowledge_chunks
-    WHERE user_id = ${userId}
-      AND embedding IS NOT NULL
-      ${typeFilter}
-      ${idFilter}
-    ORDER BY embedding <=> ${vec}::vector
-    LIMIT ${limit}
-  `;
-
-  return rows.map((r: any) => ({
-    id: r.id,
-    title: r.title,
-    content: r.content,
-    sourceType: r.source_type,
-    sourceId: r.source_id,
-  }));
 }
 
 app.post("/api/study/process", async (req, res) => {
@@ -5690,7 +5586,7 @@ app.post("/api/uploads", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/uploads failed");
@@ -5717,6 +5613,61 @@ app.post("/api/study/upload", async (req, res) => {
     }
     console.error("[Server] POST /api/study/upload failed:", err);
     res.status(500).json({ error: "Failed to upload file" });
+  }
+});
+
+const MAX_MEMORY_FILE_BYTES = 5 * 1024 * 1024;
+
+app.post("/api/agent/memories/upload", async (req, res) => {
+  try {
+    const claims = await verifyClerkToken(req.headers.authorization);
+    const { base64, filename, mimeType, kind, content } = req.body ?? {};
+    if (typeof base64 !== "string" || !base64 || typeof filename !== "string" || !filename) {
+      res.status(400).json({ error: "Missing required fields: base64, filename" });
+      return;
+    }
+
+    const saved = await saveUploadBuffer(base64, filename, MAX_MEMORY_FILE_BYTES);
+    const file = await fetchFileBytes(saved.path);
+    const isPlainText =
+      file.mimeType.startsWith("text/") ||
+      /\.(txt|md|json)$/i.test(filename);
+
+    let extractedText = "";
+    if (isPlainText) {
+      extractedText = file.buffer.toString("utf8");
+    } else {
+      const isAudio = file.mimeType.startsWith("audio/");
+      const prompt = isAudio
+        ? "Transcribe this audio verbatim. Return ONLY the transcript text."
+        : "Extract ALL visible text from this file verbatim, preserving headings, lists, and structure. Return ONLY the extracted text.";
+      try {
+        extractedText = await generateTextWithFile(genAI, prompt, {
+          base64: file.buffer.toString("base64"),
+          mimeType: file.mimeType,
+        });
+      } catch (err) {
+        console.warn("[Server] Agent memory extraction failed:", err);
+      }
+    }
+
+    const memory = await createAgentMemory(db, claims.sub, {
+      kind: cleanText(kind, 40) || "file",
+      content: cleanText(content, 400),
+      fileName: cleanText(filename, 200),
+      mimeType: cleanText(mimeType, 120) || file.mimeType,
+      fileUrl: saved.path,
+      sizeBytes: saved.size,
+      extractedText,
+    });
+
+    res.status(201).json({ memory, extractionFailed: !extractedText });
+  } catch (err: any) {
+    if (err?.statusCode) {
+      res.status(err.statusCode).json({ error: err.message });
+      return;
+    }
+    sendRouteError(res, err, "[Server] POST /api/agent/memories/upload failed");
   }
 });
 
@@ -6249,7 +6200,7 @@ app.get("/api/flashcards", async (req, res) => {
     res.json(list.map((r: any) => mapFlashcard(r)));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/flashcards failed");
@@ -6333,7 +6284,7 @@ app.post("/api/flashcards/:id/review", async (req, res) => {
     });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     console.error("[Server] POST /api/flashcards/:id/review failed:", err);
@@ -6367,7 +6318,7 @@ app.delete("/api/flashcards/:id", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/flashcards/:id failed");
@@ -6493,7 +6444,7 @@ app.get("/api/study/attempts", async (req, res) => {
     );
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/study/attempts failed");
@@ -6552,7 +6503,7 @@ app.post("/api/audio/transcribe", async (req, res) => {
     res.json({ transcript });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     if (isGeminiBusyError(err)) {
@@ -6749,7 +6700,7 @@ app.get("/api/notes", async (req, res) => {
     res.json({ notes: rows.map((row) => mapNote(row)), limit, offset });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/notes failed");
@@ -6764,7 +6715,7 @@ app.post("/api/notes", async (req, res) => {
     res.status(201).json(mapNote(row, false));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/notes failed");
@@ -6833,7 +6784,7 @@ app.post("/api/notes/import", async (req, res) => {
     res.status(201).json({ imported, received: incoming.length });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/notes/import failed");
@@ -6859,7 +6810,7 @@ app.get("/api/notes/:id", async (req, res) => {
     res.json(mapNote(row));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] GET /api/notes/:id failed");
@@ -6902,7 +6853,7 @@ app.patch("/api/notes/:id", async (req, res) => {
     res.json(mapNote(row, false));
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] PATCH /api/notes/:id failed");
@@ -6928,7 +6879,7 @@ app.delete("/api/notes/:id", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/notes/:id failed");
@@ -6988,7 +6939,7 @@ app.post("/api/notes/:id/flashcards", async (req, res) => {
     res.status(201).json({ cards: rows });
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token", code: "unauthorized" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] POST /api/notes/:id/flashcards failed");
@@ -7406,7 +7357,7 @@ app.post("/api/notes/index", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     console.error("[Server] POST /api/notes/index failed:", err);
@@ -7426,7 +7377,7 @@ app.delete("/api/notes/index/:noteId", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     sendRouteError(res, err, "[Server] DELETE /api/notes/index/:noteId failed");
@@ -7450,7 +7401,7 @@ app.get("/api/notes/:noteId/chats", async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     console.error("[Server] GET /api/notes/:noteId/chats failed:", err);
@@ -7495,7 +7446,7 @@ app.post("/api/notes/:noteId/chats", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     console.error("[Server] POST /api/notes/:noteId/chats failed:", err);
@@ -7513,7 +7464,7 @@ app.delete("/api/notes/:noteId/chats", async (req, res) => {
     res.status(204).end();
   } catch (err: any) {
     if (isTokenError(err)) {
-      res.status(401).json({ error: "Invalid token" });
+      sendUnauthorized(res);
       return;
     }
     console.error("[Server] DELETE /api/notes/:noteId/chats failed:", err);
@@ -7654,5 +7605,30 @@ if (process.env.NODE_ENV !== "test" && process.env.NO_LISTEN !== "1") {
     console.log(`[Server] Running on http://localhost:${PORT}`);
     console.log(`[Server] DB host: ${DB_HOST}`);
     console.log(`[Server] Animated lesson routes ready`);
+
+    if (process.env.AGENT_ROUTINE_WORKER !== "false") {
+      let running = false;
+      const timer = setInterval(async () => {
+        if (running) return;
+        running = true;
+        try {
+          const count = await runDueRoutines({
+            db: db as unknown as AgentToolDb,
+            verifyClerkToken: (authHeader) =>
+              verifyClerkToken(authHeader).then((claims) => ({ sub: claims.sub })),
+            sendRouteError,
+            generateText,
+          });
+          if (count > 0) {
+            console.log(`[Server] Ran ${count} scheduled agent routine(s)`);
+          }
+        } catch (err) {
+          console.error("[Server] Agent routine worker failed", err);
+        } finally {
+          running = false;
+        }
+      }, 60_000);
+      timer.unref();
+    }
   });
 }

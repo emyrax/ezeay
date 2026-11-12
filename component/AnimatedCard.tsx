@@ -1,6 +1,7 @@
 import React, { useRef } from "react";
 import { Animated, type StyleProp, StyleSheet, type ViewStyle } from "react-native";
 import { useThemeColors } from "../hooks/useTheme";
+import { createShadow } from "@/lib/shadow";
 
 interface Props {
   children: React.ReactNode;
@@ -56,19 +57,13 @@ export default function AnimatedCard({
           backgroundColor: theme.glass,
           borderWidth: 1,
           borderColor: theme.border,
-          shadowColor: theme.shadow,
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.15,
-          shadowRadius: 16,
+          ...createShadow(theme.shadow, 0, 8, 16, 0.15),
           elevation: 4,
         },
         gradientBorder && {
           borderWidth: 1.5,
           borderColor: theme.primary,
-          shadowColor: theme.primary,
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.2,
-          shadowRadius: 6,
+          ...createShadow(theme.primary, 0, 0, 6, 0.2),
         },
         {
           opacity: fadeAnim,

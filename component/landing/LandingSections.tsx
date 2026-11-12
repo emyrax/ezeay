@@ -34,7 +34,7 @@ const ACCENTS: Record<string, string> = {
 };
 
 function contentWidth(width: number) {
-  return Math.max(280, Math.min(width - 48, 1180));
+  return Math.max(0, Math.min(width - 32, 1180));
 }
 
 function columnsFor(width: number, narrow: number, mid: number, wide: number) {

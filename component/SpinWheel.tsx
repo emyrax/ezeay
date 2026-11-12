@@ -20,6 +20,7 @@ import { useMissionStore } from "../store/missionStore";
 import { useAuth } from "../contexts/AuthContext";
 import { useThemeColors } from "../hooks/useTheme";
 import MascotAnimation from "./MascotAnimation";
+import { createShadow } from "@/lib/shadow";
 
 const SEGMENT_COUNT = SPIN_SEGMENTS.length;
 const SEGMENT_ANGLE = (2 * Math.PI) / SEGMENT_COUNT;
@@ -185,7 +186,7 @@ export default function SpinWheel() {
             router.push("/(tabs)" as any);
             break;
           case "review":
-            router.push("/(tabs)/stats" as any);
+            router.push("/(tabs)/explore" as any);
             break;
           case "bounties":
             router.push("/(tabs)/quests" as any);
@@ -466,10 +467,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 16,
     elevation: 8,
-    shadowColor: "#FFD700",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    ...createShadow("#FFD700", 0, 4, 8, 0.4),
   },
   spinBtnDisabled: {
     opacity: 0.4,

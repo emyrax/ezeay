@@ -33,6 +33,7 @@ import {
     HowItWorksSection,
     MetricStrip,
 } from "./LandingSections";
+import { createShadow } from "@/lib/shadow";
 
 function scrollToSection(id: string) {
   if (Platform.OS !== "web" || typeof document === "undefined") return;
@@ -588,10 +589,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: landingRadii.pill,
     backgroundColor: landingColors.blue,
-    shadowColor: landingColors.blue,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 22,
+    ...createShadow(landingColors.blue, 0, 8, 22, 0.3),
     elevation: 8,
   },
   heroPrimaryText: {

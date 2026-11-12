@@ -28,6 +28,7 @@ import { useSpinStore } from "../../../../store/spinStore";
 import { useStatsStore } from "../../../../store/statsStore";
 import { useUserStore } from "../../../../store/userStore";
 import type { Chapter, Quiz } from "../../../../types/chapter";
+import { createShadow } from "@/lib/shadow";
 
 type QuizState =
   | "idle"
@@ -746,10 +747,7 @@ export default function ChapterScreen() {
                     borderColor: isCorrect
                       ? theme.success + "40"
                       : theme.danger + "40",
-                    shadowColor: isCorrect ? theme.success : theme.danger,
-                    shadowOpacity: 0.15,
-                    shadowRadius: 10,
-                    shadowOffset: { width: 0, height: 6 },
+                    ...createShadow(isCorrect ? theme.success : theme.danger, 0, 6, 10, 0.15),
                     elevation: 4,
                   },
                 ]}
@@ -1684,9 +1682,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 14,
     gap: 8,
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    ...createShadow("#000000", 0, 4, 8, 0.12),
     elevation: 4,
   },
   resultHeader: {

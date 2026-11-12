@@ -85,6 +85,7 @@ import type {
   NoteTag,
   RepeatType,
 } from "../../types/note";
+import { createShadow } from "@/lib/shadow";
 
 const TAG_COLORS = [
   "#3B82F6",
@@ -351,7 +352,7 @@ function OverflowSheet({
           end={{ x: 1, y: 1 }}
           style={[
             styles.actionBadge,
-            { borderColor: color + "2E", shadowColor: color },
+            { borderColor: color + "2E", ...createShadow(color, 0, 3, 5, 0.15) },
           ]}
         >
           <ThemeIcon
@@ -3152,10 +3153,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 30,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
+    ...createShadow("#000000", 0, 8, 16, 0.18),
     elevation: 8,
     gap: 10,
   },
@@ -3257,9 +3255,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
   actionText: {

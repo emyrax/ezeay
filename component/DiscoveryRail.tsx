@@ -3,6 +3,7 @@ import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { safeFont } from "../constants/themes";
 import { useThemeColors } from "../hooks/useTheme";
+import { getCurrentStreak, getWeekActivity } from "../lib/stats/activity";
 import { useStatsStore } from "../store/statsStore";
 import { useUserStore } from "../store/userStore";
 import type { ThreadPost, ThreadUser } from "../types/thread";
@@ -12,32 +13,23 @@ interface DiscoveryRailProps {
   width: number;
   posts: ThreadPost[];
   onPressUser: (post: ThreadPost) => void;
-}
-
-function currentStreak(days: Array<{ date: string; count: number }>): number {
-  const active = new Set(days.filter((day) => day.count > 0).map((day) => day.date));
-  const cursor = new Date();
-  let streak = 0;
-
-  for (let index = 0; index < 366; index += 1) {
-    const key = cursor.toISOString().slice(0, 10);
-    if (!active.has(key)) break;
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  return streak;
+  variant?: "default" | "stats";
+  compact?: boolean;
+  onExploreCamp?: () => void;
 }
 
 export default function DiscoveryRail({
   width,
   posts,
   onPressUser,
+  variant = "default",
+  compact = false,
+  onExploreCamp,
 }: DiscoveryRailProps) {
   const colors = useThemeColors();
   const profile = useUserStore((state) => state.profile);
   const days = useStatsStore((state) => state.days);
-  const streak = useMemo(() => currentStreak(days), [days]);
+  const streak = useMemo(() => getCurrentStreak(days), [days]);
 
   const trending = useMemo(() => {
     const counts = new Map<string, { title: string; count: number }>();
@@ -86,6 +78,9 @@ export default function DiscoveryRail({
     profile && profile.nextLevelXp > 0
       ? Math.min(100, Math.round((profile.xp / profile.nextLevelXp) * 100))
       : 0;
+
+  const week = useMemo(() => getWeekActivity(days), [days]);
+  const weekMax = Math.max(1, ...week.map((day) => day.count));
 
   return (
     <View style={[styles.rail, { width }]}>
@@ -147,15 +142,76 @@ export default function DiscoveryRail({
             color={colors.info}
           />
         </View>
+
+        {variant === "stats" ? (
+          <View style={styles.weekBlock}>
+            <View style={styles.weekHeader}>
+              <Text style={[styles.weekLabel, { color: colors.textMuted }]}>
+                This week
+              </Text>
+              <Text style={[styles.weekTotal, { color: colors.textSecondary }]}>
+                {week.reduce((sum, day) => sum + day.count, 0)} actions
+              </Text>
+            </View>
+            <View style={styles.weekRow}>
+              {week.map((day) => (
+                <View key={day.key} style={styles.weekDay}>
+                  <View
+                    style={[
+                      styles.weekBarTrack,
+                      { backgroundColor: colors.surfaceAlt },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.weekBarFill,
+                        {
+                          height: `${Math.max(8, (day.count / weekMax) * 100)}%`,
+                          backgroundColor:
+                            day.count > 0 ? colors.primary : colors.border,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.weekDayLabel, { color: colors.textMuted }]}>
+                    {day.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {onExploreCamp ? (
+          <Pressable
+            onPress={onExploreCamp}
+            style={[styles.campCta, { backgroundColor: colors.primary + "18" }]}
+            accessibilityRole="button"
+            accessibilityLabel="Explore your camp"
+          >
+            <MaterialCommunityIcons
+              name="compass-outline"
+              size={16}
+              color={colors.primary}
+            />
+            <Text style={[styles.campCtaText, { color: colors.primary }]}>
+              Explore Camp
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
-      >
-        <Text style={[styles.eyebrow, { color: colors.info }]}>TRENDING SUBJECTS</Text>
+      {!compact ? (
+        <>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.eyebrow, { color: colors.info }]}>
+              TRENDING SUBJECTS
+            </Text>
         {trending.length > 0 ? (
           <View style={styles.chipWrap}>
             {trending.map((subject) => (
@@ -234,6 +290,8 @@ export default function DiscoveryRail({
           </Text>
         )}
       </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -344,6 +402,65 @@ const styles = StyleSheet.create({
   metricLabel: {
     fontFamily: safeFont,
     fontSize: 9,
+  },
+  weekBlock: {
+    marginTop: 14,
+  },
+  weekHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  weekLabel: {
+    fontFamily: safeFont,
+    fontSize: 10,
+  },
+  weekTotal: {
+    fontFamily: safeFont,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  weekRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 4,
+    marginTop: 8,
+  },
+  weekDay: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+  },
+  weekBarTrack: {
+    width: "100%",
+    height: 36,
+    borderRadius: 5,
+    overflow: "hidden",
+    justifyContent: "flex-end",
+  },
+  weekBarFill: {
+    width: "100%",
+    borderRadius: 5,
+  },
+  weekDayLabel: {
+    fontFamily: safeFont,
+    fontSize: 8,
+    textTransform: "uppercase",
+  },
+  campCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 12,
+    paddingVertical: 10,
+    marginTop: 14,
+  },
+  campCtaText: {
+    fontFamily: safeFont,
+    fontSize: 12,
+    fontWeight: "800",
   },
   chipWrap: {
     flexDirection: "row",

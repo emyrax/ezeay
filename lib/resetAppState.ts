@@ -9,6 +9,7 @@ import { useNoteStore } from "../store/noteStore";
 import { useSpinStore } from "../store/spinStore";
 import { useStatsStore } from "../store/statsStore";
 import { useStudyStore } from "../store/studyStore";
+import { useTutorPlanStore } from "../store/tutorPlanStore";
 import { useUserTrophyStore } from "../store/userTrophyStore";
 
 export const USER_DATA_KEYS = [
@@ -24,6 +25,7 @@ export const USER_DATA_KEYS = [
   "@yuinx_stats_v1",
   "@yuinx_study_v1",
   "@yuinx_user_trophies_v1",
+  "yuinx-tutor-plan",
 ] as const;
 
 function resetUserDataStores(): void {
@@ -37,6 +39,7 @@ function resetUserDataStores(): void {
   useNoteStore.getState().reset();
   useStatsStore.getState().reset();
   useStudyStore.getState().reset();
+  useTutorPlanStore.getState().clear();
   useUserTrophyStore.getState().reset();
 }
 

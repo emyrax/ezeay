@@ -12,6 +12,7 @@ import {
   activeNarrationWordIndex,
   buildNarrationWordTimings,
 } from "../../lib/lesson/player";
+import { createTextShadow } from "@/lib/shadow";
 
 type WordState = 0 | 1 | 2;
 
@@ -243,8 +244,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   activeWord: {
-    textShadowColor: "rgba(255, 255, 255, 0.5)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 16,
+    ...createTextShadow("rgba(255, 255, 255, 0.5)", 0, 0, 16),
   },
 });

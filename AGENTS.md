@@ -238,7 +238,7 @@ Before every feature:
 
 - Zustand
 
-- firebase storage
+- Neon Postgres + Drizzle ORM
 
 - AsyncStorage
 
@@ -248,9 +248,9 @@ Before every feature:
 
 ---
 
-- **Expo SDK 54** with Expo Router (file-based routing); entrypoint `expo-router/entry`
-- **Auth**: Clerk (`@clerk/expo`) — primary auth provider. Firebase Auth is initialized but unused; all auth flows go through Clerk.
-- **Firebase**: Firestore (user profiles) + Storage (avatar uploads). Rules at `firestore.rules` / `storage.rules`.
+- **Expo SDK 57** with Expo Router (file-based routing); entrypoint `expo-router/entry`
+- **Auth**: Clerk (`@clerk/expo`) — primary auth provider. All auth flows go through Clerk.
+- **Data**: Neon Postgres via Drizzle ORM (`db/schema.ts`, `drizzle/`); API is the Express server in `server/`. Uploads use Cloudinary (`lib/cloudinary.ts`, `/api/uploads/cloudinary`).
 - **TypeScript**: `strict: true`, path alias `@/*` → `./*` (root).
 
 ## Routing
@@ -260,9 +260,9 @@ app/_layout.tsx         → ClerkProvider → AuthProvider → Stack (auth guard
   app/index.tsx          → welcome/landing page
   app/(auth)/
     login.tsx            → sign in/up (email + Google/Apple OAuth)
-    /* No onboarding screen yet. Profile is created via FirestoreService.createUserProfile */
+    onboarding.tsx     -> profile setup; created via the API (`POST /api/users`)
   app/(tabs)/
-    _layout.tsx          → Floating Bottom Tab Bar (Camp + Quests + Stats + Profile)
+    _layout.tsx          → ResponsiveTabBar (Camp + Quests + Threads + Profile) with center Notes CTA
     index.tsx            → dashboard with stats, courses, schedule
     profile.tsx          → profile view + avatar upload via expo-image-picker
 ```
@@ -272,7 +272,7 @@ app/_layout.tsx         → ClerkProvider → AuthProvider → Stack (auth guard
 ## Codebase quirks
 
 - Components live in `component/` (not `components/`), assets in `assets/`.
-- `app/(tabs)/_layout.tsx` has an inline `FloatingTabBar` (Expo Router Tabs with `tabBar` prop). Colors: active `#38BDF8`, inactive `#64748B`, container `#121826` with `borderRadius: 20`.
+- `app/(tabs)/_layout.tsx` renders `ResponsiveTabBar` (`component/ResponsiveTabBar.tsx`) on compact screens and `AppSidebar` on wide screens. The center floating CTA currently opens Notes; it is being replaced by the AI Tutor.
 
 ### Floating Bottom Tab Bar — Layout Spec
 
@@ -312,12 +312,12 @@ The tab bar uses these values for the floating container:
 ```
 - `login.tsx` imports Clerk hooks from both `@clerk/expo` (`useOAuth`) and `@clerk/expo/legacy` (`useSignIn`, `useSignUp`). Keep both patterns working until legacy is removed.
 - Clerk token cache: native uses `expo-secure-store`, web falls back to `localStorage` (`lib/tokenCache.ts`).
-- Firestore profile is created via `FirestoreService.createUserProfile` (services/FirestoreService.ts) and watched via real-time `onSnapshot` in `AuthContext.tsx`.
-- `.env` contains `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` — required for dev. Firebase config is hardcoded in `lib/firebase.ts`.
+- User profiles are loaded through `contexts/AuthContext.tsx` from the Express API (`/api/users/me`) and persisted in `store/userStore.ts`.
+- `.env` contains `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` — required for dev. Server env vars live in the repo `.env` (`NEON_DATABASE_URL`, `CLERK_SECRET_KEY`, `GEMINI_API_KEY`).
 
 ## Import conventions
 
-Use project root-relative imports: `import { useAuth } from "../../contexts/AuthContext"` or `import { db } from "@/lib/firebase"` (via `@/*` alias).
+Use project root-relative imports: `import { useAuth } from "../../contexts/AuthContext"` or `import { api } from "@/lib/api"` (via `@/*` alias).
 
 ## Style conventions
 
@@ -328,7 +328,7 @@ Use project root-relative imports: `import { useAuth } from "../../contexts/Auth
 
 ## OpenCode config
 
-No `opencode.json` exists yet. To create one, use:
+`opencode.json` exists at the repo root. For reference, its shape is:
 
 ```json
 {
@@ -341,9 +341,9 @@ Config is loaded once at startup — restart opencode after any changes. Project
 
 ## Corrections & Additions
 
-- **No `onboarding.tsx` exists yet.** The `(auth)` directory has only `login.tsx`. Profile creation is done via `FirestoreService.createUserProfile` — no onboarding screen is wired up.
-- **TabBar is inline** in `app/(tabs)/_layout.tsx` (`FloatingTabBar`), not a separate component file.
-- **Mixed `.jsx`/`.tsx`** — some components are `.jsx` (RealmsSection, HeaderSection, TrophyCabinetSection). Be aware when refactoring.
+- **`app/(auth)/onboarding.tsx` exists.** Profile setup is handled there. Profile creation goes through `POST /api/users` — and the screen is wired into the auth flow.
+- **TabBar lives in `component/ResponsiveTabBar.tsx`** and is rendered by `app/(tabs)/_layout.tsx`; wide screens use `component/AppSidebar.tsx`.
+- **Mixed `.jsx`/`.tsx`** — all components are `.tsx`. Be aware when refactoring.
 - **`ErrorBoundary`** is a class component at `component/ErrorBoundary.tsx`.
 - **`app.json` experiments** — `typedRoutes: true`, `reactCompiler: true` are enabled.
 - **Theme system (fixed dark palette)**: `constants/themes.ts` defines `ThemeColors` and one frozen `appTheme` (`bg #152A4D`, `text`/`primary`/`accent #95D0FD`). `hooks/useTheme.ts` returns `appTheme` unconditionally. There is no theme store, no AsyncStorage theme key, no Settings appearance picker, and no light-theme presets. All screens/components still call `useThemeColors()`.

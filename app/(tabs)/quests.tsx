@@ -42,10 +42,12 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { useResponsive, useTabBarInset } from "../../hooks/useResponsive";
 import { useThemeColors } from "../../hooks/useTheme";
+import { useVoiceDictation } from "../../hooks/useVoiceDictation";
 import { images } from "../../constants/images";
 import { api } from "../../lib/api";
 import { eventBus } from "../../lib/eventBus";
 import { useNavLock } from "../../lib/guard";
+import { appendTranscript } from "../../lib/voice/appendTranscript";
 import {
   AI_MODELS,
   AI_PROVIDER_LABELS,
@@ -59,8 +61,11 @@ import { useCourseStore } from "../../store/courseStore";
 import { useModelStore } from "../../store/modelStore";
 import type { GenerateCourseInput } from "../../types/courseGeneration";
 import type { UserProfile } from "../../types/user";
+import { createShadow } from "@/lib/shadow";
 
 const ADD_NEW_INTEREST = "__add_new__";
+const COURSE_GRID_PADDING = 20;
+const COURSE_GRID_GAP = 16;
 
 const DIFFICULTY_OPTIONS: DropdownOption[] = [
   { label: "Beginner", value: "Beginner" },
@@ -79,7 +84,7 @@ export default function QuestsScreen() {
   const { profile, getToken, updateProfile } = useAuth();
   const theme = useThemeColors();
   const { isWeb, isWebWide, isDesktop, breakpoint } = useResponsive();
-  const tabBarInset = useTabBarInset(80);
+  const tabBarInset = useTabBarInset(98);
   const showWebDialog = isWeb && breakpoint !== "phone";
   const router = useRouter();
   const { navigate } = useNavLock();
@@ -128,6 +133,22 @@ export default function QuestsScreen() {
   const [searchText, setSearchText] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [visibleCount, setVisibleCount] = useState(5);
+
+  const {
+    listening: voiceListening,
+    interim: voiceInterim,
+    toggle: toggleVoice,
+    abort: abortVoice,
+  } = useVoiceDictation({
+    onTranscript: (text) =>
+      setDescription((prev) => appendTranscript(prev, text)),
+  });
+
+  const closeCreateModal = useCallback(() => {
+    abortVoice();
+    setShowCreateModal(false);
+    setFormError(null);
+  }, [abortVoice]);
 
   useEffect(() => {
     if (profile) {
@@ -298,7 +319,7 @@ export default function QuestsScreen() {
   );
   const gridCardWidth =
     gridWidth > 0
-      ? (gridWidth - 16 * (gridColumnsCount - 1)) / gridColumnsCount
+      ? (gridWidth - COURSE_GRID_GAP * (gridColumnsCount - 1)) / gridColumnsCount
       : undefined;
 
   const filterOptions = useMemo<DropdownOption[]>(
@@ -432,6 +453,7 @@ export default function QuestsScreen() {
     setSearchText("");
     setActiveFilter("all");
     setVisibleCount(5);
+    abortVoice();
     setShowCreateModal(false);
     generateCourse(input, getToken);
     setTimeout(() => {
@@ -656,8 +678,7 @@ export default function QuestsScreen() {
           Group quests & live sessions — coming soon
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
-    </TouchableOpacity>
+     </TouchableOpacity>
   );
 
   return (
@@ -667,6 +688,7 @@ export default function QuestsScreen() {
           ref={scrollRef}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           onScroll={handleScroll}
           scrollEventThrottle={16}
           refreshControl={
@@ -760,10 +782,7 @@ export default function QuestsScreen() {
               visible={showCreateModal}
               animationType="slide"
               transparent
-              onRequestClose={() => {
-                setShowCreateModal(false);
-                setFormError(null);
-              }}
+              onRequestClose={closeCreateModal}
             >
               <View
                 style={[
@@ -780,12 +799,7 @@ export default function QuestsScreen() {
                 >
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Create Your AI Quest</Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setShowCreateModal(false);
-                        setFormError(null);
-                      }}
-                    >
+                    <TouchableOpacity onPress={closeCreateModal}>
                       <Ionicons
                         name="close-circle"
                         size={28}
@@ -794,7 +808,11 @@ export default function QuestsScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  <ScrollView showsVerticalScrollIndicator={false}>
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                  >
                     <View
                       style={[
                         styles.inputBox,
@@ -809,9 +827,63 @@ export default function QuestsScreen() {
                         multiline
                         value={description}
                         onChangeText={setDescription}
-                        style={[styles.textInput, styles.textArea]}
+                        editable={!generating}
+                        style={[
+                          styles.textInput,
+                          styles.textArea,
+                          styles.textAreaWithMic,
+                        ]}
                       />
+                      <Pressable
+                        onPress={toggleVoice}
+                        disabled={generating}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          voiceListening
+                            ? "Stop voice input"
+                            : "Start voice input"
+                        }
+                        style={[
+                          styles.micButton,
+                          {
+                            backgroundColor: voiceListening
+                              ? theme.danger
+                              : theme.surface,
+                            borderColor: voiceListening
+                              ? theme.danger
+                              : theme.borderLight,
+                          },
+                          generating && styles.micButtonDisabled,
+                        ]}
+                      >
+                        <Ionicons
+                          name={voiceListening ? "stop" : "mic-outline"}
+                          size={18}
+                          color={voiceListening ? "#FFFFFF" : theme.text}
+                        />
+                      </Pressable>
                     </View>
+
+                    {voiceListening ? (
+                      <View style={styles.voiceStatus}>
+                        <View
+                          style={[
+                            styles.voiceDot,
+                            { backgroundColor: theme.danger },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.voiceStatusText,
+                            { color: theme.textMuted },
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {voiceInterim || "Listening... tap the mic to stop"}
+                        </Text>
+                      </View>
+                    ) : null}
 
                     {formError ? (
                       <Text style={[styles.formError, { color: theme.danger }]}>
@@ -849,6 +921,7 @@ export default function QuestsScreen() {
                           <DropdownSelect
                             options={interestOptions}
                             selected={activeCategory}
+                            title="Select Category"
                             onSelect={(val) => {
                               if (val === ADD_NEW_INTEREST) {
                                 setAddingCategory(true);
@@ -873,6 +946,7 @@ export default function QuestsScreen() {
                         <DropdownSelect
                           options={DIFFICULTY_OPTIONS}
                           selected={difficulty}
+                          title="Select Difficulty"
                           onSelect={setDifficulty}
                         />
                       </View>
@@ -934,7 +1008,7 @@ export default function QuestsScreen() {
                         end={{ x: 1, y: 0 }}
                         style={[
                           styles.ctaButton,
-                          { shadowColor: theme.accent },
+                          createShadow(theme.accent, 0, 0, 10, 0.6),
                           generating && styles.ctaButtonDisabled,
                         ]}
                       >
@@ -1132,6 +1206,7 @@ export default function QuestsScreen() {
                   <DropdownSelect
                     options={filterOptions}
                     selected={activeFilter}
+                    title="Filter Courses"
                     onSelect={(v) => {
                       setActiveFilter(v);
                       setVisibleCount(5);
@@ -1487,7 +1562,14 @@ export default function QuestsScreen() {
                     style={useWebGrid ? styles.courseGrid : undefined}
                     onLayout={
                       useWebGrid
-                        ? (e) => setGridWidth(e.nativeEvent.layout.width)
+                        ? (e) =>
+                            setGridWidth(
+                              Math.max(
+                                0,
+                                e.nativeEvent.layout.width -
+                                  COURSE_GRID_PADDING * 2,
+                              ),
+                            )
                         : undefined
                     }
                   >
@@ -1960,6 +2042,28 @@ const styles = StyleSheet.create({
   },
   textInput: { color: "#FFFFFF", fontSize: 14 },
   textArea: { flex: 1, padding: 0, textAlignVertical: "top" },
+  textAreaWithMic: { paddingRight: 44 },
+  micButton: {
+    position: "absolute",
+    right: 10,
+    bottom: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  micButtonDisabled: { opacity: 0.5 },
+  voiceStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  voiceDot: { width: 8, height: 8, borderRadius: 4 },
+  voiceStatusText: { flex: 1, fontSize: 12, lineHeight: 16 },
   formError: { fontSize: 12, fontWeight: "600", marginTop: 8 },
   categoryInput: { height: 36, padding: 8, borderRadius: 8, fontSize: 13 },
   configRow: {
@@ -2044,9 +2148,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 20,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
     elevation: 8,
   },
   ctaButtonDisabled: { opacity: 0.6 },
@@ -2112,8 +2213,8 @@ const styles = StyleSheet.create({
   courseGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 16,
-    paddingHorizontal: 20,
+    gap: COURSE_GRID_GAP,
+    paddingHorizontal: COURSE_GRID_PADDING,
     paddingTop: 14,
   },
   courseCardGrid: {
@@ -2140,10 +2241,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(251, 113, 133, 0.14)",
-    shadowColor: "#FB7185",
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
+    ...createShadow("#FB7185", 0, 0, 6, 0.9),
     elevation: 6,
   },
   activeBadge: {

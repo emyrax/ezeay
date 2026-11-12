@@ -19,6 +19,7 @@ import MascotStage from "../component/mascot/MascotStage";
 import { appTheme, safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
+import { createShadow } from "@/lib/shadow";
 
 export default function Index() {
   return Platform.OS === "web" ? <LandingPage /> : <NativeWelcome />;
@@ -379,10 +380,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
     elevation: 4,
-    shadowColor: appTheme.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    ...createShadow(appTheme.primary, 0, 4, 10, 0.25),
   },
   primaryBtnPressed: {
     opacity: 0.9,

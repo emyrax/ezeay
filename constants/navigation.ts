@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 
 export type TabIconName = ComponentProps<typeof MaterialCommunityIcons>["name"];
 
-export type TabHref = "/" | "/quests" | "/stats" | "/profile";
+export type TabHref = "/" | "/quests" | "/explore" | "/profile";
 
 export interface TabItem {
   name: string;
@@ -29,10 +29,10 @@ export const TAB_ITEMS: TabItem[] = [
     accessibilityLabel: "Navigate to Activity Log Screen",
   },
   {
-    name: "stats",
+    name: "explore",
     title: "THREADS",
     iconName: "message-text-outline",
-    href: "/stats",
+    href: "/explore",
     accessibilityLabel: "Navigate to Threads Feed",
   },
   {
@@ -45,3 +45,5 @@ export const TAB_ITEMS: TabItem[] = [
 ];
 
 export const NOTES_HREF = "/(notes)" as const;
+export const TUTOR_HREF = "/(tutor)" as const;
+export const TUTOR_MEMORY_HREF = "/(tutor)/settings" as const;

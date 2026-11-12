@@ -6,6 +6,7 @@ import { useThemeColors } from "../../hooks/useTheme";
 import { withAlpha } from "../../lib/color";
 import type { UserProfile } from "../../types/user";
 import { getProfileCompletion } from "./profileUtils";
+import { createShadow } from "@/lib/shadow";
 
 interface Props {
   profile: UserProfile | null;
@@ -152,10 +153,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     padding: 18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
+    ...createShadow("#000", 0, 12, 20, 0.1),
     elevation: 6,
   },
   headerRow: {

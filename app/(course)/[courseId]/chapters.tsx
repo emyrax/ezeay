@@ -19,6 +19,7 @@ import { api } from "../../../lib/api";
 import ErrorBoundary from "../../../component/ErrorBoundary";
 import ChapterBottomSheet from "../../../component/ChapterBottomSheet";
 import type { Chapter } from "../../../types/chapter";
+import { createShadow, createTextShadow } from "@/lib/shadow";
 
 const NODE_SIZE = 80;
 const ROW_HEIGHT = 130;
@@ -1089,10 +1090,7 @@ const styles = StyleSheet.create({
   circularButton: {
     justifyContent: "center",
     alignItems: "center",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    shadowColor: "#000",
+    ...createShadow("#000", 0, 6, 6, 0.3),
     elevation: 6,
   },
   nodeText: {
@@ -1308,9 +1306,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FFD700",
     marginTop: 2,
-    textShadowColor: "rgba(255,215,0,0.3)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    ...createTextShadow("rgba(255,215,0,0.3)", 0, 1, 2),
   },
 
   header: {

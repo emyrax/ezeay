@@ -19,6 +19,7 @@ import {
   landingRadii,
 } from "../../constants/landing";
 import CountryFlag from "./CountryFlag";
+import { createShadow } from "@/lib/shadow";
 
 export default function CountryPicker({
   visible,
@@ -195,10 +196,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: { boxShadow: "0 24px 80px rgba(0,0,0,0.55)" } as object,
       default: {
-        shadowColor: "#000000",
-        shadowOffset: { width: 0, height: 18 },
-        shadowOpacity: 0.45,
-        shadowRadius: 36,
+        ...createShadow("#000000", 0, 18, 36, 0.45),
         elevation: 18,
       },
     }),

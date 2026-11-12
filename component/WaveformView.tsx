@@ -5,6 +5,7 @@ import Svg, { Rect } from "react-native-svg";
 import { useThemeColors } from "../hooks/useTheme";
 import type { AudioClip } from "../types/note";
 import ThemeIcon from "./notes/ThemeIcon";
+import { createShadow } from "@/lib/shadow";
 
 interface WaveformViewProps {
   clip: AudioClip;
@@ -120,10 +121,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
     justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 3 },
+    ...createShadow("#000000", 0, 3, 14, 0.07),
     elevation: 3,
   },
   topHighlight: {

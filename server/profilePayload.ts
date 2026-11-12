@@ -44,7 +44,7 @@ function parseJson(value: string, field: string): unknown {
 function stringArray(value: unknown, field: string): string[] {
   if (value === undefined || value === null) return [];
 
-  let parsed = value;
+  let parsed: unknown = value;
   if (typeof parsed === "string") {
     const trimmed = parsed.trim();
     if (!trimmed) return [];
@@ -70,7 +70,7 @@ function stringArray(value: unknown, field: string): string[] {
 function objectArray(value: unknown, field: string): Record<string, unknown>[] {
   if (value === undefined || value === null) return [];
 
-  let parsed = value;
+  let parsed: unknown = value;
   if (typeof parsed === "string") {
     const trimmed = parsed.trim();
     if (!trimmed) return [];
@@ -96,7 +96,7 @@ function objectArray(value: unknown, field: string): Record<string, unknown>[] {
 function modelRatings(value: unknown): Record<string, number> {
   if (value === undefined || value === null) return {};
 
-  let parsed = value;
+  let parsed: unknown = value;
   if (typeof parsed === "string") {
     const trimmed = parsed.trim();
     if (!trimmed) return {};

@@ -28,7 +28,7 @@ export default function CampScreen() {
   const profile = useUserStore((s) => s.profile);
   const theme = useThemeColors();
   const { isWebWide } = useResponsive();
-  const tabBarInset = useTabBarInset(100);
+  const tabBarInset = useTabBarInset(98);
   const [refreshing, setRefreshing] = useState(false);
   const loadBounties = useBountyStore((s) => s.loadBounties);
   const loaded = useBountyStore((s) => s.loaded);

@@ -5,6 +5,7 @@ import { fontFamily } from "../../constants/themes";
 import { useThemeColors } from "../../hooks/useTheme";
 import { withAlpha } from "../../lib/color";
 import type { ProfileIconName } from "./types";
+import { createShadow } from "@/lib/shadow";
 
 export interface ProfileTabItem {
   key: string;
@@ -124,10 +125,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 8,
     borderRadius: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    ...createShadow("#000", 0, 6, 10, 0.2),
     elevation: 5,
   },
   inactiveFill: {

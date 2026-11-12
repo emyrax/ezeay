@@ -20,7 +20,7 @@ export default function TabLayout() {
         >
           <Tabs.Screen name="index" />
           <Tabs.Screen name="quests" />
-          <Tabs.Screen name="stats" />
+          <Tabs.Screen name="explore" />
           <Tabs.Screen name="profile" />
         </Tabs>
       </View>

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { createShadow } from "@/lib/shadow";
 import { useThemeColors } from "../../hooks/useTheme";
 import type { LessonMotionPreset } from "../../lib/lesson/motion";
 
@@ -62,7 +63,7 @@ export default function LessonProgress({ index, total, preset }: Props) {
             styles.head,
             {
               backgroundColor: theme.primary,
-              shadowColor: theme.primary,
+              ...createShadow(theme.primary, 0, 0, 4, 0.45),
               left: progress.interpolate({
                 inputRange: [0, 1],
                 outputRange: ["0%", "100%"],
@@ -105,9 +106,6 @@ const styles = StyleSheet.create({
     marginLeft: -3.5,
     borderRadius: 4,
     opacity: 0.9,
-    shadowOpacity: 0.45,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
   },
   text: {
     fontSize: 10,

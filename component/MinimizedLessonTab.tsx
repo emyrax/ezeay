@@ -8,6 +8,7 @@ import type {
   VisualLessonMiniTone,
 } from "../lib/lesson/visualLessonStatus";
 import type { ThreadPost } from "../types/thread";
+import { createShadow } from "@/lib/shadow";
 
 interface MinimizedLessonTabProps {
   post: ThreadPost;
@@ -111,10 +112,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     zIndex: 40,
     elevation: 10,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
+    ...createShadow("#000000", 0, 8, 16, 0.28),
   },
   main: {
     flex: 1,

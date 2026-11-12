@@ -44,6 +44,7 @@ import type { ReelChallengeAttempt } from "../types/reel";
 import CommunityAvatar from "./CommunityAvatar";
 import ExploreUpNextPanel from "./ExploreUpNextPanel";
 import ResourceUploadSheet from "./ResourceUploadSheet";
+import { createShadow } from "@/lib/shadow";
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   Beginner: "#4CAF50",
@@ -2265,19 +2266,14 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     justifyContent: "space-between",
     elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 9,
+    ...createShadow("#000", 0, 4, 9, 0.12),
     backgroundColor: "rgba(255,255,255,0.03)",
   },
   reelWide: {
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     elevation: 8,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 24,
+    ...createShadow("#000000", 0, 10, 24, 0.22),
   },
   reelShort: {
     justifyContent: "center",
@@ -2302,10 +2298,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 5,
+    ...createShadow("#000", 0, 2, 5, 0.08),
   },
   diffText: {
     fontSize: 11,

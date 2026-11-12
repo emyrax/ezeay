@@ -34,6 +34,7 @@ import NotesLocalOnlyBanner from "../../component/notes/NotesLocalOnlyBanner";
 import ThemeIcon from "../../component/notes/ThemeIcon";
 import { bodyFont } from "../../constants/themes";
 import { useThemeColors } from "../../hooks/useTheme";
+import { createShadow } from "@/lib/shadow";
 import { useNoteStore } from "../../store/noteStore";
 import type { Note } from "../../types/note";
 
@@ -127,7 +128,6 @@ function NoteCard({
           {
             backgroundColor: theme.glass,
             borderColor: theme.borderLight,
-            shadowColor: theme.shadow,
             opacity: pressed ? 0.85 : 1,
             transform: [{ scale: pressed ? 0.96 : 1 }],
           },
@@ -908,7 +908,7 @@ export default function NotesListScreen() {
             colors={[theme.primary, theme.accent]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[styles.fab, { shadowColor: theme.primary }]}
+            style={[styles.fab, createShadow(theme.primary, 0, 6, 10, 0.4)]}
           >
             <ThemeIcon
               sf="square.and.pencil"
@@ -1045,9 +1045,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
+    ...createShadow("#000000", 0, 4, 10, 0.12),
     elevation: 3,
     overflow: "hidden",
   },
@@ -1229,8 +1227,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 8,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
   },
 });
