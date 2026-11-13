@@ -1,14 +1,20 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { coachColors, coachFont } from "../../constants/coachTheme";
 import { api, friendlyError } from "../../lib/api";
+import {
+  filterConversations,
+  HISTORY_FILTERS,
+  type HistoryFilter,
+} from "../../lib/coach/historyFilter";
 import { formatRelativeTime } from "../../lib/threads/format";
 import type { TutorConversation } from "../../types/tutor";
 import CoachSheet from "./CoachSheet";
@@ -37,9 +43,16 @@ export default function ChatHistorySheet({
   onOpen,
 }: ChatHistorySheetProps) {
   const [conversations, setConversations] = useState<TutorConversation[]>([]);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<HistoryFilter>("all");
   const [loading, setLoading] = useState(false);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const visibleConversations = useMemo(
+    () => filterConversations(conversations, query, filter),
+    [conversations, filter, query],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,6 +97,7 @@ export default function ChatHistorySheet({
       title="Chat history"
       subtitle="Pick up where you left off."
       onClose={onClose}
+      presentation="panel"
       headerAction={
         <Pressable
           onPress={() => void load()}
@@ -135,8 +149,87 @@ export default function ChatHistorySheet({
         </View>
       ) : null}
 
+      {!loading && !error && conversations.length > 0 ? (
+        <View style={styles.controls}>
+          <View style={styles.search}>
+            <MaterialCommunityIcons
+              name="magnify"
+              size={18}
+              color={coachColors.textMuted}
+            />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search conversations"
+              placeholderTextColor={coachColors.textMuted}
+              style={styles.searchInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              accessibilityLabel="Search conversations"
+            />
+            {query ? (
+              <Pressable
+                onPress={() => setQuery("")}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+              >
+                <MaterialCommunityIcons
+                  name="close-circle"
+                  size={17}
+                  color={coachColors.textMuted}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+
+          <View style={styles.filters}>
+            {HISTORY_FILTERS.map((option) => {
+              const selected = filter === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => setFilter(option.value)}
+                  style={[styles.filterChip, selected && styles.filterChipActive]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Filter ${option.label} conversations`}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      selected && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+
+      {!loading &&
+      !error &&
+      conversations.length > 0 &&
+      visibleConversations.length === 0 ? (
+        <View style={styles.state}>
+          <MaterialCommunityIcons
+            name="magnify"
+            size={24}
+            color={coachColors.textMuted}
+          />
+          <Text style={styles.stateTitle}>No matches found</Text>
+          <Text style={styles.stateText}>
+            Try a different search or filter to find an older chat.
+          </Text>
+        </View>
+      ) : null}
+
       {!loading && !error
-        ? conversations.map((conversation) => {
+        ? visibleConversations.map((conversation) => {
             const active = conversation.id === activeConversationId;
             const opening = conversation.id === openingId;
             return (
@@ -187,6 +280,55 @@ export default function ChatHistorySheet({
 }
 
 const styles = StyleSheet.create({
+  controls: {
+    gap: 10,
+    paddingBottom: 4,
+  },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 44,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: coachColors.border,
+    backgroundColor: coachColors.background,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 42,
+    paddingVertical: 0,
+    fontFamily: coachFont.regular,
+    fontSize: 13,
+    color: coachColors.text,
+  },
+  filters: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  filterChip: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: coachColors.border,
+    backgroundColor: coachColors.surface,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  filterChipActive: {
+    borderColor: coachColors.accent,
+    backgroundColor: coachColors.accentSoft,
+  },
+  filterChipText: {
+    fontFamily: coachFont.medium,
+    fontSize: 11,
+    color: coachColors.textSecondary,
+  },
+  filterChipTextActive: {
+    fontFamily: coachFont.semibold,
+    color: coachColors.accent,
+  },
   refresh: {
     width: 34,
     height: 34,

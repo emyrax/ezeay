@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,15 +21,26 @@ import CoachChatMenuSheet from "../../../component/coach/CoachChatMenuSheet";
 import CoachHeader from "../../../component/coach/CoachHeader";
 import CoachInputDock from "../../../component/coach/CoachInputDock";
 import CoachMascot from "../../../component/coach/CoachMascot";
+import CoachModelPickerSheet from "../../../component/coach/CoachModelPickerSheet";
+import CoachPhotoSheet from "../../../component/coach/CoachPhotoSheet";
 import CoachScreen from "../../../component/coach/CoachScreen";
 import SuggestPromptsSheet from "../../../component/coach/SuggestPromptsSheet";
 import MarkdownRenderer from "../../../component/MarkdownRenderer";
 import { coachColors, coachFont, coachMarkdownTheme } from "../../../constants/coachTheme";
 import { images } from "../../../constants/images";
 import { useAuth } from "../../../contexts/AuthContext";
+import { useCoachAttachments } from "../../../hooks/useCoachAttachments";
+import { useVoiceDictation } from "../../../hooks/useVoiceDictation";
 import { api, friendlyError } from "../../../lib/api";
+import {
+  memoryFileLabel,
+  pickMemoryFile,
+  pickMemoryImage,
+} from "../../../lib/agent/memoryFiles";
 import { getModelOption } from "../../../lib/providers/modelRegistry";
 import { useModelStore } from "../../../store/modelStore";
+import type { AgentMemoryRecord } from "../../../types/agent";
+import type { TutorMessageAttachment } from "../../../types/tutor";
 
 type Role = "user" | "assistant";
 
@@ -38,6 +49,30 @@ interface CoachMessage {
   role: Role;
   content: string;
   createdAt: string;
+  attachments?: TutorMessageAttachment[];
+}
+
+function memoryToAttachment(memory: AgentMemoryRecord): TutorMessageAttachment {
+  return {
+    id: memory.id,
+    label: memoryFileLabel(memory),
+    fileName: memory.fileName ?? undefined,
+    mimeType: memory.mimeType ?? undefined,
+    url: memory.fileUrl ?? undefined,
+    sizeBytes: memory.sizeBytes ?? undefined,
+  };
+}
+
+function parseMemoryIds(value: string | string[] | undefined): string[] {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw?.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
 }
 
 const RECOMMENDATIONS = [
@@ -72,11 +107,24 @@ export default function AgentChatScreen() {
   const params = useLocalSearchParams<{
     prompt?: string | string[];
     conversationId?: string | string[];
+    memoryIds?: string | string[];
   }>();
   const { getToken, user } = useAuth();
   const insets = useSafeAreaInsets();
   const selectedModel = useModelStore((state) => state.selectedModel);
+  const setSelectedModel = useModelStore((state) => state.setSelectedModel);
   const modelLabel = getModelOption(selectedModel)?.label ?? "AI model";
+  const attachments = useCoachAttachments();
+  const {
+    items: attachmentItems,
+    upload: uploadAttachment,
+    clear: clearAttachments,
+    hydrate: hydrateAttachments,
+  } = attachments;
+  const initialMemoryIds = useMemo(
+    () => parseMemoryIds(params.memoryIds),
+    [params.memoryIds],
+  );
 
   const [messages, setMessages] = useState<CoachMessage[]>([]);
   const [input, setInput] = useState("");
@@ -87,6 +135,15 @@ export default function AgentChatScreen() {
   const [historyVisible, setHistoryVisible] = useState(false);
   const [connectorsVisible, setConnectorsVisible] = useState(false);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const [modelPickerVisible, setModelPickerVisible] = useState(false);
+  const [photoVisible, setPhotoVisible] = useState(false);
+  const [initialAttachments, setInitialAttachments] = useState<
+    TutorMessageAttachment[]
+  >([]);
+  const [initialAttachmentsReady, setInitialAttachmentsReady] = useState(
+    initialMemoryIds.length === 0,
+  );
+  const hydratedInitialRef = useRef(initialMemoryIds.length === 0);
   const sendingRef = useRef(false);
   const requestSeqRef = useRef(0);
   const sentInitialRef = useRef(false);
@@ -94,7 +151,13 @@ export default function AgentChatScreen() {
   const listRef = useRef<FlatList<CoachMessage>>(null);
 
   const sendMessage = useCallback(
-    async (raw: string) => {
+    async (
+      raw: string,
+      pending?: {
+        memoryIds: string[];
+        attachments: TutorMessageAttachment[];
+      },
+    ) => {
       const text = raw.trim();
       if (!text || sendingRef.current) return;
       sendingRef.current = true;
@@ -103,11 +166,18 @@ export default function AgentChatScreen() {
       setInput("");
       setLoading(true);
 
+      const outboundAttachments =
+        pending?.attachments ?? attachmentItems.map(memoryToAttachment);
+      const memoryIds = pending?.memoryIds ?? attachmentItems.map((m) => m.id);
+
       const userMessage: CoachMessage = {
         id: `user_${Date.now()}`,
         role: "user",
         content: text,
         createdAt: new Date().toISOString(),
+        attachments: outboundAttachments.length
+          ? outboundAttachments
+          : undefined,
       };
       setMessages((prev) => [...prev, userMessage]);
 
@@ -122,12 +192,14 @@ export default function AgentChatScreen() {
             message: text,
             persona: "patient_tutor",
             mode: "general",
+            memoryIds: memoryIds.length ? memoryIds : undefined,
           },
           token,
           { modelRef: selectedModel },
         );
         if (requestId !== requestSeqRef.current) return;
         setConversationId(response.conversationId);
+        clearAttachments();
         setMessages((prev) => [
           ...prev,
           {
@@ -135,6 +207,7 @@ export default function AgentChatScreen() {
             role: "assistant",
             content: response.message.content,
             createdAt: new Date().toISOString(),
+            attachments: response.message.attachments,
           },
         ]);
       } catch (err) {
@@ -149,7 +222,7 @@ export default function AgentChatScreen() {
         }
       }
     },
-    [conversationId, getToken, selectedModel],
+    [attachmentItems, clearAttachments, conversationId, getToken, selectedModel],
   );
 
   const resetChat = useCallback(() => {
@@ -160,7 +233,8 @@ export default function AgentChatScreen() {
     setConversationId(null);
     setError(null);
     setInput("");
-  }, []);
+    clearAttachments();
+  }, [clearAttachments]);
 
   const openConversation = useCallback(
     async (id: string) => {
@@ -182,10 +256,38 @@ export default function AgentChatScreen() {
           role: item.role,
           content: item.content,
           createdAt: item.createdAt,
+          attachments: item.attachments,
         })),
       );
     },
     [getToken],
+  );
+
+  const voice = useVoiceDictation({
+    onTranscript: (text) =>
+      setInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text)),
+  });
+
+  const pickFile = useCallback(async () => {
+    try {
+      const file = await pickMemoryFile();
+      if (file) await uploadAttachment(file, "file");
+    } catch (err) {
+      setError(friendlyError(err, "Could not attach that file."));
+    }
+  }, [uploadAttachment]);
+
+  const pickPhoto = useCallback(
+    async (source: "camera" | "gallery") => {
+      setPhotoVisible(false);
+      try {
+        const file = await pickMemoryImage(source);
+        if (file) await uploadAttachment(file, "photo");
+      } catch (err) {
+        setError(friendlyError(err, "Could not attach that photo."));
+      }
+    },
+    [uploadAttachment],
   );
 
   useEffect(() => {
@@ -210,15 +312,68 @@ export default function AgentChatScreen() {
   }, [openConversation, params.conversationId]);
 
   useEffect(() => {
-    if (sentInitialRef.current) return;
+    if (hydratedInitialRef.current) return;
+    hydratedInitialRef.current = true;
+    let active = true;
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token) {
+          throw new Error("Your session expired. Please sign in again.");
+        }
+        const response = await api.agent.memories.list(token);
+        if (!active) return;
+        const selected = response.memories.filter((memory) =>
+          initialMemoryIds.includes(memory.id),
+        );
+        setInitialAttachments(selected.map(memoryToAttachment));
+        hydrateAttachments(selected);
+      } catch (err) {
+        if (active) {
+          setError(
+            friendlyError(
+              err,
+              "Could not load your attachments. Please try again.",
+            ),
+          );
+        }
+      } finally {
+        if (active) setInitialAttachmentsReady(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [getToken, hydrateAttachments, initialMemoryIds]);
+
+  useEffect(() => {
+    if (sentInitialRef.current || !initialAttachmentsReady) return;
     const initial = Array.isArray(params.prompt)
       ? params.prompt[0]
       : params.prompt;
     if (!initial?.trim()) return;
     sentInitialRef.current = true;
-    const timer = setTimeout(() => void sendMessage(initial), 0);
+    const timer = setTimeout(
+      () =>
+        void sendMessage(
+          initial,
+          initialMemoryIds.length
+            ? {
+                memoryIds: initialMemoryIds,
+                attachments: initialAttachments,
+              }
+            : undefined,
+        ),
+      0,
+    );
     return () => clearTimeout(timer);
-  }, [params.prompt, sendMessage]);
+  }, [
+    initialAttachments,
+    initialAttachmentsReady,
+    initialMemoryIds,
+    params.prompt,
+    sendMessage,
+  ]);
 
   const latestAssistantId = [...messages]
     .reverse()
@@ -240,6 +395,28 @@ export default function AgentChatScreen() {
           <View style={styles.userRow}>
             <View style={styles.userBubble}>
               <Text style={styles.userText}>{item.content}</Text>
+              {item.attachments?.length ? (
+                <View style={styles.userAttachments}>
+                  {item.attachments.map((attachment) => (
+                    <View
+                      key={attachment.id}
+                      style={styles.userAttachment}
+                    >
+                      <MaterialCommunityIcons
+                        name="paperclip"
+                        size={12}
+                        color={coachColors.textSecondary}
+                      />
+                      <Text
+                        style={styles.userAttachmentText}
+                        numberOfLines={1}
+                      >
+                        {attachment.label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
             <Image
               source={
@@ -350,6 +527,8 @@ export default function AgentChatScreen() {
     );
   };
 
+  const displayedError = error ?? attachments.error;
+
   return (
     <CoachScreen maxWidth={560}>
       <CoachHeader
@@ -385,16 +564,16 @@ export default function AgentChatScreen() {
           }
         />
 
-        {error ? (
+        {displayedError ? (
           <View style={styles.errorBanner}>
             <MaterialCommunityIcons
               name="alert-circle-outline"
               size={16}
               color="#B45309"
             />
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>{displayedError}</Text>
             <Pressable
-              onPress={() => setError(null)}
+              onPress={() => { setError(null); attachments.clearError(); }}
               accessibilityRole="button"
               accessibilityLabel="Dismiss error"
             >
@@ -418,19 +597,20 @@ export default function AgentChatScreen() {
             onChangeText={setInput}
             onSend={() => void sendMessage(input)}
             loading={loading}
+            showMeta
             modelLabel={modelLabel}
-            onAdd={() =>
-              Alert.alert("Attachments", "Add a file from the chat composer.")
-            }
-            onLink={() =>
-              Alert.alert("Attachments", "Add a file from the chat composer.")
-            }
-            onImage={() =>
-              Alert.alert("Images", "Image uploads are coming soon.")
-            }
-            onMic={() =>
-              Alert.alert("Voice input", "Voice input is coming soon.")
-            }
+            onModelPress={() => setModelPickerVisible(true)}
+            onAdd={() => void pickFile()}
+            onLink={() => void pickFile()}
+            onImage={() => setPhotoVisible(true)}
+            onMic={voice.toggle}
+            micActive={voice.listening}
+            attachments={attachmentItems.map((memory) => ({
+              id: memory.id,
+              label: memoryFileLabel(memory),
+            }))}
+            attachmentBusy={attachments.uploading}
+            onRemoveAttachment={attachments.remove}
           />
         </View>
       </KeyboardAvoidingView>
@@ -466,6 +646,20 @@ export default function AgentChatScreen() {
         visible={suggestionsVisible}
         onClose={() => setSuggestionsVisible(false)}
         onPick={setInput}
+      />
+
+      <CoachModelPickerSheet
+        visible={modelPickerVisible}
+        selectedModel={selectedModel}
+        onSelect={(model) => setSelectedModel(model.ref)}
+        onClose={() => setModelPickerVisible(false)}
+      />
+
+      <CoachPhotoSheet
+        visible={photoVisible}
+        onCamera={() => void pickPhoto("camera")}
+        onGallery={() => void pickPhoto("gallery")}
+        onClose={() => setPhotoVisible(false)}
       />
     </CoachScreen>
   );
@@ -528,6 +722,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: coachColors.text,
+  },
+  userAttachments: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 5,
+    marginTop: 8,
+  },
+  userAttachment: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    maxWidth: "100%",
+    borderRadius: 9,
+    backgroundColor: "rgba(255, 255, 255, 0.55)",
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  userAttachmentText: {
+    maxWidth: 170,
+    fontFamily: coachFont.medium,
+    fontSize: 10,
+    color: coachColors.textSecondary,
   },
   userAvatar: {
     width: 28,

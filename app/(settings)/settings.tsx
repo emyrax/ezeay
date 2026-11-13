@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import type { ComponentProps } from "react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -23,19 +23,21 @@ import ModelPickerSheet from "../../component/ModelPickerSheet";
 import OfflineAICard from "../../component/OfflineAICard";
 import { fontFamily } from "../../constants/themes";
 import { useAuth } from "../../contexts/AuthContext";
+import {
+    modelStatusLabel,
+    useAiModelCatalog,
+    type ProviderStatus,
+} from "../../hooks/useAiModelCatalog";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import { useThemeColors } from "../../hooks/useTheme";
-import { api } from "../../lib/api";
 import {
     LESSON_MOTION_OPTIONS,
     type LessonMotionStyle,
 } from "../../lib/lesson/motion";
 import {
-    AI_MODELS,
     AI_PROVIDER_LABELS,
     effectiveRating,
     getModelOption,
-    sortModels,
     type AiModelOption,
     type AiProvider,
 } from "../../lib/providers/modelRegistry";
@@ -44,10 +46,8 @@ import { AI_PROVIDERS, useAiKeysStore } from "../../store/aiKeysStore";
 import { useModelRatingStore } from "../../store/modelRatingStore";
 import { useModelStore } from "../../store/modelStore";
 import { useMotionStore } from "../../store/motionStore";
-import { useOfflineStore, type OfflineStatus } from "../../store/offlineStore";
+import { useOfflineStore } from "../../store/offlineStore";
 import { useSettingsStore } from "../../store/settingsStore";
-
-type ProviderStatus = "ready" | "needs-key" | "unknown";
 
 const PROVIDER_ICONS: Record<
   AiProvider,
@@ -60,14 +60,6 @@ const PROVIDER_ICONS: Record<
   offline: "chip",
 };
 
-const PROVIDER_ORDER: AiProvider[] = [
-  "offline",
-  "gemini",
-  "openai",
-  "anthropic",
-  "openrouter",
-];
-
 const MOTION_ICONS: Record<
   LessonMotionStyle,
   ComponentProps<typeof MaterialCommunityIcons>["name"]
@@ -76,22 +68,6 @@ const MOTION_ICONS: Record<
   kinetic: "creation",
   playful: "rocket-launch-outline",
 };
-
-function modelStatusLabel(
-  provider: AiProvider | undefined,
-  status: ProviderStatus,
-  offlineStatus: OfflineStatus,
-): string {
-  if (provider === "offline") {
-    if (offlineStatus === "ready" || offlineStatus === "downloaded")
-      return "Installed";
-    if (offlineStatus === "downloading") return "Downloading…";
-    return "Not installed";
-  }
-  if (status === "ready") return "Ready";
-  if (status === "unknown") return "Checking…";
-  return "Add key";
-}
 
 function SectionCard({
   title,
@@ -208,14 +184,17 @@ export default function SettingsScreen() {
 
   const { selectedModel, setSelectedModel } = useModelStore();
   const { getToken, profile } = useAuth();
-  const { loadKeys, setKey, clearKey } = useAiKeysStore();
-  const keys = useAiKeysStore((s) => s.keys);
-  const offlineStatus = useOfflineStore((s) => s.status);
+  const { setKey, clearKey } = useAiKeysStore();
+  const {
+    keys,
+    serverKeys,
+    serverKeysError,
+    offlineStatus,
+    providerStatus,
+    userRatings,
+    modelGroups,
+  } = useAiModelCatalog();
 
-  const [serverKeys, setServerKeys] = useState<
-    Partial<Record<AiProvider, boolean>>
-  >({});
-  const [serverKeysError, setServerKeysError] = useState(false);
   const [candidateModel, setCandidateModel] = useState<AiModelOption | null>(
     null,
   );
@@ -261,71 +240,6 @@ export default function SettingsScreen() {
     },
     [clearKey, editingKeyProvider],
   );
-
-  useEffect(() => {
-    loadKeys();
-    let active = true;
-    getToken()
-      .then((token) => {
-        if (!token) return;
-        return api.ai
-          .providers(token)
-          .then((res) => {
-            if (!active) return;
-            const status: Partial<Record<AiProvider, boolean>> = {};
-            for (const provider of AI_PROVIDERS) {
-              status[provider] =
-                res.providers[provider]?.serverKeyConfigured ?? false;
-            }
-            setServerKeys(status);
-            setServerKeysError(false);
-          })
-          .catch((err: unknown) => {
-            if (!active) return;
-            console.warn("[Settings] Failed to fetch AI provider status:", err);
-            setServerKeysError(true);
-          });
-      })
-      .catch(() => {
-        if (active) setServerKeysError(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, [getToken, loadKeys]);
-
-  const providerStatus = useCallback(
-    (provider: AiProvider): ProviderStatus => {
-      if (provider === "offline") {
-        if (offlineStatus === "ready" || offlineStatus === "downloaded")
-          return "ready";
-        if (offlineStatus === "downloading") return "unknown";
-        return "needs-key";
-      }
-      if (keys[provider]) return "ready";
-      if (serverKeysError) return "unknown";
-      return serverKeys[provider] ? "ready" : "needs-key";
-    },
-    [keys, serverKeys, serverKeysError, offlineStatus],
-  );
-
-  const userRatings = useModelRatingStore((s) => s.ratings);
-
-  const modelGroups = useMemo(() => {
-    const providers =
-      Platform.OS === "web"
-        ? PROVIDER_ORDER.filter((provider) => provider !== "offline")
-        : PROVIDER_ORDER;
-    return providers
-      .map((provider) => ({
-        provider,
-        models: sortModels(
-          AI_MODELS.filter((m) => m.provider === provider),
-          userRatings,
-        ),
-      }))
-      .filter((group) => group.models.length > 0);
-  }, [userRatings]);
 
   const currentModel = getModelOption(selectedModel);
   const currentStatus: ProviderStatus = currentModel
