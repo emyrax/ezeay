@@ -1267,7 +1267,14 @@ export default function QuestsScreen() {
                   style={useWebGrid ? styles.courseGrid : undefined}
                   onLayout={
                     useWebGrid
-                      ? (e) => setGridWidth(e.nativeEvent.layout.width)
+                      ? (e) =>
+                          setGridWidth(
+                            Math.max(
+                              0,
+                              e.nativeEvent.layout.width -
+                                COURSE_GRID_PADDING * 2,
+                            ),
+                          )
                       : undefined
                   }
                 >
@@ -2166,13 +2173,16 @@ const styles = StyleSheet.create({
   },
   coursesToolbar: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 10,
+    rowGap: 10,
     marginHorizontal: 20,
     marginTop: 12,
   },
   searchBox: {
     flex: 1,
+    minWidth: 180,
     flexDirection: "row",
     alignItems: "center",
     height: 40,

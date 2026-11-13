@@ -25,7 +25,7 @@ export default function AppSidebar() {
   const theme = useThemeColors();
   const router = useRouter();
   const pathname = usePathname();
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   const { sidebarExpanded } = useResponsive();
   const profile = useUserStore((state) => state.profile);
   const currentPath = pathname === "" ? "/" : pathname;

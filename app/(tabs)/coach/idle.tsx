@@ -164,7 +164,6 @@ export default function AgentIdleScreen() {
             onChangeText={setInput}
             onSend={startChat}
             showMeta
-            promptsLeft={56}
             modelLabel={modelLabel}
             onModelPress={() => setModelPickerVisible(true)}
             onAdd={() => void pickFile()}

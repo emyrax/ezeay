@@ -89,7 +89,7 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
   const router = useRouter();
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   const { tutor: tutorEnabled, agent: agentEnabled } = useFeatureFlags();
   const isCoachRoute = segments[0] === "(tabs)" && segments[1] === "coach";
   const isCenterActive = agentEnabled

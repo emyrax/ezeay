@@ -18,7 +18,6 @@ interface CoachInputDockProps {
   onSend: () => void;
   loading?: boolean;
   showMeta?: boolean;
-  promptsLeft?: number;
   modelLabel?: string;
   onModelPress?: () => void;
   onAdd?: () => void;
@@ -67,7 +66,6 @@ export default function CoachInputDock({
   onSend,
   loading = false,
   showMeta = false,
-  promptsLeft,
   modelLabel = "GPT-4o",
   onModelPress,
   onAdd,
@@ -86,13 +84,9 @@ export default function CoachInputDock({
     <View style={styles.outer}>
       {showMeta ? (
         <View style={styles.metaRow}>
-          {promptsLeft != null ? (
-            <Text style={styles.metaText}>
-              You have {promptsLeft} prompts left
-            </Text>
-          ) : (
-            <View />
-          )}
+          <Text style={[styles.metaText, styles.metaCta]}>
+            Go pro with yuinx agent
+          </Text>
           <Pressable
             onPress={onModelPress}
             disabled={!onModelPress}
@@ -234,6 +228,10 @@ const styles = StyleSheet.create({
     fontFamily: coachFont.medium,
     fontSize: 11,
     color: coachColors.textMuted,
+  },
+  metaCta: {
+    color: coachColors.accent,
+    fontWeight: "700",
   },
   modelChip: {
     flexDirection: "row",

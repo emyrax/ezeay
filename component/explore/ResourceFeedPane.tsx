@@ -267,32 +267,35 @@ function ResourceCard({
       ) : null}
 
       <View style={styles.metaRow}>
-        <Meta
-          icon="heart-outline"
-          value={formatCount(resource.likes)}
-          color={colors.textMuted}
-        />
-        <Meta
-          icon="bookmark-outline"
-          value={formatCount(resource.saves)}
-          color={colors.textMuted}
-        />
-        <Meta
-          icon="eye-outline"
-          value={formatCount(resource.views)}
-          color={colors.textMuted}
-        />
-        {fileSize ? (
-          <Text style={[styles.fileSize, { color: colors.textMuted }]}>
-            {fileSize}
-          </Text>
-        ) : null}
-        <View style={styles.metaSpacer} />
-        <MaterialCommunityIcons
-          name="open-in-new"
-          size={16}
-          color={colors.primary}
-        />
+        <View style={styles.metaGroup}>
+          <Meta
+            icon="heart-outline"
+            value={formatCount(resource.likes)}
+            color={colors.textMuted}
+          />
+          <Meta
+            icon="bookmark-outline"
+            value={formatCount(resource.saves)}
+            color={colors.textMuted}
+          />
+          <Meta
+            icon="eye-outline"
+            value={formatCount(resource.views)}
+            color={colors.textMuted}
+          />
+          {fileSize ? (
+            <Text style={[styles.fileSize, { color: colors.textMuted }]}>
+              {fileSize}
+            </Text>
+          ) : null}
+        </View>
+        <View style={styles.metaAction}>
+          <MaterialCommunityIcons
+            name="open-in-new"
+            size={16}
+            color={colors.primary}
+          />
+        </View>
       </View>
     </Pressable>
   );
@@ -395,9 +398,24 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    rowGap: 6,
+    marginTop: 12,
+  },
+  metaGroup: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 12,
-    marginTop: 12,
+    rowGap: 6,
+    minWidth: 0,
+  },
+  metaAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: "auto",
   },
   meta: {
     flexDirection: "row",
@@ -413,9 +431,6 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 10,
     fontWeight: "600",
-  },
-  metaSpacer: {
-    flex: 1,
   },
   state: {
     alignItems: "center",

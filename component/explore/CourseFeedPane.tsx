@@ -229,30 +229,33 @@ function CourseCard({
       </View>
 
       <View style={styles.metaRow}>
-        <Meta
-          icon="heart-outline"
-          value={formatCount(post.likeCount)}
-          color={colors.textMuted}
-        />
-        <Meta
-          icon="eye-outline"
-          value={formatCount(post.viewCount)}
-          color={colors.textMuted}
-        />
-        <Meta
-          icon="star-outline"
-          value={`${formatCount(post.rewardXp)} XP`}
-          color={colors.textMuted}
-        />
-        <View style={styles.metaSpacer} />
-        <Text style={[styles.openText, { color: colors.primary }]}>
-          Open course
-        </Text>
-        <MaterialCommunityIcons
-          name="chevron-right"
-          size={16}
-          color={colors.primary}
-        />
+        <View style={styles.metaGroup}>
+          <Meta
+            icon="heart-outline"
+            value={formatCount(post.likeCount)}
+            color={colors.textMuted}
+          />
+          <Meta
+            icon="eye-outline"
+            value={formatCount(post.viewCount)}
+            color={colors.textMuted}
+          />
+          <Meta
+            icon="star-outline"
+            value={`${formatCount(post.rewardXp)} XP`}
+            color={colors.textMuted}
+          />
+        </View>
+        <View style={styles.metaAction}>
+          <Text style={[styles.openText, { color: colors.primary }]}>
+            Open course
+          </Text>
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={16}
+            color={colors.primary}
+          />
+        </View>
       </View>
     </Pressable>
   );
@@ -355,9 +358,25 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    rowGap: 6,
+    marginTop: 12,
+  },
+  metaGroup: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 12,
-    marginTop: 12,
+    rowGap: 6,
+    minWidth: 0,
+  },
+  metaAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: "auto",
   },
   meta: {
     flexDirection: "row",
@@ -368,9 +387,6 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 10,
     fontWeight: "700",
-  },
-  metaSpacer: {
-    flex: 1,
   },
   openText: {
     fontFamily: safeFont,
