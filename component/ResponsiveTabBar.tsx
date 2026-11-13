@@ -2,8 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useSegments } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
-import { useEffect, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NAV } from "../constants/layout";
 import {
@@ -11,6 +10,7 @@ import {
   NOTES_HREF,
   TAB_ITEMS,
   TUTOR_HREF,
+  type TabIconName,
   type TabItem,
 } from "../constants/navigation";
 import { useFeatureFlags } from "../hooks/useFeatureFlags";
@@ -85,6 +85,73 @@ function TabButton({
   );
 }
 
+function CoachTabButton({
+  isActive,
+  onPress,
+  iconName,
+  title,
+  accessibilityLabel,
+  theme,
+}: {
+  isActive: boolean;
+  onPress: () => void;
+  iconName: TabIconName;
+  title: string;
+  accessibilityLabel: string;
+  theme: ReturnType<typeof useThemeColors>;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.tabItem}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isActive }}
+    >
+      <View
+        style={[
+          styles.coachIconBox,
+          isActive
+            ? [styles.coachIconBoxActive, { shadowColor: theme.tabActive }]
+            : { backgroundColor: withAlpha(theme.tabInactive, 0.2) },
+        ]}
+      >
+        {isActive ? (
+          <LinearGradient
+            colors={[theme.tabActive, theme.accent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.coachGradientFill}
+          >
+            <MaterialCommunityIcons
+              name={iconName}
+              size={22}
+              color="#FFFFFF"
+            />
+          </LinearGradient>
+        ) : (
+          <MaterialCommunityIcons
+            name={iconName}
+            size={22}
+            color={theme.tabInactive}
+          />
+        )}
+      </View>
+      <Text
+        style={[
+          styles.tabLabel,
+          {
+            color: isActive ? theme.tabActive : theme.tabInactive,
+            fontWeight: isActive ? "700" : "500",
+          },
+        ]}
+      >
+        {title}
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const theme = useThemeColors();
@@ -103,35 +170,17 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
       ? TUTOR_HREF
       : NOTES_HREF;
 
-  const glowAnim = useRef(new Animated.Value(0.3)).current;
-  const pressScale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (isCenterActive) {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, {
-            toValue: 0.8,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0.3,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ]),
-      );
-      loop.start();
-      return () => loop.stop();
-    } else {
-      glowAnim.setValue(0.3);
-    }
-  }, [isCenterActive, glowAnim]);
-
-  if (isCoachRoute) {
-    return null;
-  }
+  const centerTitle = agentEnabled ? "YUINX" : tutorEnabled ? "TUTOR" : "NOTES";
+  const centerIcon: TabIconName = agentEnabled
+    ? "robot-outline"
+    : tutorEnabled
+      ? "school-outline"
+      : "notebook-multiple";
+  const centerAccessibilityLabel = agentEnabled
+    ? "Open AI Coach"
+    : tutorEnabled
+      ? "Open AI Tutor"
+      : "Open Notes";
 
   const visibleRoutes = state.routes
     .map((route, index) => ({ route, index }))
@@ -188,79 +237,20 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
       >
         {leftRoutes.map((entry) => renderTab(entry))}
 
-        <View style={styles.midSpacer}>
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-        </View>
+        <CoachTabButton
+          isActive={isCenterActive}
+          onPress={() => {
+            if (!isCenterActive) {
+              router.push(centerHref as any);
+            }
+          }}
+          iconName={centerIcon}
+          title={centerTitle}
+          accessibilityLabel={centerAccessibilityLabel}
+          theme={theme}
+        />
 
         {rightRoutes.map((entry) => renderTab(entry))}
-
-        <View style={styles.centerOuter} pointerEvents="box-none">
-          <Animated.View
-            style={[
-              styles.glowRing,
-              {
-                backgroundColor: theme.tabActive,
-                opacity: isCenterActive ? glowAnim : 0,
-              },
-            ]}
-          />
-          <Pressable
-            onPress={() => router.push(centerHref as any)}
-            accessibilityRole="button"
-            accessibilityLabel={
-              agentEnabled
-                ? "Open AI Coach"
-                : tutorEnabled
-                  ? "Open AI Tutor"
-                  : "Open Notes"
-            }
-            onPressIn={() =>
-              Animated.spring(pressScale, {
-                toValue: 0.88,
-                useNativeDriver: true,
-              }).start()
-            }
-            onPressOut={() =>
-              Animated.spring(pressScale, {
-                toValue: 1,
-                friction: 3,
-                useNativeDriver: true,
-              }).start()
-            }
-          >
-            <Animated.View
-              style={[
-                styles.centerBtn,
-                {
-                  shadowColor: theme.tabInactive,
-                  shadowOpacity: 0.7,
-                  transform: [{ scale: pressScale }],
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={[theme.accent, theme.tabInactive]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.centerGradient, { borderColor: theme.tabInactive }]}
-              >
-                <View style={[styles.resultIcon, styles.centerLogo]}>
-                  <MaterialCommunityIcons
-                    name={
-                      agentEnabled
-                        ? "robot-outline"
-                        : tutorEnabled
-                          ? "school-outline"
-                          : "notebook-multiple"
-                    }
-                    size={22}
-                    color={theme.primary}
-                  />
-                </View>
-              </LinearGradient>
-            </Animated.View>
-          </Pressable>
-        </View>
       </View>
     </View>
   );
@@ -289,19 +279,31 @@ const styles = StyleSheet.create({
     shadowRadius: 4.65,
     elevation: 8,
   },
-  resultIcon: {
-    color: "#fff",
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   tabItem: {
     alignItems: "center",
     justifyContent: "center",
     flex: 1,
     paddingVertical: 8,
+  },
+  coachIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  coachIconBoxActive: {
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  coachGradientFill: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
   },
   iconBoxActive: {
     width: 40,
@@ -332,53 +334,5 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 10,
     marginTop: 4,
-  },
-  midSpacer: {
-    width: 72,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  divider: {
-    width: 1,
-    height: 28,
-    opacity: 0.3,
-    borderRadius: 1,
-  },
-  centerOuter: {
-    position: "absolute",
-    top: -24,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 10,
-  },
-  glowRing: {
-    position: "absolute",
-    top: -4,
-    width: 70,
-    height: 70,
-    borderRadius: 34,
-    opacity: 1,
-  },
-  centerBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 28,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 14,
-    elevation: 12,
-  },
-  centerGradient: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    overflow: "hidden",
-  },
-  centerLogo: {
-    width: 34,
-    height: 34,
   },
 });

@@ -5,6 +5,7 @@ import {
   getCarouselTranslate,
   getContentWidth,
   getExploreLayout,
+  getFloatingTabBarInset,
   getGridColumns,
   getGutter,
   getThreadsLayout,
@@ -126,6 +127,12 @@ test("getGutter scales with the breakpoint", () => {
   assert.equal(getGutter("phone"), 16);
   assert.equal(getGutter("tablet"), 24);
   assert.equal(getGutter("laptop"), 32);
+});
+
+test("getFloatingTabBarInset clears the floating tab bar", () => {
+  assert.equal(getFloatingTabBarInset(0), 110);
+  assert.equal(getFloatingTabBarInset(34), 144);
+  assert.equal(getFloatingTabBarInset(34, 8), 140);
 });
 
 test("getCarouselTranslate moves one panel per index", () => {

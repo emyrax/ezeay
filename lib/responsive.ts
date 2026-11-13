@@ -143,6 +143,15 @@ export function getGutter(breakpoint: Breakpoint): number {
   return GUTTERS[breakpoint];
 }
 
+export function getFloatingTabBarInset(bottomInset: number, gap = 12): number {
+  return (
+    NAV.tabBarBottomInset +
+    Math.max(0, bottomInset) +
+    NAV.tabBarHeight +
+    gap
+  );
+}
+
 export function getGridColumns(
   containerWidth: number,
   minCardWidth: number,

@@ -23,6 +23,7 @@ import SuggestPromptsSheet from "../../../component/coach/SuggestPromptsSheet";
 import { coachColors, coachFont } from "../../../constants/coachTheme";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useCoachAttachments } from "../../../hooks/useCoachAttachments";
+import { useResponsive } from "../../../hooks/useResponsive";
 import { useVoiceDictation } from "../../../hooks/useVoiceDictation";
 import { friendlyError } from "../../../lib/api";
 import {
@@ -31,6 +32,7 @@ import {
   pickMemoryImage,
 } from "../../../lib/agent/memoryFiles";
 import { getModelOption } from "../../../lib/providers/modelRegistry";
+import { getFloatingTabBarInset } from "../../../lib/responsive";
 import { useModelStore } from "../../../store/modelStore";
 
 const SUGGESTIONS = [
@@ -43,6 +45,7 @@ const SUGGESTIONS = [
 export default function AgentIdleScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { showSidebar } = useResponsive();
   const { getToken } = useAuth();
   const selectedModel = useModelStore((state) => state.selectedModel);
   const setSelectedModel = useModelStore((state) => state.setSelectedModel);
@@ -99,6 +102,9 @@ export default function AgentIdleScreen() {
   });
 
   const attachmentError = pickError ?? attachments.error;
+  const dockBottom = showSidebar
+    ? Math.max(18, insets.bottom + 10)
+    : getFloatingTabBarInset(insets.bottom);
 
   return (
     <CoachScreen>
@@ -121,9 +127,7 @@ export default function AgentIdleScreen() {
           </Text>
         </View>
 
-        <View
-          style={[styles.dockArea, { paddingBottom: Math.max(18, insets.bottom + 10) }]}
-        >
+        <View style={[styles.dockArea, { paddingBottom: dockBottom }]}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
