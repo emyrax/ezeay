@@ -62,6 +62,7 @@ export default function ExploreTabs({ active, onChange }: ExploreTabsProps) {
 const styles = StyleSheet.create({
   scroller: {
     flexGrow: 0,
+    width: "100%",
   },
   row: {
     flexDirection: "row",
