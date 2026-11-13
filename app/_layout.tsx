@@ -2,7 +2,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useThemeColors } from "../hooks/useTheme";
 import { useOfflineModelSync } from "../hooks/useOfflineModelSync";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -34,6 +34,17 @@ initNotifications();
 SplashScreen.preventAutoHideAsync();
 
 const SAVED_USER_KEY = "currentUser";
+
+const INPUT_OUTLINE_RESET = `
+  input, textarea, select,
+  input:hover, textarea:hover, select:hover,
+  input:focus, textarea:focus, select:focus,
+  input:focus-visible, textarea:focus-visible, select:focus-visible,
+  input:active, textarea:active, select:active {
+    outline: none !important;
+    outline-width: 0 !important;
+  }
+`;
 
 const styles = StyleSheet.create({
   restoreWrap: {
@@ -249,6 +260,14 @@ export default function RootLayout() {
 
   useEffect(() => {
     useAiKeysStore.getState().loadKeys();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const style = document.createElement("style");
+    style.textContent = INPUT_OUTLINE_RESET;
+    document.head.appendChild(style);
+    return () => style.remove();
   }, []);
 
   useOfflineModelSync();
