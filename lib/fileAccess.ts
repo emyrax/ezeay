@@ -1,5 +1,6 @@
 import { File, Paths } from "expo-file-system";
 import * as LegacyFS from "expo-file-system/legacy";
+import { Platform } from "react-native";
 
 function toLocalPath(uri: string): string {
   return decodeURIComponent(
@@ -17,6 +18,21 @@ function isInsideAppStorage(uri: string): boolean {
 }
 
 export async function readFileAsBase64(uri: string): Promise<string> {
+  if (Platform.OS === "web" && /^(blob:|data:|https?:)/.test(uri)) {
+    const response = await fetch(uri);
+    if (!response.ok) {
+      throw new Error("Couldn't read the selected file. Please try again.");
+    }
+    const blob = await response.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    return dataUrl.slice(dataUrl.indexOf(",") + 1);
+  }
+
   if (uri.startsWith("content://")) {
     try {
       return await LegacyFS.readAsStringAsync(uri, { encoding: "base64" });
