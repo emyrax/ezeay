@@ -19,6 +19,14 @@ export default function Root({ children }: PropsWithChildren) {
                 background-color: #070A10;
                 overflow-x: hidden;
               }
+              input, textarea, select,
+              input:hover, textarea:hover, select:hover,
+              input:focus, textarea:focus, select:focus,
+              input:focus-visible, textarea:focus-visible, select:focus-visible,
+              input:active, textarea:active, select:active {
+                outline: none !important;
+                outline-width: 0 !important;
+              }
             `,
           }}
         />
