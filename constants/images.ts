@@ -1,6 +1,6 @@
 export const images = {
   welcomeBg: require("../assets/images/welcome-bg.png"),
-  gradientQMark: require("../assets/images/icon.png"),
+  gradientQMark: require("../assets/images/yuinx_logo_square_transparent_for_darkBG.png"),
   goldCoinIcon: require("../assets/images/gold_coin_icon.png"),
   userProfilePhoto: require("../assets/images/user_profile_photo.png"),
   pythonAiIllustration: require("../assets/images/python_ai_illustration.png"),

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getStatsContentWidth, getStatsLayout } from "./statsLayout";
+import {
+  getExploreHubLayout,
+  getStatsContentWidth,
+  getStatsLayout,
+} from "./statsLayout";
 
 test("stats layout shows no rails below the app sidebar breakpoint", () => {
   const layout = getStatsLayout(1023);
@@ -63,4 +67,41 @@ test("stats layout switches to the ultra-wide rails at 1720", () => {
 test("stats layout borders the feed on tablet widths without rails", () => {
   assert.equal(getStatsLayout(767).bordered, false);
   assert.equal(getStatsLayout(768).bordered, true);
+});
+
+test("explore hub hides analytics below the sidebar breakpoint", () => {
+  const layout = getExploreHubLayout(1023);
+  assert.equal(layout.showAnalytics, false);
+  assert.equal(layout.analyticsWidth, 0);
+  assert.equal(layout.feedMaxWidth, 680);
+});
+
+test("explore hub keeps analytics and a readable feed at 1024", () => {
+  const layout = getExploreHubLayout(1024);
+  assert.equal(layout.showAnalytics, true);
+  assert.equal(layout.analyticsWidth, 220);
+  assert.equal(layout.gap, 20);
+  assert.equal(layout.feedMaxWidth, 640);
+});
+
+test("explore hub keeps the thread feed wider than analytics", () => {
+  for (const [width, analyticsWidth, feedMaxWidth] of [
+    [1024, 220, 640],
+    [1280, 240, 712],
+    [1480, 260, 820],
+    [1720, 280, 880],
+  ] as const) {
+    const layout = getExploreHubLayout(width);
+    assert.equal(layout.showAnalytics, true);
+    assert.equal(layout.analyticsWidth, analyticsWidth);
+    assert.equal(layout.feedMaxWidth, feedMaxWidth);
+    assert.ok(layout.feedMaxWidth > layout.analyticsWidth);
+  }
+});
+
+test("explore hub caps the feed width on large screens", () => {
+  const layout = getExploreHubLayout(1720);
+  assert.equal(layout.analyticsWidth, 280);
+  assert.equal(layout.feedMaxWidth, 880);
+  assert.equal(layout.gap, 24);
 });

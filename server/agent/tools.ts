@@ -404,7 +404,11 @@ const saveRoutine: AgentTool = {
         userId: ctx.userId,
         title: input.title,
         prompt: input.prompt,
-        scheduleCron: routineCron(input),
+        scheduleCron: routineCron({
+          frequency: input.frequency,
+          time: input.time,
+          days: input.days,
+        }),
         timezone,
         toolScopes: input.toolScopes ?? [],
         enabled: true,

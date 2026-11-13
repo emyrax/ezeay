@@ -482,7 +482,11 @@ export function registerAgentRoutineRoutes(
           userId: claims.sub,
           title: input.title,
           prompt: input.prompt,
-          scheduleCron: routineCron(input),
+          scheduleCron: routineCron({
+            frequency: input.frequency,
+            time: input.time,
+            days: input.days,
+          }),
           timezone,
           toolScopes: input.toolScopes ?? [],
           enabled: true,

@@ -3,11 +3,40 @@ import test from "node:test";
 import type { ThreadPost, ThreadUser } from "../../types/thread";
 import {
   getCurrentStreak,
+  getDailyEnergyScore,
   getRecommendedLearners,
   getWeekActivity,
 } from "./activity";
 
 const today = new Date("2026-11-05T12:00:00Z");
+
+test("getDailyEnergyScore tracks today's activity against the goal", () => {
+  assert.equal(getDailyEnergyScore([], 10, today), 0);
+  assert.equal(
+    getDailyEnergyScore([{ date: "2026-11-05", count: 5 }], 10, today),
+    50,
+  );
+  assert.equal(
+    getDailyEnergyScore([{ date: "2026-11-05", count: 10 }], 10, today),
+    100,
+  );
+  assert.equal(
+    getDailyEnergyScore([{ date: "2026-11-05", count: 15 }], 10, today),
+    100,
+  );
+});
+
+test("getDailyEnergyScore ignores other days and invalid goals", () => {
+  assert.equal(
+    getDailyEnergyScore([{ date: "2026-11-04", count: 10 }], 10, today),
+    0,
+  );
+  assert.equal(getDailyEnergyScore([{ date: "2026-11-05", count: 5 }], 0), 0);
+  assert.equal(
+    getDailyEnergyScore([{ date: "2026-11-05", count: -3 }], 10, today),
+    0,
+  );
+});
 
 test("getCurrentStreak counts consecutive active days through today", () => {
   assert.equal(

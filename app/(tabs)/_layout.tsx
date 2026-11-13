@@ -22,6 +22,7 @@ export default function TabLayout() {
           <Tabs.Screen name="quests" />
           <Tabs.Screen name="explore" />
           <Tabs.Screen name="profile" />
+          <Tabs.Screen name="coach" options={{ href: null }} />
         </Tabs>
       </View>
 

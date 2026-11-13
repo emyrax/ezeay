@@ -12,6 +12,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { NAV, THREADS } from "../constants/layout";
@@ -19,9 +20,9 @@ import { safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useFullscreen } from "../hooks/useFullscreen";
 import { useResponsive, useTabBarInset } from "../hooks/useResponsive";
-import { useStatsLayout } from "../hooks/useStatsLayout";
 import { useThemeColors } from "../hooks/useTheme";
 import { eventBus } from "../lib/eventBus";
+import { getExploreHubLayout } from "../lib/statsLayout";
 import { threadLessonHref } from "../lib/threads/format";
 import { useThreadLearningStore } from "../store/threadLearningStore";
 import { useThreadStore } from "../store/threadStore";
@@ -30,6 +31,10 @@ import type { ThreadPost } from "../types/thread";
 import ChapterThreadModal from "./ChapterThreadModal";
 import CommentsModal from "./CommentsModal";
 import DiscoveryRail from "./DiscoveryRail";
+import CourseFeedPane from "./explore/CourseFeedPane";
+import ExploreTabs, { type ExploreTab } from "./explore/ExploreTabs";
+import ResourceFeedPane from "./explore/ResourceFeedPane";
+import ExploreReels from "./ExploreReels";
 import MascotAnimation from "./MascotAnimation";
 import MascotStage from "./mascot/MascotStage";
 import ProfileCardModal from "./ProfileCardModal";
@@ -50,7 +55,8 @@ export default function ThreadFeedScreen({
   const colors = useThemeColors();
   const router = useRouter();
   const { isTabletUp, threadsLayout } = useResponsive();
-  const exploreLayout = useStatsLayout();
+  const { width: windowWidth } = useWindowDimensions();
+  const exploreHubLayout = getExploreHubLayout(windowWidth);
   const isExplore = variant === "explore";
   const tabBarInset = useTabBarInset(NAV.tabBarHeight + NAV.tabBarBottomInset + 16);
 
@@ -77,6 +83,10 @@ export default function ThreadFeedScreen({
   const [lessonMinimized, setLessonMinimized] = useState(false);
   const [quizPost, setQuizPost] = useState<ThreadPost | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<ExploreTab>("threads");
+  const [resourceRefreshKey, setResourceRefreshKey] = useState(0);
+  const [reelsRefreshKey, setReelsRefreshKey] = useState(0);
+  const [reelsRefreshing, setReelsRefreshing] = useState(false);
 
   const { enter: enterFullscreen, exit: exitFullscreen } = useFullscreen({
     onExit: () => setLessonMinimized(true),
@@ -165,32 +175,39 @@ export default function ThreadFeedScreen({
     setCollapsed((current) => (current === nextCollapsed ? current : nextCollapsed));
   }, []);
 
-  const showRail = isExplore
-    ? exploreLayout.showRightRail
-    : threadsLayout.showRightRail;
-  const showLeftRail = isExplore
-    ? exploreLayout.showLeftRail
-    : threadsLayout.showLeftRail;
-  const bordered = isExplore
-    ? exploreLayout.bordered
-    : threadsLayout.mode !== "mobile";
-  const layoutGap = isExplore ? exploreLayout.gap : threadsLayout.gap;
-  const leftRailWidth = isExplore
-    ? exploreLayout.leftRailWidth
-    : threadsLayout.leftRailWidth;
-  const rightRailWidth = isExplore
-    ? exploreLayout.rightRailWidth
-    : threadsLayout.railWidth;
+  const handleTabChange = useCallback((tab: ExploreTab) => {
+    setActiveTab(tab);
+    setCollapsed(false);
+  }, []);
+
+  const handleReelsRefresh = useCallback(() => {
+    setReelsRefreshing(true);
+    setReelsRefreshKey((value) => value + 1);
+  }, []);
+
+  const showAnalytics = isExplore && exploreHubLayout.showAnalytics;
+  const showThreadsLeftRail = !isExplore && threadsLayout.showLeftRail;
+  const showThreadsRightRail = !isExplore && threadsLayout.showRightRail;
+  const bordered = !isExplore && threadsLayout.mode !== "mobile";
+  const layoutGap = isExplore ? exploreHubLayout.gap : threadsLayout.gap;
+  const analyticsWidth = exploreHubLayout.analyticsWidth;
   const feedMaxWidth = isExplore
-    ? exploreLayout.feedMaxWidth
+    ? exploreHubLayout.feedMaxWidth
     : threadsLayout.feedMaxWidth;
+  const horizontalPadding = isExplore
+    ? windowWidth >= 768
+      ? 24
+      : 0
+    : bordered
+      ? 24
+      : 0;
   const bottomPadding = isTabletUp ? 32 : tabBarInset + 88;
   const minimizedBottom = isTabletUp ? 24 : tabBarInset + 84;
   const minimizedRight = isTabletUp ? 24 : 16;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      {showLeftRail ? (
+      {showAnalytics || showThreadsLeftRail ? (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <View style={[styles.ambientGlow, styles.ambientGlowOne]} />
           <View style={[styles.ambientGlow, styles.ambientGlowTwo]} />
@@ -200,37 +217,29 @@ export default function ThreadFeedScreen({
       <View
         style={[
           styles.workspace,
-          showRail && styles.workspaceRow,
-          showLeftRail && !isExplore && styles.workspaceUltraWide,
+          (showAnalytics || showThreadsRightRail) && styles.workspaceRow,
+          showAnalytics && styles.workspaceTwoColumn,
+          showThreadsLeftRail && styles.workspaceUltraWide,
           isExplore && styles.workspaceExplore,
           {
             gap: layoutGap,
-            paddingHorizontal: bordered ? 24 : 0,
+            paddingHorizontal: horizontalPadding,
           },
         ]}
       >
-        {showLeftRail ? (
-          isExplore ? (
-            <StatsLeftRail
-              width={leftRailWidth}
-              posts={posts}
-              onPressUser={handlePressProfile}
-              onPressProfile={() => router.push("/(tabs)/profile" as never)}
-              onExploreCamp={() => router.push("/(tabs)" as never)}
-            />
-          ) : (
-            <DiscoveryRail
-              width={leftRailWidth}
-              posts={posts}
-              onPressUser={handlePressProfile}
-            />
-          )
+        {showThreadsLeftRail ? (
+          <DiscoveryRail
+            width={threadsLayout.leftRailWidth}
+            posts={posts}
+            onPressUser={handlePressProfile}
+          />
         ) : null}
 
         <View
           style={[
             styles.feedColumn,
             bordered && styles.feedColumnBordered,
+            showAnalytics && styles.feedColumnTwoColumn,
             {
               maxWidth: feedMaxWidth,
               borderColor: colors.border,
@@ -252,11 +261,13 @@ export default function ThreadFeedScreen({
                   { color: colors.text },
                 ]}
               >
-                Threads
+                {isExplore ? "Explore" : "Threads"}
               </Text>
               {!collapsed ? (
                 <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                  Learn from every chapter, one part at a time
+                  {isExplore
+                    ? "Threads, resources, and reels from the camp"
+                    : "Learn from every chapter, one part at a time"}
                 </Text>
               ) : null}
             </View>
@@ -270,7 +281,11 @@ export default function ThreadFeedScreen({
             </Pressable>
           </View>
 
-          {!collapsed ? (
+          {isExplore ? (
+            <ExploreTabs active={activeTab} onChange={handleTabChange} />
+          ) : null}
+
+          {!collapsed && (!isExplore || activeTab === "threads") ? (
             <View style={styles.filterRow}>
               <FilterChip
                 label="Discover"
@@ -287,80 +302,118 @@ export default function ThreadFeedScreen({
             </View>
           ) : null}
 
-          <FlatList
-            data={posts}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <SubtopicThreadCard
-                post={item}
-                onPressSubtopic={handlePressSubtopic}
-                onPressChapterThread={setChapterId}
-                onPressProfile={handlePressProfile}
-                onPressComments={(post) => setCommentsPostId(post.id)}
-                onPressFocus={(post) => toggleFocus(post)}
-                onPressLesson={openLesson}
-                onPressQuiz={setQuizPost}
+          {isExplore && activeTab === "resources" ? (
+            <ResourceFeedPane
+              refreshKey={resourceRefreshKey}
+              bottomInset={bottomPadding}
+            />
+          ) : isExplore && activeTab === "reels" ? (
+            <View style={styles.pane}>
+              <ExploreReels
+                embedded
+                refreshKey={reelsRefreshKey}
+                refreshing={reelsRefreshing}
+                onRefresh={handleReelsRefresh}
+                onRefreshDone={() => setReelsRefreshing(false)}
               />
-            )}
-            contentContainerStyle={[
-              styles.listContent,
-              { paddingBottom: bottomPadding },
-              posts.length === 0 && !loading && styles.listContentEmpty,
-            ]}
-            showsVerticalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={32}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={() => refresh(getToken)}
-                tintColor={colors.primary}
-                colors={[colors.primary]}
-              />
-            }
-            onEndReached={() => loadMore(getToken)}
-            onEndReachedThreshold={0.6}
-            ListFooterComponent={
-              loadingMore ? (
-                <View style={styles.footer}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                </View>
-              ) : null
-            }
-            ListEmptyComponent={
-              loading ? (
-                <ThreadFeedLoading colors={colors} />
-              ) : loaded ? (
-                <View style={styles.empty}>
-                  <MascotAnimation
-                    action={error ? "mascot_disappointed" : "mascot_posing"}
-                    height={124}
-                    framed={false}
-                  />
-                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                    {error ? "Threads couldn't load" : "No threads yet"}
-                  </Text>
-                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    {error ??
-                      "Share a resource or publish a course to start a conversation."}
-                  </Text>
-                  <Pressable
-                    onPress={() => refresh(getToken, includeMine)}
-                    style={[styles.retryBtn, { borderColor: colors.primary }]}
-                  >
-                    <Text style={[styles.retryText, { color: colors.primary }]}>
-                      Try again
+            </View>
+          ) : isExplore && activeTab === "other" ? (
+            <CourseFeedPane
+              refreshKey={resourceRefreshKey}
+              bottomInset={bottomPadding}
+            />
+          ) : (
+            <FlatList
+              data={posts}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <SubtopicThreadCard
+                  post={item}
+                  onPressSubtopic={handlePressSubtopic}
+                  onPressChapterThread={setChapterId}
+                  onPressProfile={handlePressProfile}
+                  onPressComments={(post) => setCommentsPostId(post.id)}
+                  onPressFocus={(post) => toggleFocus(post)}
+                  onPressLesson={openLesson}
+                  onPressQuiz={setQuizPost}
+                />
+              )}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: bottomPadding },
+                posts.length === 0 && !loading && styles.listContentEmpty,
+              ]}
+              showsVerticalScrollIndicator={false}
+              onScroll={handleScroll}
+              scrollEventThrottle={32}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => refresh(getToken)}
+                  tintColor={colors.primary}
+                  colors={[colors.primary]}
+                />
+              }
+              onEndReached={() => loadMore(getToken)}
+              onEndReachedThreshold={0.6}
+              ListFooterComponent={
+                loadingMore ? (
+                  <View style={styles.footer}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                loading ? (
+                  <ThreadFeedLoading colors={colors} />
+                ) : loaded ? (
+                  <View style={styles.empty}>
+                    <MascotAnimation
+                      action={error ? "mascot_disappointed" : "mascot_posing"}
+                      height={124}
+                      framed={false}
+                    />
+                    <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                      {error ? "Threads couldn't load" : "No threads yet"}
                     </Text>
-                  </Pressable>
-                </View>
-              ) : null
-            }
-          />
+                    <Text
+                      style={[
+                        styles.emptyText,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {error ??
+                        "Share a resource or publish a course to start a conversation."}
+                    </Text>
+                    <Pressable
+                      onPress={() => refresh(getToken, includeMine)}
+                      style={[styles.retryBtn, { borderColor: colors.primary }]}
+                    >
+                      <Text
+                        style={[styles.retryText, { color: colors.primary }]}
+                      >
+                        Try again
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null
+              }
+            />
+          )}
         </View>
 
-        {showRail ? (
+        {showAnalytics ? (
+          <StatsLeftRail
+            width={analyticsWidth}
+            posts={posts}
+            onPressUser={handlePressProfile}
+            onPressProfile={() => router.push("/(tabs)/profile" as never)}
+            onExploreCamp={() => router.push("/(tabs)" as never)}
+            bottomInset={tabBarInset}
+          />
+        ) : showThreadsRightRail ? (
           <StatsRightRail
-            width={rightRailWidth}
+            width={threadsLayout.railWidth}
             posts={posts}
             onOpenFocus={handleOpenFocus}
             onOpenComments={(postId) => setCommentsPostId(postId)}
@@ -416,7 +469,11 @@ export default function ThreadFeedScreen({
       <ResourceUploadSheet
         visible={uploadVisible}
         onClose={() => setUploadVisible(false)}
-        onSuccess={() => refresh(getToken, includeMine)}
+        onSuccess={() => {
+          void refresh(getToken, includeMine);
+          setResourceRefreshKey((value) => value + 1);
+          setReelsRefreshKey((value) => value + 1);
+        }}
       />
 
       <VisualLessonModal
@@ -621,6 +678,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  workspaceTwoColumn: {
+    alignItems: "stretch",
+  },
   workspaceUltraWide: {
     maxWidth: THREADS.ultraWideMaxWidth,
     alignSelf: "center",
@@ -637,6 +697,13 @@ const styles = StyleSheet.create({
   feedColumnBordered: {
     borderLeftWidth: 1,
     borderRightWidth: 1,
+  },
+  feedColumnTwoColumn: {
+    borderRightWidth: 1,
+  },
+  pane: {
+    flex: 1,
+    minHeight: 0,
   },
   header: {
     flexDirection: "row",

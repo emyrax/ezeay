@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ezeay",
+    "name": "Yuinx",
     "slug": "ezeay",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,9 +18,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#152A4D",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "softwareKeyboardLayoutMode": "resize",
@@ -34,7 +33,9 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "themeColor": "#152A4D",
+      "backgroundColor": "#152A4D"
     },
     "plugins": [
       "expo-router",
@@ -42,7 +43,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 240,
           "resizeMode": "contain",
           "backgroundColor": "#152A4D",
           "dark": {

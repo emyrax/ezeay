@@ -7,6 +7,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NAV } from "../constants/layout";
 import {
+  COACH_HREF,
   NOTES_HREF,
   TAB_ITEMS,
   TUTOR_HREF,
@@ -90,11 +91,17 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
   const router = useRouter();
   const segments = useSegments();
   const { tutor: tutorEnabled, agent: agentEnabled } = useFeatureFlags();
-  const centerEnabled = tutorEnabled || agentEnabled;
-  const isCenterActive = centerEnabled
-    ? segments[0] === "(tutor)"
-    : segments[0] === "(notes)";
-  const centerHref = centerEnabled ? TUTOR_HREF : NOTES_HREF;
+  const isCoachRoute = segments[0] === "(tabs)" && segments[1] === "coach";
+  const isCenterActive = agentEnabled
+    ? isCoachRoute
+    : tutorEnabled
+      ? segments[0] === "(tutor)"
+      : segments[0] === "(notes)";
+  const centerHref = agentEnabled
+    ? COACH_HREF
+    : tutorEnabled
+      ? TUTOR_HREF
+      : NOTES_HREF;
 
   const glowAnim = useRef(new Animated.Value(0.3)).current;
   const pressScale = useRef(new Animated.Value(1)).current;
@@ -122,10 +129,20 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
     }
   }, [isCenterActive, glowAnim]);
 
-  const leftRoutes = state.routes.slice(0, 2);
-  const rightRoutes = state.routes.slice(2);
+  if (isCoachRoute) {
+    return null;
+  }
 
-  const renderTab = (route: (typeof state.routes)[number], index: number) => {
+  const visibleRoutes = state.routes
+    .map((route, index) => ({ route, index }))
+    .filter(({ route }) => route.name !== "coach");
+  const leftRoutes = visibleRoutes.slice(0, 2);
+  const rightRoutes = visibleRoutes.slice(2);
+
+  const renderTab = ({
+    route,
+    index,
+  }: (typeof visibleRoutes)[number]) => {
     const isFocused = state.index === index;
     const tab = TAB_ITEMS.find((item) => item.name === route.name);
 
@@ -169,13 +186,13 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
           },
         ]}
       >
-        {leftRoutes.map((route, i) => renderTab(route, i))}
+        {leftRoutes.map((entry) => renderTab(entry))}
 
         <View style={styles.midSpacer}>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
         </View>
 
-        {rightRoutes.map((route, i) => renderTab(route, i + 2))}
+        {rightRoutes.map((entry) => renderTab(entry))}
 
         <View style={styles.centerOuter} pointerEvents="box-none">
           <Animated.View
@@ -190,7 +207,13 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
           <Pressable
             onPress={() => router.push(centerHref as any)}
             accessibilityRole="button"
-            accessibilityLabel={tutorEnabled ? "Open AI Tutor" : "Open Notes"}
+            accessibilityLabel={
+              agentEnabled
+                ? "Open AI Coach"
+                : tutorEnabled
+                  ? "Open AI Tutor"
+                  : "Open Notes"
+            }
             onPressIn={() =>
               Animated.spring(pressScale, {
                 toValue: 0.88,
@@ -223,7 +246,13 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
               >
                 <View style={[styles.resultIcon, styles.centerLogo]}>
                   <MaterialCommunityIcons
-                    name={tutorEnabled ? "school-outline" : "notebook-multiple"}
+                    name={
+                      agentEnabled
+                        ? "robot-outline"
+                        : tutorEnabled
+                          ? "school-outline"
+                          : "notebook-multiple"
+                    }
                     size={22}
                     color={theme.primary}
                   />

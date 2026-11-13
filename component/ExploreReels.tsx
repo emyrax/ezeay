@@ -1203,12 +1203,14 @@ export default function ExploreReels({
   onRefresh,
   onOpeningChange,
   onRefreshDone,
+  embedded = false,
 }: {
   refreshKey?: number;
   refreshing: boolean;
   onRefresh: () => void;
   onOpeningChange?: (opening: boolean) => void;
   onRefreshDone?: () => void;
+  embedded?: boolean;
 }) {
   const theme = useThemeColors();
   const router = useRouter();
@@ -1222,12 +1224,16 @@ export default function ExploreReels({
   const isTabletUp = !isPhone;
   const compactHeight = height < 700 && (isWeb || !isPhone);
   const veryShort = height < 520 && (isWeb || !isPhone);
-  const showPanel = layout.showPanel;
-  const rowMaxWidth = showPanel
-    ? layout.stageMaxWidth + layout.gap + layout.panelWidth
-    : layout.stageMaxWidth || undefined;
-  const topBarMaxWidth =
-    rowMaxWidth !== undefined
+  const showPanel = !embedded && layout.showPanel;
+  const stageMaxWidth = embedded ? 0 : layout.stageMaxWidth;
+  const rowMaxWidth = embedded
+    ? undefined
+    : showPanel
+      ? layout.stageMaxWidth + layout.gap + layout.panelWidth
+      : layout.stageMaxWidth || undefined;
+  const topBarMaxWidth = embedded
+    ? undefined
+    : rowMaxWidth !== undefined
       ? Math.min(rowMaxWidth, EXPLORE.topBarMaxWidth)
       : undefined;
   const cardInset = isPhone ? 16 : Math.min(gutter, 24);
@@ -1757,6 +1763,7 @@ export default function ExploreReels({
         <View
           style={[
             styles.headerRow,
+            embedded && styles.headerRowHidden,
             {
               paddingHorizontal: cardInset,
               marginTop: isTabletUp ? 24 : 16,
@@ -1881,7 +1888,7 @@ export default function ExploreReels({
           style={[
             styles.stage,
             showPanel ? styles.stageWide : styles.stageCentered,
-            layout.stageMaxWidth > 0 && { maxWidth: layout.stageMaxWidth },
+            stageMaxWidth > 0 && { maxWidth: stageMaxWidth },
           ]}
         >
           <View
@@ -2127,6 +2134,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 16,
     marginBottom: 5,
+  },
+  headerRowHidden: {
+    display: "none",
   },
   headerTitleBlock: {
     flex: 1,

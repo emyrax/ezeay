@@ -80,21 +80,31 @@ The server is an Express app run via `tsx` (same as `npm run start:server`). `fl
 
 ```bash
 # one-time: create the app (needs flyctl + Fly account); do NOT run fly launch
-fly apps create ezeay-api
+fly apps create yuinx
 fly volume create uploads --region iad --size 1   # before first deploy; must match fly.toml region
 
 # env & secrets (never in git)
 fly secrets set NEON_DATABASE_URL=... CLERK_SECRET_KEY=... GEMINI_API_KEY=...
 fly secrets set OPENAI_API_KEY=... ANTHROPIC_API_KEY=... OPENROUTER_API_KEY=...
-fly secrets set CORS_ORIGINS=https://app.your-domain.com GLOBAL_RATE_LIMIT=300 STRICT_RATE_LIMIT=20
+fly secrets set EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME=... EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET=...
+fly secrets set CORS_ORIGINS=https://ezeay.vercel.app GLOBAL_RATE_LIMIT=300 STRICT_RATE_LIMIT=20
 fly secrets set STUDY_FETCH_ALLOWLIST=
 fly secrets list
 
-fly deploy            # builds + deploys; uploads persist on the "uploads" volume
-fly volumes snapshot list # backup the uploads volume as needed
+fly deploy --remote-only   # builds + deploys; uploads persist on the "uploads" volume
+fly volumes snapshot list  # backup the uploads volume as needed
 ```
 
+Continuous deployment: on every push to `main`, `.github/workflows/ci.yml` runs lint/typecheck/tests and, if they pass, the `deploy` job runs `flyctl deploy --remote-only`. Pull requests never deploy. One-time: create a token and store it as the `FLY_API_TOKEN` repo secret:
+
+```bash
+fly tokens create deploy -a yuinx
+```
+
+`fly.toml` sets `[deploy] release_command = "npm run db:migrate"`, so committed Drizzle migrations are applied before machines boot; a failed migration aborts the deploy.
+
 Notes:
-- User-uploaded study files persist at `/app/server/uploads` on a Fly volume (survives redeploys). Cloudinary is not wired into the client.
-- Health check hits `/api/health`.
-- Deploy with `NODE_ENV=production` (already set in `fly.toml`) so CORS is locked to `CORS_ORIGINS` only.
+- Images (avatar/community/course thumbnails) go through `POST /api/uploads/cloudinary`, so the server needs `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` + `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET` (or `CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET` for signed uploads).
+- Study files go through `POST /api/study/upload` and persist at `/app/server/uploads` on a Fly volume (survives redeploys).
+- Health check hits `/api/health` (also verifies Neon + AI keys).
+- Deploy with `NODE_ENV=production` (already set in `fly.toml`) so CORS is locked to `CORS_ORIGINS` plus the hardcoded app/web origins.

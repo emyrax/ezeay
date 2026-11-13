@@ -1,0 +1,73 @@
+import type { ThemeColors } from "./themes";
+
+export const coachFont = {
+  regular: "PlusJakartaSans_400Regular",
+  medium: "PlusJakartaSans_500Medium",
+  semibold: "PlusJakartaSans_600SemiBold",
+  bold: "PlusJakartaSans_700Bold",
+  extrabold: "PlusJakartaSans_800ExtraBold",
+} as const;
+
+export const coachColors = {
+  text: "#111827",
+  textSecondary: "#4B5563",
+  textMuted: "#6B7280",
+  background: "#F6F8F5",
+  surface: "#FFFFFF",
+  glass: "rgba(255, 255, 255, 0.72)",
+  glassBorder: "rgba(255, 255, 255, 0.9)",
+  border: "#E9EDF2",
+  borderStrong: "#DDE3EA",
+  accent: "#8B7EF8",
+  accentSoft: "#EDEAFF",
+  userBubble: "#DCD6F7",
+  aiBubble: "#FFFFFF",
+  energyFill: "#D8F1A0",
+  energyTrack: "#EFEFEF",
+  heartTint: "#FDE8E8",
+  heartIcon: "#F08A8A",
+  sleepTint: "#EAE6FA",
+  sleepIcon: "#8B7EF8",
+  stressTint: "#E3F6EC",
+  stressIcon: "#5BB98C",
+  dark: "#111827",
+  white: "#FFFFFF",
+  canvas: "#F9F8F3",
+  shadow: "rgba(40, 52, 74, 0.12)",
+} as const;
+
+export const coachGradient = [
+  "#E4F3FA",
+  "#F9F8F3",
+  "#FDF1DC",
+  "#E6F4EA",
+] as const;
+
+export const coachMarkdownTheme: ThemeColors = {
+  bg: coachColors.surface,
+  surface: coachColors.surface,
+  surfaceAlt: "#F3F4F6",
+  glass: coachColors.glass,
+  text: coachColors.text,
+  textSecondary: coachColors.textSecondary,
+  textMuted: coachColors.textMuted,
+  primary: coachColors.accent,
+  primaryLight: coachColors.accentSoft,
+  accent: coachColors.accent,
+  success: "#22C55E",
+  warning: "#F59E0B",
+  danger: "#EF4444",
+  info: "#38BDF8",
+  border: coachColors.border,
+  borderLight: coachColors.border,
+  cardBg: coachColors.surface,
+  cardBgLight: coachColors.surface,
+  tabBg: coachColors.surface,
+  tabBorder: coachColors.border,
+  tabActive: coachColors.accent,
+  tabInactive: coachColors.textMuted,
+  gradientStart: "#E4F3FA",
+  gradientMid: "#FDF1DC",
+  gradientEnd: "#E6F4EA",
+  shadow: coachColors.shadow,
+};

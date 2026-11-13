@@ -1,3 +1,4 @@
+import { DAILY_ACTIVITY_GOAL } from "../../data/stats";
 import type { ThreadPost, ThreadUser } from "../../types/thread";
 
 export interface DayActivityLike {
@@ -13,6 +14,17 @@ export interface WeekActivityDay {
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+export function getDailyEnergyScore(
+  days: DayActivityLike[],
+  goal = DAILY_ACTIVITY_GOAL,
+  today = new Date(),
+): number {
+  if (!Number.isFinite(goal) || goal <= 0) return 0;
+  const count = days.find((day) => day.date === dateKey(today))?.count ?? 0;
+  if (!Number.isFinite(count) || count <= 0) return 0;
+  return Math.round(Math.min(count / goal, 1) * 100);
 }
 
 export function getCurrentStreak(

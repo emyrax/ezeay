@@ -1,19 +1,32 @@
-app = "ezeay-api"
+app = "yuinx"
 primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile"
 
+[deploy]
+  # Apply committed Drizzle migrations before machines boot / health checks run.
+  # Needs NEON_DATABASE_URL as a Fly secret; a failure aborts the deploy and keeps
+  # the previous release running.
+  release_command = "npm run db:migrate"
+
 [env]
   PORT = "8080"
   NODE_ENV = "production"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "1gb"
 
 [http_service]
   internal_port = 8080
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  # Testing stage: keep one machine warm so testers don't hit 3-10s cold starts.
+  # Set back to 0 (and let auto_stop_machines stop it) when idle cost matters.
+  min_machines_running = 1
   processes = ["app"]
 
   [http_service.checks]

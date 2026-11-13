@@ -4,7 +4,12 @@ import { usePathname, useRouter, useSegments } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NAV } from "../constants/layout";
-import { NOTES_HREF, TAB_ITEMS, TUTOR_HREF } from "../constants/navigation";
+import {
+  COACH_HREF,
+  NOTES_HREF,
+  TAB_ITEMS,
+  TUTOR_HREF,
+} from "../constants/navigation";
 import { useFeatureFlags } from "../hooks/useFeatureFlags";
 import { useResponsive } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
@@ -25,11 +30,17 @@ export default function AppSidebar() {
   const profile = useUserStore((state) => state.profile);
   const currentPath = pathname === "" ? "/" : pathname;
   const { tutor: tutorEnabled, agent: agentEnabled } = useFeatureFlags();
-  const centerEnabled = tutorEnabled || agentEnabled;
-  const isCenterActive = centerEnabled
-    ? segments[0] === "(tutor)"
-    : segments[0] === "(notes)";
-  const centerHref = centerEnabled ? TUTOR_HREF : NOTES_HREF;
+  const isCoachRoute = segments[0] === "(tabs)" && segments[1] === "coach";
+  const isCenterActive = agentEnabled
+    ? isCoachRoute
+    : tutorEnabled
+      ? segments[0] === "(tutor)"
+      : segments[0] === "(notes)";
+  const centerHref = agentEnabled
+    ? COACH_HREF
+    : tutorEnabled
+      ? TUTOR_HREF
+      : NOTES_HREF;
   const handle = deriveHandle(profile?.displayName, profile?.uid ?? "");
   const role = profile?.isPro ? "PRO" : "LEARNER";
 
@@ -183,7 +194,13 @@ export default function AppSidebar() {
             isCenterActive && { backgroundColor: theme.surface },
         ]}
         accessibilityRole="button"
-        accessibilityLabel={tutorEnabled ? "Open AI Tutor" : "Open Notes"}
+        accessibilityLabel={
+          agentEnabled
+            ? "Open AI Coach"
+            : tutorEnabled
+              ? "Open AI Tutor"
+              : "Open Notes"
+        }
       >
         <LinearGradient
           colors={[theme.accent, theme.tabInactive]}
@@ -195,7 +212,13 @@ export default function AppSidebar() {
           ]}
         >
           <MaterialCommunityIcons
-            name={tutorEnabled ? "school-outline" : "notebook-multiple"}
+            name={
+              agentEnabled
+                ? "robot-outline"
+                : tutorEnabled
+                  ? "school-outline"
+                  : "notebook-multiple"
+            }
             size={22}
             color={theme.primary}
           />
@@ -210,7 +233,7 @@ export default function AppSidebar() {
             },
           ]}
         >
-          {tutorEnabled ? "TUTOR" : "NOTES"}
+          {agentEnabled ? "COACH" : tutorEnabled ? "TUTOR" : "NOTES"}
         </Text>
       </Pressable>
     </View>

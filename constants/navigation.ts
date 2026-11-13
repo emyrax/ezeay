@@ -30,10 +30,10 @@ export const TAB_ITEMS: TabItem[] = [
   },
   {
     name: "explore",
-    title: "THREADS",
-    iconName: "message-text-outline",
+    title: "EXPLORE",
+    iconName: "view-grid-outline",
     href: "/explore",
-    accessibilityLabel: "Navigate to Threads Feed",
+    accessibilityLabel: "Navigate to Explore",
   },
   {
     name: "profile",
@@ -47,3 +47,4 @@ export const TAB_ITEMS: TabItem[] = [
 export const NOTES_HREF = "/(notes)" as const;
 export const TUTOR_HREF = "/(tutor)" as const;
 export const TUTOR_MEMORY_HREF = "/(tutor)/settings" as const;
+export const COACH_HREF = "/coach/idle" as const;

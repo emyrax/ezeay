@@ -29,6 +29,7 @@ interface StatsLeftRailProps {
   onPressUser: (post: ThreadPost) => void;
   onPressProfile: () => void;
   onExploreCamp: () => void;
+  bottomInset?: number;
 }
 
 export default function StatsLeftRail({
@@ -37,6 +38,7 @@ export default function StatsLeftRail({
   onPressUser,
   onPressProfile,
   onExploreCamp,
+  bottomInset = 0,
 }: StatsLeftRailProps) {
   const colors = useThemeColors();
   const { getToken } = useAuth();
@@ -91,7 +93,10 @@ export default function StatsLeftRail({
   return (
     <ScrollView
       style={[styles.root, { width }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: 48 + bottomInset },
+      ]}
       showsVerticalScrollIndicator={false}
       accessibilityLabel="Stats profile and recommendations"
     >
@@ -428,7 +433,6 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   content: {
-    paddingBottom: 48,
     gap: 12,
   },
   card: {

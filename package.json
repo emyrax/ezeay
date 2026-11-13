@@ -37,12 +37,13 @@
     "deploy:web": "npx --yes vercel@latest --prod",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/db-migrate.mjs",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx db/seed.ts"
   },
   "dependencies": {
     "@clerk/expo": "^3.2.16",
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo-google-fonts/space-grotesk": "^0.4.1",
     "@expo/vector-icons": "^15.0.3",
     "@google/genai": "^2.10.0",

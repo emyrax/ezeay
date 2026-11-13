@@ -6529,7 +6529,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 type NoteRow = typeof notes.$inferSelect;
 
-function cleanText(value: unknown, max: number): string {
+function cleanNoteText(value: unknown, max: number): string {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
 
@@ -6654,8 +6654,8 @@ function noteValuesFromInput(
   return {
     ...(requestedId ? { id: requestedId } : {}),
     userId,
-    title: cleanText(raw.title, NOTE_TITLE_MAX),
-    body: cleanText(raw.body ?? raw.content, NOTE_BODY_MAX),
+    title: cleanNoteText(raw.title, NOTE_TITLE_MAX),
+    body: cleanNoteText(raw.body ?? raw.content, NOTE_BODY_MAX),
     tags: sanitizeNoteTags(raw.tags),
     images: normalizeNoteImages(raw.images),
     audio: normalizeNoteAudio(raw.audio ?? raw.audioClips),
@@ -6827,9 +6827,9 @@ app.patch("/api/notes/:id", async (req, res) => {
 
     const raw = (req.body ?? {}) as Record<string, unknown>;
     const updates: Partial<typeof notes.$inferInsert> = { updatedAt: new Date() };
-    if (raw.title !== undefined) updates.title = cleanText(raw.title, NOTE_TITLE_MAX);
+    if (raw.title !== undefined) updates.title = cleanNoteText(raw.title, NOTE_TITLE_MAX);
     if (raw.body !== undefined || raw.content !== undefined) {
-      updates.body = cleanText(raw.body ?? raw.content, NOTE_BODY_MAX);
+      updates.body = cleanNoteText(raw.body ?? raw.content, NOTE_BODY_MAX);
     }
     if (raw.tags !== undefined) updates.tags = sanitizeNoteTags(raw.tags);
     if (raw.images !== undefined) updates.images = normalizeNoteImages(raw.images);

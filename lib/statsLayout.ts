@@ -21,6 +21,60 @@ export function getStatsContentWidth(windowWidth: number): number {
   return Math.max(0, windowWidth);
 }
 
+export interface ExploreHubLayout {
+  showAnalytics: boolean;
+  analyticsWidth: number;
+  feedMaxWidth: number;
+  gap: number;
+}
+
+export function getExploreHubLayout(windowWidth: number): ExploreHubLayout {
+  const contentWidth = getStatsContentWidth(windowWidth);
+
+  if (windowWidth >= 1720) {
+    return {
+      showAnalytics: true,
+      analyticsWidth: 280,
+      feedMaxWidth: Math.min(880, contentWidth - 280 - 24 - 48),
+      gap: 24,
+    };
+  }
+
+  if (windowWidth >= 1480) {
+    return {
+      showAnalytics: true,
+      analyticsWidth: 260,
+      feedMaxWidth: Math.min(820, contentWidth - 260 - 20 - 48),
+      gap: 20,
+    };
+  }
+
+  if (windowWidth >= 1280) {
+    return {
+      showAnalytics: true,
+      analyticsWidth: 240,
+      feedMaxWidth: Math.min(740, contentWidth - 240 - 20 - 48),
+      gap: 20,
+    };
+  }
+
+  if (windowWidth >= 1024) {
+    return {
+      showAnalytics: true,
+      analyticsWidth: 220,
+      feedMaxWidth: Math.min(660, contentWidth - 220 - 20 - 48),
+      gap: 20,
+    };
+  }
+
+  return {
+    showAnalytics: false,
+    analyticsWidth: 0,
+    feedMaxWidth: 680,
+    gap: 0,
+  };
+}
+
 export function getStatsLayout(windowWidth: number): StatsLayout {
   const contentWidth = getStatsContentWidth(windowWidth);
 
