@@ -118,8 +118,11 @@ function resolveDevServerBase(): string | null {
   return `http://${host}:3001`;
 }
 
-export const API_BASE =
-  resolveDevServerBase() || process.env.EXPO_PUBLIC_API_URL || "";
+export const API_BASE = (
+  resolveDevServerBase() ||
+  process.env.EXPO_PUBLIC_API_URL ||
+  ""
+).replace(/\/+$/, "");
 
 export type { Course };
 

@@ -22,14 +22,14 @@ primary_region = "iad"
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = "off"
   auto_start_machines = true
-  # Testing stage: keep one machine warm so testers don't hit 3-10s cold starts.
-  # Set back to 0 (and let auto_stop_machines stop it) when idle cost matters.
+  # Testing stage: keep the machine warm so testers don't hit cold starts.
+  # Re-enable autostop when idle cost matters.
   min_machines_running = 1
   processes = ["app"]
 
-  [http_service.checks]
+  [[http_service.checks]]
     interval = "30s"
     timeout = "3s"
     grace_period = "15s"

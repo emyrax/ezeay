@@ -12,3 +12,14 @@ server.log
 *.local
 Dockerfile
 .dockerignore
+
+# Local tooling / docs / media not needed by the API runtime
+.tools/
+.agents/
+.opencode/
+.kilo/
+.vscode/
+.github/
+docs/
+assets/
+unused/

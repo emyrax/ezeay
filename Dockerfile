@@ -1,11 +1,11 @@
 FROM node:22-slim
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 COPY server/package.json server/package-lock.json server/
-RUN npm ci --prefix server
+RUN npm ci --prefix server --legacy-peer-deps
 
 COPY . .
 
