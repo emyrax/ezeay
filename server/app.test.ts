@@ -19,6 +19,12 @@ test("unknown requests still carry a request id", async () => {
   assert.match(res.headers["x-request-id"] ?? "", /^[A-Za-z0-9-]+$/);
 });
 
+test("duplicate slashes are normalized before routing", async () => {
+  const res = await request(app).get("//api/notes");
+  assert.equal(res.status, 401);
+  assert.equal(res.body.error, "Invalid token");
+});
+
 test("unmatched routes return a JSON route_not_found error", async () => {
   const res = await request(app).get("/api/definitely-not-a-route");
   assert.equal(res.status, 404);

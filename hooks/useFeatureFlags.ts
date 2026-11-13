@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 
 const TUTOR_ENABLED = process.env.EXPO_PUBLIC_TUTOR_ENABLED === "true";
-const AGENT_ENABLED = process.env.EXPO_PUBLIC_AGENT_ENABLED === "true";
+// The agent is the primary experience. Only an explicit "false" disables it,
+// so a missing Vercel env var doesn't silently fall back to Notes.
+const AGENT_ENABLED = process.env.EXPO_PUBLIC_AGENT_ENABLED !== "false";
 const LEGACY_TUTOR_ENABLED =
   process.env.EXPO_PUBLIC_LEGACY_TUTOR_ENABLED === "true";
 

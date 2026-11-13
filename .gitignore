@@ -8,7 +8,6 @@ serviceKey.json
 .expo/
 dist/
 web-build/
-expo-env.d.ts
 
 # Native
 .kotlin/

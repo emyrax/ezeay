@@ -139,6 +139,20 @@ for (const level of ["error", "warn"] as const) {
 let errorCounter = 0;
 
 const app = express();
+
+// Collapse duplicate slashes before routing. A client with a trailing slash in
+// its API base (e.g. `https://api.example.com/`) would otherwise request
+// `//api/users` and get a 404.
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const queryIndex = req.url.indexOf("?");
+  const pathname = queryIndex === -1 ? req.url : req.url.slice(0, queryIndex);
+  if (pathname.includes("//")) {
+    const query = queryIndex === -1 ? "" : req.url.slice(queryIndex);
+    req.url = `${pathname.replace(/\/{2,}/g, "/")}${query}`;
+  }
+  next();
+});
+
 app.use(express.json({ limit: "50mb" }));
 app.use(helmet());
 
