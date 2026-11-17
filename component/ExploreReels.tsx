@@ -24,7 +24,7 @@ import {
 } from "react-native";
 import { EXPLORE, type Breakpoint } from "../constants/layout";
 import { useAuth } from "../contexts/AuthContext";
-import { useResponsive, useTabBarInset } from "../hooks/useResponsive";
+import { useResponsive } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
 import { api } from "../lib/api";
 import {
@@ -32,7 +32,7 @@ import {
   normalizeResourceChallenge,
   type NormalizedReelChallenge,
 } from "../lib/reels/challenge";
-import { getExploreLayout } from "../lib/responsive";
+import { getExploreLayout, getReelStageLayout } from "../lib/responsive";
 import { useEnrollmentStore } from "../store/courseEnrollmentStore";
 import { useProgressStore } from "../store/courseProgressStore";
 import { useCourseStore } from "../store/courseStore";
@@ -555,33 +555,35 @@ function ReelCard({
               </View>
             )}
 
-            <View
-              style={[
-                styles.hookBlock,
-                {
-                  backgroundColor: "rgba(255,255,255,0.09)",
-                  borderColor: "rgba(255,255,255,0.12)",
-                },
-              ]}
-            >
-              <View style={styles.hookMetaRow}>
-                <Text style={[styles.hookTone, { color: theme.primary }]}>
-                  {challenge.toneLabel}
-                </Text>
-                <Text style={[styles.hookDivider, { color: theme.textMuted }]}>
-                  ·
-                </Text>
-                <Text style={[styles.hookType, { color: theme.textMuted }]}>
-                  {challenge.challengeLabel}
+            {!veryShort ? (
+              <View
+                style={[
+                  styles.hookBlock,
+                  {
+                    backgroundColor: "rgba(255,255,255,0.09)",
+                    borderColor: "rgba(255,255,255,0.12)",
+                  },
+                ]}
+              >
+                <View style={styles.hookMetaRow}>
+                  <Text style={[styles.hookTone, { color: theme.primary }]}>
+                    {challenge.toneLabel}
+                  </Text>
+                  <Text style={[styles.hookDivider, { color: theme.textMuted }]}>
+                    ·
+                  </Text>
+                  <Text style={[styles.hookType, { color: theme.textMuted }]}>
+                    {challenge.challengeLabel}
+                  </Text>
+                </View>
+                <Text
+                  style={[styles.hookText, { color: theme.text }]}
+                  numberOfLines={3}
+                >
+                  {challenge.hook}
                 </Text>
               </View>
-              <Text
-                style={[styles.hookText, { color: theme.text }]}
-                numberOfLines={veryShort ? 2 : 3}
-              >
-                {challenge.hook}
-              </Text>
-            </View>
+            ) : null}
 
             <View style={styles.challengeChoiceStack}>
               <Text style={[styles.challengePrompt, { color: theme.text }]}>
@@ -710,53 +712,54 @@ function ReelCard({
               )}
             </View>
 
-            <Text
-              style={[
-                styles.subtopicTitle,
-                isWide && styles.subtopicTitleWide,
-                isDesktop && styles.subtopicTitleDesktop,
-                compactHeight && styles.subtopicTitleShort,
-                veryShort && styles.subtopicTitleVeryShort,
-                { color: theme.text },
-              ]}
-            >
-              {item.subtopicTitle}
-            </Text>
-
-            {content ? (
+            {!veryShort ? (
               <Text
                 style={[
-                  styles.contentText,
-                  isWide && styles.contentTextWide,
-                  compactHeight && styles.contentTextShort,
-                  { color: theme.textSecondary },
+                  styles.subtopicTitle,
+                  isWide && styles.subtopicTitleWide,
+                  isDesktop && styles.subtopicTitleDesktop,
+                  compactHeight && styles.subtopicTitleShort,
+                  { color: theme.text },
                 ]}
-                numberOfLines={
-                  veryShort ? 2 : compactHeight ? 4 : isWide ? 6 : 7
-                }
               >
-                {content}
+                {item.subtopicTitle}
               </Text>
-            ) : (
-              <View
-                style={[
-                  styles.contentLoading,
-                  isWide && styles.contentLoadingWide,
-                  compactHeight && styles.contentLoadingShort,
-                  { borderColor: theme.border },
-                ]}
-              >
-                <ActivityIndicator size="small" color={theme.primary} />
+            ) : null}
+
+            {!veryShort ? (
+              content ? (
                 <Text
                   style={[
-                    styles.contentLoadingText,
-                    { color: theme.textMuted },
+                    styles.contentText,
+                    isWide && styles.contentTextWide,
+                    compactHeight && styles.contentTextShort,
+                    { color: theme.textSecondary },
+                  ]}
+                  numberOfLines={compactHeight ? 4 : isWide ? 6 : 7}
+                >
+                  {content}
+                </Text>
+              ) : (
+                <View
+                  style={[
+                    styles.contentLoading,
+                    isWide && styles.contentLoadingWide,
+                    compactHeight && styles.contentLoadingShort,
+                    { borderColor: theme.border },
                   ]}
                 >
-                  Loading lesson…
-                </Text>
-              </View>
-            )}
+                  <ActivityIndicator size="small" color={theme.primary} />
+                  <Text
+                    style={[
+                      styles.contentLoadingText,
+                      { color: theme.textMuted },
+                    ]}
+                  >
+                    Loading lesson…
+                  </Text>
+                </View>
+              )
+            ) : null}
           </View>
 
           <View
@@ -777,15 +780,17 @@ function ReelCard({
                   </Text>
                 </View>
               )}
-              <Text
-                style={[
-                  styles.metaText,
-                  isWide && styles.metaTextWide,
-                  { color: theme.textMuted },
-                ]}
-              >
-                {subtopicCount} topics · {item.post.category.replace("-", " ")}
-              </Text>
+              {!veryShort ? (
+                <Text
+                  style={[
+                    styles.metaText,
+                    isWide && styles.metaTextWide,
+                    { color: theme.textMuted },
+                  ]}
+                >
+                  {subtopicCount} topics · {item.post.category.replace("-", " ")}
+                </Text>
+              ) : null}
               {!compactHeight && (
                 <View style={styles.hintWrap} pointerEvents="none">
                   <Text
@@ -1204,6 +1209,7 @@ export default function ExploreReels({
   onOpeningChange,
   onRefreshDone,
   embedded = false,
+  bottomInset = 0,
 }: {
   refreshKey?: number;
   refreshing: boolean;
@@ -1211,6 +1217,7 @@ export default function ExploreReels({
   onOpeningChange?: (opening: boolean) => void;
   onRefreshDone?: () => void;
   embedded?: boolean;
+  bottomInset?: number;
 }) {
   const theme = useThemeColors();
   const router = useRouter();
@@ -1218,12 +1225,19 @@ export default function ExploreReels({
   const attempts = useReelStore((s) => s.attempts);
   const submitReelChallenge = useReelStore((s) => s.submitChallenge);
   const { breakpoint, height, gutter, isWeb } = useResponsive();
-  const tabBarInset = useTabBarInset(80);
+  const [reelHeight, setReelHeight] = useState(0);
   const layout = getExploreLayout(breakpoint);
   const isPhone = breakpoint === "phone";
   const isTabletUp = !isPhone;
-  const compactHeight = height < 700 && (isWeb || !isPhone);
-  const veryShort = height < 520 && (isWeb || !isPhone);
+  const stageLayout = getReelStageLayout(reelHeight);
+  const compactHeight =
+    reelHeight > 0
+      ? stageLayout.compact
+      : height < 700 && (isWeb || !isPhone);
+  const veryShort =
+    reelHeight > 0
+      ? stageLayout.veryShort
+      : height < 520 && (isWeb || !isPhone);
   const showPanel = !embedded && layout.showPanel;
   const stageMaxWidth = embedded ? 0 : layout.stageMaxWidth;
   const rowMaxWidth = embedded
@@ -1253,7 +1267,7 @@ export default function ExploreReels({
           : breakpoint === "laptop"
             ? 30
             : 32;
-  const feedBottomInset = isPhone && !isWeb ? 0 : tabBarInset;
+  const feedBottomInset = Math.max(0, bottomInset);
 
   const [posts, setPosts] = useState<CommunityFeedPost[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
@@ -1264,7 +1278,6 @@ export default function ExploreReels({
   const [error, setError] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [reelHeight, setReelHeight] = useState(0);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [enrollOverrides, setEnrollOverrides] = useState<
     Record<string, boolean>
@@ -1810,6 +1823,7 @@ export default function ExploreReels({
           style={[
             styles.searchBar,
             isTabletUp && styles.searchBarWide,
+            compactHeight && styles.searchBarCompact,
             {
               backgroundColor: theme.surfaceAlt,
               borderColor: isTabletUp ? theme.border : "transparent",
@@ -2182,6 +2196,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 13,
+  },
+  searchBarCompact: {
+    gap: 7,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   searchInput: {
     flex: 1,
@@ -2560,11 +2580,6 @@ const styles = StyleSheet.create({
     fontSize: 21,
     lineHeight: 26,
     marginTop: 4,
-  },
-  subtopicTitleVeryShort: {
-    fontSize: 18,
-    lineHeight: 22,
-    marginTop: 2,
   },
   contentText: {
     fontSize: 13,

@@ -96,7 +96,7 @@ export default function ResourceFeedPane({
       style={styles.root}
       contentContainerStyle={[
         styles.listContent,
-        { paddingBottom: bottomInset + 28 },
+        { paddingBottom: bottomInset },
         posts.length === 0 && !loading && styles.listContentEmpty,
       ]}
       showsVerticalScrollIndicator={false}

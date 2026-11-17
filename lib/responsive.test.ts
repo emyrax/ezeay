@@ -8,6 +8,7 @@ import {
   getFloatingTabBarInset,
   getGridColumns,
   getGutter,
+  getReelStageLayout,
   getThreadsLayout,
 } from "./responsive";
 
@@ -133,6 +134,25 @@ test("getFloatingTabBarInset clears the floating tab bar", () => {
   assert.equal(getFloatingTabBarInset(0), 110);
   assert.equal(getFloatingTabBarInset(34), 144);
   assert.equal(getFloatingTabBarInset(34, 8), 140);
+});
+
+test("getReelStageLayout flags compact and very short stages", () => {
+  assert.deepEqual(getReelStageLayout(0), {
+    compact: false,
+    veryShort: false,
+  });
+  assert.deepEqual(getReelStageLayout(559), {
+    compact: true,
+    veryShort: false,
+  });
+  assert.deepEqual(getReelStageLayout(429), {
+    compact: true,
+    veryShort: true,
+  });
+  assert.deepEqual(getReelStageLayout(560), {
+    compact: false,
+    veryShort: false,
+  });
 });
 
 test("getCarouselTranslate moves one panel per index", () => {

@@ -15,13 +15,15 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NAV, THREADS } from "../constants/layout";
 import { safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useFullscreen } from "../hooks/useFullscreen";
-import { useResponsive, useTabBarInset } from "../hooks/useResponsive";
+import { useResponsive } from "../hooks/useResponsive";
 import { useThemeColors } from "../hooks/useTheme";
 import { eventBus } from "../lib/eventBus";
+import { getFloatingTabBarInset } from "../lib/responsive";
 import { getExploreHubLayout } from "../lib/statsLayout";
 import { threadLessonHref } from "../lib/threads/format";
 import { useThreadLearningStore } from "../store/threadLearningStore";
@@ -54,11 +56,16 @@ export default function ThreadFeedScreen({
   const { getToken } = useAuth();
   const colors = useThemeColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isTabletUp, threadsLayout } = useResponsive();
   const { width: windowWidth } = useWindowDimensions();
   const exploreHubLayout = getExploreHubLayout(windowWidth);
   const isExplore = variant === "explore";
-  const tabBarInset = useTabBarInset(NAV.tabBarHeight + NAV.tabBarBottomInset + 16);
+  const tabBarInset = isTabletUp
+    ? NAV.desktopContentInset
+    : getFloatingTabBarInset(insets.bottom);
+  const listBottomInset = isTabletUp ? 32 : tabBarInset + 64;
+  const reelsBottomInset = isTabletUp ? 32 : tabBarInset;
 
   const posts = useThreadStore((s) => s.posts);
   const loading = useThreadStore((s) => s.loading);
@@ -201,8 +208,8 @@ export default function ThreadFeedScreen({
     : bordered
       ? 24
       : 0;
-  const bottomPadding = isTabletUp ? 32 : tabBarInset + 88;
-  const minimizedBottom = isTabletUp ? 24 : tabBarInset + 84;
+  const bottomPadding = listBottomInset;
+  const minimizedBottom = isTabletUp ? 24 : tabBarInset + 72;
   const minimizedRight = isTabletUp ? 24 : 16;
 
   return (
@@ -311,6 +318,7 @@ export default function ThreadFeedScreen({
             <View style={styles.pane}>
               <ExploreReels
                 embedded
+                bottomInset={reelsBottomInset}
                 refreshKey={reelsRefreshKey}
                 refreshing={reelsRefreshing}
                 onRefresh={handleReelsRefresh}
@@ -421,7 +429,7 @@ export default function ThreadFeedScreen({
         ) : null}
       </View>
 
-      {!isTabletUp ? (
+      {!isTabletUp && activeTab !== "reels" ? (
         <Pressable
           onPress={() => setUploadVisible(true)}
           style={[

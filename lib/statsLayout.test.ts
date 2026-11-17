@@ -70,10 +70,13 @@ test("stats layout borders the feed on tablet widths without rails", () => {
 });
 
 test("explore hub hides analytics below the sidebar breakpoint", () => {
-  const layout = getExploreHubLayout(1023);
-  assert.equal(layout.showAnalytics, false);
-  assert.equal(layout.analyticsWidth, 0);
-  assert.equal(layout.feedMaxWidth, 680);
+  for (const width of [320, 375, 767, 1023]) {
+    const layout = getExploreHubLayout(width);
+    assert.equal(layout.showAnalytics, false);
+    assert.equal(layout.analyticsWidth, 0);
+    assert.equal(layout.feedMaxWidth, 680);
+    assert.equal(layout.gap, 0);
+  }
 });
 
 test("explore hub keeps analytics and a readable feed at 1024", () => {

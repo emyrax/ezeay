@@ -1,4 +1,10 @@
-import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+} from "react-native";
 import { safeFont } from "../../constants/themes";
 import { useThemeColors } from "../../hooks/useTheme";
 
@@ -18,13 +24,15 @@ interface ExploreTabsProps {
 
 export default function ExploreTabs({ active, onChange }: ExploreTabsProps) {
   const colors = useThemeColors();
+  const { width } = useWindowDimensions();
+  const compact = width < 380;
 
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       style={styles.scroller}
-      contentContainerStyle={styles.row}
+      contentContainerStyle={[styles.row, compact && styles.rowCompact]}
       accessibilityRole="tablist"
     >
       {TABS.map((tab) => {
@@ -35,6 +43,7 @@ export default function ExploreTabs({ active, onChange }: ExploreTabsProps) {
             onPress={() => onChange(tab.key)}
             style={[
               styles.tab,
+              compact && styles.tabCompact,
               {
                 backgroundColor: selected ? colors.primary : colors.surfaceAlt,
                 borderColor: selected ? colors.primary : colors.border,
@@ -47,6 +56,7 @@ export default function ExploreTabs({ active, onChange }: ExploreTabsProps) {
             <Text
               style={[
                 styles.label,
+                compact && styles.labelCompact,
                 { color: selected ? "#FFFFFF" : colors.textSecondary },
               ]}
             >
@@ -71,6 +81,10 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 6,
   },
+  rowCompact: {
+    gap: 6,
+    paddingHorizontal: 12,
+  },
   tab: {
     minHeight: 34,
     paddingHorizontal: 15,
@@ -79,9 +93,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  tabCompact: {
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+  },
   label: {
     fontFamily: safeFont,
     fontSize: 12,
     fontWeight: "800",
+  },
+  labelCompact: {
+    fontSize: 11,
   },
 });

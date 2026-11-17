@@ -30,7 +30,6 @@ import { coachColors, coachFont, coachMarkdownTheme } from "../../../constants/c
 import { images } from "../../../constants/images";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useCoachAttachments } from "../../../hooks/useCoachAttachments";
-import { useResponsive } from "../../../hooks/useResponsive";
 import { useVoiceDictation } from "../../../hooks/useVoiceDictation";
 import { api, friendlyError } from "../../../lib/api";
 import {
@@ -39,7 +38,6 @@ import {
   pickMemoryImage,
 } from "../../../lib/agent/memoryFiles";
 import { getModelOption } from "../../../lib/providers/modelRegistry";
-import { getFloatingTabBarInset } from "../../../lib/responsive";
 import { useModelStore } from "../../../store/modelStore";
 import type { AgentMemoryRecord } from "../../../types/agent";
 import type { TutorMessageAttachment } from "../../../types/tutor";
@@ -113,7 +111,6 @@ export default function AgentChatScreen() {
   }>();
   const { getToken, user } = useAuth();
   const insets = useSafeAreaInsets();
-  const { showSidebar } = useResponsive();
   const selectedModel = useModelStore((state) => state.selectedModel);
   const setSelectedModel = useModelStore((state) => state.setSelectedModel);
   const modelLabel = getModelOption(selectedModel)?.label ?? "AI model";
@@ -531,9 +528,7 @@ export default function AgentChatScreen() {
   };
 
   const displayedError = error ?? attachments.error;
-  const dockBottom = showSidebar
-    ? Math.max(14, insets.bottom + 8)
-    : getFloatingTabBarInset(insets.bottom);
+  const dockBottom = Math.max(14, insets.bottom + 8);
 
   return (
     <CoachScreen maxWidth={560}>

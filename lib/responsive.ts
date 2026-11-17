@@ -152,6 +152,22 @@ export function getFloatingTabBarInset(bottomInset: number, gap = 12): number {
   );
 }
 
+export interface ReelStageLayout {
+  compact: boolean;
+  veryShort: boolean;
+}
+
+export function getReelStageLayout(stageHeight: number): ReelStageLayout {
+  if (!Number.isFinite(stageHeight) || stageHeight <= 0) {
+    return { compact: false, veryShort: false };
+  }
+
+  return {
+    compact: stageHeight < 560,
+    veryShort: stageHeight < 430,
+  };
+}
+
 export function getGridColumns(
   containerWidth: number,
   minCardWidth: number,
