@@ -16,6 +16,7 @@ import { useThemeColors } from "../hooks/useTheme";
 import { images } from "../constants/images";
 import { withAlpha } from "../lib/color";
 import { deriveHandle } from "../lib/identity";
+import { isCoachRoute } from "../lib/navigation";
 import { createShadow } from "@/lib/shadow";
 import { useUserStore } from "../store/userStore";
 import CommunityAvatar from "./CommunityAvatar";
@@ -30,9 +31,8 @@ export default function AppSidebar() {
   const profile = useUserStore((state) => state.profile);
   const currentPath = pathname === "" ? "/" : pathname;
   const { tutor: tutorEnabled, agent: agentEnabled } = useFeatureFlags();
-  const isCoachRoute = segments[0] === "(tabs)" && segments[1] === "coach";
   const isCenterActive = agentEnabled
-    ? isCoachRoute
+    ? isCoachRoute(segments)
     : tutorEnabled
       ? segments[0] === "(tutor)"
       : segments[0] === "(notes)";

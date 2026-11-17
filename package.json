@@ -19,7 +19,7 @@
     "test:server": "tsx --test --test-force-exit server/app.test.ts server/lessonScript.test.ts server/mathjax.test.ts server/pcmToWav.test.ts server/audio/deliveryUrl.test.ts server/profilePayload.test.ts",
     "test:tutor": "tsx --test --test-force-exit server/rag.test.ts server/tutor/tutor.test.ts server/tutor/routes.quiz.test.ts lib/tutor/prompt.test.ts lib/tutor/plan.test.ts",
     "test:agent": "tsx --test --test-force-exit server/agent/foundation.test.ts server/agent/planner.test.ts server/agent/tools.test.ts server/agent/run.test.ts server/agent/routes.test.ts",
-    "test:layout": "tsx --test --test-force-exit lib/responsive.test.ts",
+    "test:layout": "tsx --test --test-force-exit lib/responsive.test.ts lib/navigation.test.ts",
     "test:stats": "tsx --test --test-force-exit lib/statsLayout.test.ts lib/stats/activity.test.ts",
     "test:community": "tsx --test --test-force-exit lib/community/resourceComposer.test.ts",
     "test:lesson": "tsx --test --test-force-exit lib/lesson/player.test.ts lib/lesson/motion.test.ts",

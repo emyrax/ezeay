@@ -16,6 +16,7 @@ import {
 import { useFeatureFlags } from "../hooks/useFeatureFlags";
 import { useThemeColors } from "../hooks/useTheme";
 import { withAlpha } from "../lib/color";
+import { isCoachRoute, isTabBarHidden } from "../lib/navigation";
 
 function TabButton({
   route,
@@ -158,12 +159,11 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
   const router = useRouter();
   const segments = useSegments() as string[];
   const { tutor: tutorEnabled, agent: agentEnabled } = useFeatureFlags();
-  const isCoachRoute = segments[0] === "(tabs)" && segments[1] === "coach";
 
-  if (isCoachRoute) return null;
+  if (isTabBarHidden(segments)) return null;
 
   const isCenterActive = agentEnabled
-    ? false
+    ? isCoachRoute(segments)
     : tutorEnabled
       ? segments[0] === "(tutor)"
       : segments[0] === "(notes)";
