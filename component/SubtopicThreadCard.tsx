@@ -1,7 +1,15 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React, { useCallback } from "react";
-import { Linking, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import {
+  Linking,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useThemeColors } from "../hooks/useTheme";
@@ -10,6 +18,7 @@ import {
   formatCount,
   formatRelativeTime,
 } from "../lib/threads/format";
+import { getThreadCardMetrics } from "../lib/threads/layout";
 import { useProgressStore } from "../store/courseProgressStore";
 import { useThreadLearningStore } from "../store/threadLearningStore";
 import { useThreadStore } from "../store/threadStore";
@@ -26,6 +35,7 @@ interface SubtopicThreadCardProps {
   onPressLesson?: (post: ThreadPost) => void;
   onPressFocus?: (post: ThreadPost) => void;
   hideAuthorActions?: boolean;
+  horizontalInset?: number;
 }
 
 export default function SubtopicThreadCard({
@@ -38,8 +48,11 @@ export default function SubtopicThreadCard({
   onPressLesson,
   onPressFocus,
   hideAuthorActions = false,
+  horizontalInset = 16,
 }: SubtopicThreadCardProps) {
   const colors = useThemeColors();
+  const { width } = useWindowDimensions();
+  const metrics = getThreadCardMetrics(width);
   const { getToken, profile } = useAuth();
   const likePost = useThreadStore((s) => s.likePost);
   const followUser = useThreadStore((s) => s.followUser);
@@ -72,36 +85,74 @@ export default function SubtopicThreadCard({
   }, []);
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={styles.header}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          marginHorizontal: horizontalInset,
+          marginBottom: metrics.cardBottom,
+          padding: metrics.padding,
+          borderRadius: metrics.radius,
+        },
+      ]}
+    >
+      <View style={[styles.header, { gap: metrics.headerGap }]}>
         <Pressable
           onPress={() => onPressProfile?.(post)}
           accessibilityRole="button"
           accessibilityLabel={`Open ${post.author.name ?? "author"} profile`}
           hitSlop={6}
         >
-          <CommunityAvatar uid={post.author.id} photoURL={post.author.avatarUrl} size={42} />
+          <CommunityAvatar
+            uid={post.author.id}
+            photoURL={post.author.avatarUrl}
+            size={metrics.avatar}
+          />
         </Pressable>
 
         <View style={styles.headerText}>
-          <View style={styles.nameRow}>
-            <Pressable onPress={() => onPressProfile?.(post)} hitSlop={6}>
-              <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+          <View style={[styles.nameRow, { gap: Math.max(4, metrics.headerGap - 4) }]}>
+            <Pressable
+              onPress={() => onPressProfile?.(post)}
+              hitSlop={6}
+              style={styles.namePressable}
+            >
+              <Text
+                style={[styles.name, { color: colors.text, fontSize: metrics.nameFont }]}
+                numberOfLines={1}
+              >
                 {post.author.name ?? "Scholar"}
               </Text>
             </Pressable>
             <View style={[styles.iqBadge, { backgroundColor: colors.primary + "1A" }]}>
-              <Text style={[styles.iqText, { color: colors.primary }]}>
+              <Text
+                style={[
+                  styles.iqText,
+                  { color: colors.primary, fontSize: metrics.badgeFont },
+                ]}
+              >
                 IQ {post.author.iqScore}
               </Text>
             </View>
-            {post.examCategory !== "General" && (
+            {metrics.showExamBadge && post.examCategory !== "General" && (
               <View style={[styles.examBadge, { borderColor: colors.info }]}>
-                <Text style={[styles.examText, { color: colors.info }]}>{post.examCategory}</Text>
+                <Text
+                  style={[
+                    styles.examText,
+                    { color: colors.info, fontSize: metrics.badgeFont },
+                  ]}
+                >
+                  {post.examCategory}
+                </Text>
               </View>
             )}
           </View>
-          <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+          <Text
+            style={[styles.meta, { color: colors.textMuted, fontSize: metrics.metaFont }]}
+            numberOfLines={1}
+          >
             @{post.author.handle} · {formatRelativeTime(post.createdAt)}
           </Text>
         </View>
@@ -114,6 +165,8 @@ export default function SubtopicThreadCard({
               {
                 backgroundColor: post.author.isFollowing ? colors.surfaceAlt : colors.primary,
                 borderColor: post.author.isFollowing ? colors.border : colors.primary,
+                minHeight: metrics.followHeight,
+                paddingHorizontal: metrics.followPad,
               },
             ]}
             accessibilityRole="button"
@@ -121,8 +174,12 @@ export default function SubtopicThreadCard({
             <Text
               style={[
                 styles.followText,
-                { color: post.author.isFollowing ? colors.textSecondary : "#FFFFFF" },
+                {
+                  color: post.author.isFollowing ? colors.textSecondary : "#FFFFFF",
+                  fontSize: metrics.followFont,
+                },
               ]}
+              numberOfLines={1}
             >
               {post.author.isFollowing ? "Following" : "Follow"}
             </Text>
@@ -132,32 +189,90 @@ export default function SubtopicThreadCard({
 
       <Pressable
         onPress={() => onPressChapterThread?.(post.chapterId)}
-        style={[styles.breadcrumb, { backgroundColor: colors.surfaceAlt }]}
+        style={[
+          styles.breadcrumb,
+          {
+            backgroundColor: colors.surfaceAlt,
+            paddingVertical: metrics.breadcrumbPadV,
+            paddingHorizontal: metrics.breadcrumbPadH,
+            marginTop: metrics.breadcrumbMarginTop,
+          },
+        ]}
         accessibilityRole="button"
         accessibilityLabel="Open chapter thread"
       >
-        <MaterialCommunityIcons name="book-open-variant" size={14} color={colors.info} />
+        <MaterialCommunityIcons
+          name="book-open-variant"
+          size={metrics.iconSize}
+          color={colors.info}
+        />
         <View style={styles.breadcrumbCopy}>
-          <Text style={[styles.breadcrumbTitle, { color: colors.info }]} numberOfLines={1}>
+          <Text
+            style={[
+              styles.breadcrumbTitle,
+              { color: colors.info, fontSize: metrics.breadcrumbFont },
+            ]}
+            numberOfLines={1}
+          >
             {post.courseTitle || post.chapterTitle}
           </Text>
           {post.courseTitle ? (
-            <Text style={[styles.breadcrumbSub, { color: colors.textMuted }]} numberOfLines={1}>
+            <Text
+              style={[
+                styles.breadcrumbSub,
+                { color: colors.textMuted, fontSize: metrics.breadcrumbSubFont },
+              ]}
+              numberOfLines={1}
+            >
               {post.chapterTitle}
             </Text>
           ) : null}
         </View>
-        <View style={[styles.moduleBadge, { backgroundColor: colors.bg }]}>
-          <Text style={[styles.moduleText, { color: colors.textSecondary }]}>
+        <View
+          style={[
+            styles.moduleBadge,
+            {
+              backgroundColor: colors.bg,
+              paddingHorizontal: Math.max(4, metrics.breadcrumbPadH - 3),
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.moduleText,
+              { color: colors.textSecondary, fontSize: metrics.moduleFont },
+            ]}
+          >
             M{chapterDisplayNumber(post.chapterIndex)} · L{post.partNumber}
           </Text>
         </View>
       </Pressable>
 
       <Pressable onPress={() => onPressSubtopic?.(post)}>
-        <Text style={[styles.subtopicTitle, { color: colors.text }]}>{post.subtopicTitle}</Text>
+        <Text
+          style={[
+            styles.subtopicTitle,
+            {
+              color: colors.text,
+              fontSize: metrics.titleFont,
+              lineHeight: Math.round(metrics.titleFont * 1.3),
+            },
+          ]}
+        >
+          {post.subtopicTitle}
+        </Text>
         {post.content ? (
-          <Text style={[styles.content, { color: colors.textSecondary }]} numberOfLines={4}>
+          <Text
+            style={[
+              styles.content,
+              {
+                color: colors.textSecondary,
+                fontSize: metrics.contentFont,
+                lineHeight: metrics.contentLine,
+              },
+            ]}
+            numberOfLines={4}
+          >
             {post.content}
           </Text>
         ) : null}
@@ -168,7 +283,13 @@ export default function SubtopicThreadCard({
           <Pressable key={`${attachment.url}-${index}`} onPress={() => handleAttachment(attachment.url)}>
             <Image
               source={{ uri: attachment.url }}
-              style={[styles.attachmentImage, { backgroundColor: colors.surfaceAlt }]}
+              style={[
+                styles.attachmentImage,
+                {
+                  backgroundColor: colors.surfaceAlt,
+                  maxHeight: metrics.imageMaxHeight,
+                },
+              ]}
               contentFit="cover"
               transition={150}
             />
@@ -203,7 +324,7 @@ export default function SubtopicThreadCard({
       )}
 
       {onPressFocus || onPressQuiz || onPressLesson ? (
-        <View style={styles.studyRow}>
+        <View style={[styles.studyRow, { gap: metrics.studyGap }]}>
         <Pressable
           onPress={() => (onPressFocus ? onPressFocus(post) : undefined)}
           style={[
@@ -211,6 +332,9 @@ export default function SubtopicThreadCard({
             {
               borderColor: focused ? colors.primary : colors.border,
               backgroundColor: focused ? colors.primary + "12" : colors.surfaceAlt,
+              minHeight: metrics.studyHeight,
+              paddingHorizontal: metrics.studyPad,
+              gap: Math.max(4, metrics.studyGap - 2),
             },
           ]}
           accessibilityRole="button"
@@ -218,11 +342,14 @@ export default function SubtopicThreadCard({
         >
           <Ionicons
             name={focused ? "bookmark" : "bookmark-outline"}
-            size={16}
+            size={metrics.studyIcon}
             color={focused ? colors.primary : colors.textSecondary}
           />
           <Text
-            style={[styles.studyText, { color: focused ? colors.primary : colors.textSecondary }]}
+            style={[
+              styles.studyText,
+              { color: focused ? colors.primary : colors.textSecondary, fontSize: metrics.studyFont },
+            ]}
           >
             {focused ? "Focused" : "Focus"}
           </Text>
@@ -233,13 +360,19 @@ export default function SubtopicThreadCard({
             onPress={() => (onPressLesson ? onPressLesson(post) : onPressSubtopic?.(post))}
             style={[
               styles.studyBtn,
-              styles.lessonBtn,
-              { borderColor: colors.primary, backgroundColor: colors.primary + "10" },
+              !metrics.compact && styles.lessonBtn,
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.primary + "10",
+                minHeight: metrics.studyHeight,
+                paddingHorizontal: metrics.studyPad,
+                gap: Math.max(4, metrics.studyGap - 2),
+              },
             ]}
             accessibilityRole="button"
           >
-            <Ionicons name="play-circle" size={17} color={colors.primary} />
-            <Text style={[styles.studyText, { color: colors.primary }]}>
+            <Ionicons name="play-circle" size={metrics.studyIcon} color={colors.primary} />
+            <Text style={[styles.studyText, { color: colors.primary, fontSize: metrics.studyFont }]}>
               {lessonDone ? "Review lesson" : "Visual lesson"}
             </Text>
           </Pressable>
@@ -253,6 +386,9 @@ export default function SubtopicThreadCard({
               {
                 borderColor: quizPassed ? colors.success : colors.border,
                 backgroundColor: quizPassed ? colors.success + "12" : colors.surfaceAlt,
+                minHeight: metrics.studyHeight,
+                paddingHorizontal: metrics.studyPad,
+                gap: Math.max(4, metrics.studyGap - 2),
               },
             ]}
             accessibilityRole="button"
@@ -260,13 +396,16 @@ export default function SubtopicThreadCard({
           >
             <Ionicons
               name={quizPassed ? "checkmark-circle" : "help-circle-outline"}
-              size={17}
+              size={metrics.studyIcon}
               color={quizPassed ? colors.success : colors.textSecondary}
             />
             <Text
               style={[
                 styles.studyText,
-                { color: quizPassed ? colors.success : colors.textSecondary },
+                {
+                  color: quizPassed ? colors.success : colors.textSecondary,
+                  fontSize: metrics.studyFont,
+                },
               ]}
             >
               {quizPassed
@@ -282,59 +421,116 @@ export default function SubtopicThreadCard({
         </View>
       ) : null}
 
-      <View style={[styles.actions, { borderTopColor: colors.border }]}>
+      <View
+        style={[
+          styles.actions,
+          { borderTopColor: colors.border, columnGap: metrics.actionGap },
+        ]}
+      >
         <Pressable
           onPress={() => likePost(post.id, getToken)}
-          style={styles.actionBtn}
+          style={[
+            styles.actionBtn,
+            {
+              minHeight: metrics.actionHeight,
+              paddingHorizontal: metrics.actionPad,
+              gap: Math.max(3, metrics.actionGap),
+            },
+          ]}
           accessibilityRole="button"
           accessibilityLabel={post.isLikedByMe ? "Unlike" : "Like"}
         >
           <Ionicons
             name={post.isLikedByMe ? "heart" : "heart-outline"}
-            size={19}
+            size={metrics.actionIcon}
             color={post.isLikedByMe ? colors.danger : colors.textSecondary}
           />
-          <Text style={[styles.actionText, { color: colors.textSecondary }]}>
+          <Text style={[styles.actionText, { color: colors.textSecondary, fontSize: metrics.actionFont }]}>
             {formatCount(post.likesCount)}
           </Text>
         </Pressable>
 
         <Pressable
           onPress={() => onPressComments?.(post)}
-          style={styles.actionBtn}
+          style={[
+            styles.actionBtn,
+            {
+              minHeight: metrics.actionHeight,
+              paddingHorizontal: metrics.actionPad,
+              gap: Math.max(3, metrics.actionGap),
+            },
+          ]}
           accessibilityRole="button"
           accessibilityLabel="Comments"
         >
-          <Ionicons name="chatbubble-outline" size={18} color={colors.textSecondary} />
-          <Text style={[styles.actionText, { color: colors.textSecondary }]}>
+          <Ionicons
+            name="chatbubble-outline"
+            size={metrics.actionIcon}
+            color={colors.textSecondary}
+          />
+          <Text style={[styles.actionText, { color: colors.textSecondary, fontSize: metrics.actionFont }]}>
             {formatCount(post.commentsCount)}
           </Text>
         </Pressable>
 
-        <Pressable onPress={handleShare} style={styles.actionBtn} accessibilityRole="button">
-          <Ionicons name="share-social-outline" size={18} color={colors.textSecondary} />
-          <Text style={[styles.actionText, { color: colors.textSecondary }]}>Share</Text>
+        <Pressable
+          onPress={handleShare}
+          style={[
+            styles.actionBtn,
+            !metrics.showActionLabels && styles.actionBtnIconOnly,
+            {
+              minHeight: metrics.actionHeight,
+              paddingHorizontal: metrics.actionPad,
+              gap: Math.max(3, metrics.actionGap),
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Share lesson"
+        >
+          <Ionicons
+            name="share-social-outline"
+            size={metrics.actionIcon}
+            color={colors.textSecondary}
+          />
+          {metrics.showActionLabels ? (
+            <Text style={[styles.actionText, { color: colors.textSecondary, fontSize: metrics.actionFont }]}>
+              Share
+            </Text>
+          ) : null}
         </Pressable>
 
         {showAuthorActions && (
           <Pressable
             onPress={() => challengeUser(post.authorId, post.id, getToken)}
-            style={styles.actionBtn}
+            style={[
+              styles.actionBtn,
+              !metrics.showActionLabels && styles.actionBtnIconOnly,
+              {
+                minHeight: metrics.actionHeight,
+                paddingHorizontal: metrics.actionPad,
+                gap: Math.max(3, metrics.actionGap),
+              },
+            ]}
             accessibilityRole="button"
+            accessibilityLabel={
+              post.author.isChallenged ? "Already challenged" : "Challenge author"
+            }
           >
             <MaterialCommunityIcons
               name={post.author.isChallenged ? "check-circle" : "sword-cross"}
-              size={18}
+              size={metrics.actionIcon}
               color={post.author.isChallenged ? colors.success : colors.textSecondary}
             />
-            <Text
-              style={[
-                styles.actionText,
-                { color: post.author.isChallenged ? colors.success : colors.textSecondary },
-              ]}
-            >
-              {post.author.isChallenged ? "Challenged" : "Challenge"}
-            </Text>
+            {metrics.showActionLabels ? (
+              <Text
+                style={[
+                  styles.actionText,
+                  { color: post.author.isChallenged ? colors.success : colors.textSecondary, fontSize: metrics.actionFont },
+                ]}
+              >
+                {post.author.isChallenged ? "Challenged" : "Challenge"}
+              </Text>
+            ) : null}
           </Pressable>
         )}
       </View>
@@ -344,30 +540,29 @@ export default function SubtopicThreadCard({
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 14,
-    borderRadius: 18,
     borderWidth: 1,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
   },
   headerText: {
     flex: 1,
+    minWidth: 0,
   },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    minWidth: 0,
+  },
+  namePressable: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   name: {
     fontFamily: safeFont,
-    fontSize: 15,
     fontWeight: "700",
-    maxWidth: "58%",
+    flexShrink: 1,
   },
   iqBadge: {
     paddingHorizontal: 6,
@@ -376,7 +571,6 @@ const styles = StyleSheet.create({
   },
   iqText: {
     fontFamily: safeFont,
-    fontSize: 10,
     fontWeight: "800",
   },
   examBadge: {
@@ -387,36 +581,30 @@ const styles = StyleSheet.create({
   },
   examText: {
     fontFamily: safeFont,
-    fontSize: 9,
     fontWeight: "800",
     letterSpacing: 0.3,
   },
   meta: {
     fontFamily: safeFont,
-    fontSize: 12,
     marginTop: 2,
+    flexShrink: 1,
   },
   followBtn: {
-    minHeight: 34,
-    paddingHorizontal: 12,
-    borderRadius: 17,
+    borderRadius: 999,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   followText: {
     fontFamily: safeFont,
-    fontSize: 12,
     fontWeight: "700",
   },
   breadcrumb: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
     borderRadius: 10,
-    marginTop: 12,
   },
   breadcrumbCopy: {
     flex: 1,
@@ -424,40 +612,33 @@ const styles = StyleSheet.create({
   },
   breadcrumbTitle: {
     fontFamily: safeFont,
-    fontSize: 12,
     fontWeight: "700",
   },
   breadcrumbSub: {
     fontFamily: safeFont,
-    fontSize: 10,
     marginTop: 1,
   },
   moduleBadge: {
-    paddingHorizontal: 7,
     paddingVertical: 4,
     borderRadius: 7,
   },
   moduleText: {
     fontFamily: safeFont,
-    fontSize: 9,
     fontWeight: "800",
     letterSpacing: 0.3,
   },
   subtopicTitle: {
     fontFamily: safeFont,
-    fontSize: 16,
     fontWeight: "800",
     marginTop: 10,
   },
   content: {
     fontFamily: safeFont,
-    fontSize: 14,
-    lineHeight: 20,
     marginTop: 4,
   },
   attachmentImage: {
     width: "100%",
-    height: 170,
+    aspectRatio: 16 / 9,
     borderRadius: 12,
     marginTop: 10,
   },
@@ -494,15 +675,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 8,
     marginTop: 10,
   },
   studyBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    minHeight: 36,
-    paddingHorizontal: 11,
     borderRadius: 10,
     borderWidth: 1,
   },
@@ -512,13 +689,14 @@ const styles = StyleSheet.create({
   },
   studyText: {
     fontFamily: safeFont,
-    fontSize: 12,
     fontWeight: "700",
   },
   actions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
+    rowGap: 2,
     borderTopWidth: StyleSheet.hairlineWidth,
     marginTop: 12,
     paddingTop: 10,
@@ -526,13 +704,13 @@ const styles = StyleSheet.create({
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    minHeight: 36,
-    paddingHorizontal: 6,
+  },
+  actionBtnIconOnly: {
+    minWidth: 38,
+    justifyContent: "center",
   },
   actionText: {
     fontFamily: safeFont,
-    fontSize: 12,
     fontWeight: "600",
   },
 });

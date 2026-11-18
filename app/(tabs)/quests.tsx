@@ -705,6 +705,7 @@ export default function QuestsScreen() {
                 <Image
                   source={images.brandYuinxTrans}
                   style={styles.brandLogo}
+                  resizeMode="contain"
                 />
               </View>
               <View style={styles.userGroup}>
@@ -1887,7 +1888,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   brandBlock: { flexDirection: "row", alignItems: "center" },
-  brandLogo: { width: 100, height: 28, resizeMode: "contain" },
+  brandLogo: { width: 100, height: 28 },
   userGroup: { flexDirection: "row", alignItems: "center" },
   gemPill: {
     backgroundColor: "rgba(255, 255, 255, 0.06)",

@@ -27,6 +27,8 @@ function pendingWithAnswers(
       majorCourse: "",
       subjects: [],
       learningGoals: [],
+      appLanguage: "en",
+      targetLanguage: "",
       ...answers,
     },
   };

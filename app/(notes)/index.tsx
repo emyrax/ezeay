@@ -1163,7 +1163,6 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     marginBottom: 8,
-    resizeMode: "contain",
     opacity: 0.6,
   },
   emptyTitle: { fontSize: 18, fontWeight: "700", fontFamily: bodyFont },

@@ -6,7 +6,6 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import MascotAnimation from "../MascotAnimation";
 import MascotStage from "../mascot/MascotStage";
 import { AFRICAN_COUNTRIES } from "../../data/countries";
@@ -24,6 +23,8 @@ import {
   landingRadii,
 } from "../../constants/landing";
 import CountryFlag from "../onboarding/CountryFlag";
+import { useInViewport } from "../../hooks/useInViewport";
+import LandingIcon from "./LandingIcon";
 
 const ACCENTS: Record<string, string> = {
   blue: landingColors.blue,
@@ -126,11 +127,7 @@ export function FeaturesSection() {
           return (
             <View key={feature.title} style={[styles.featureCard, { width: cardWidth }]}>
               <View style={[styles.featureIcon, { backgroundColor: `${accent}1F` }]}>
-                <MaterialCommunityIcons
-                  name={feature.icon as never}
-                  size={22}
-                  color={accent}
-                />
+                <LandingIcon name={feature.icon} size={22} color={accent} />
               </View>
               <Text style={styles.featureTitle}>{feature.title}</Text>
               <Text style={styles.featureDescription}>{feature.description}</Text>
@@ -162,13 +159,13 @@ export function HowItWorksSection() {
             <View style={styles.stepTop}>
               <Text style={styles.stepNumber}>{step.number}</Text>
               {index < LANDING_STEPS.length - 1 ? (
-                <MaterialCommunityIcons
+                <LandingIcon
                   name="arrow-right"
                   size={18}
                   color={landingColors.textSubtle}
                 />
               ) : (
-                <MaterialCommunityIcons
+                <LandingIcon
                   name="check-circle-outline"
                   size={18}
                   color={landingColors.green}
@@ -186,6 +183,7 @@ export function HowItWorksSection() {
 
 export function AfricaSection() {
   const { width } = useWindowDimensions();
+  const { ref, inView } = useInViewport();
   const columns = columnsFor(width, 2, 4, 6);
   const gap = 10;
   const inner = contentWidth(width);
@@ -199,10 +197,14 @@ export function AfricaSection() {
           title="All 54 countries. One place to start."
           subtitle="Country selection is live for every African country, each with its flag. Your context should shape your path."
         />
-        <View style={[styles.africaGrid, { gap }]}>
+        <View ref={ref} style={[styles.africaGrid, { gap }]}>
           {AFRICAN_COUNTRIES.map((country) => (
             <View key={country.code} style={[styles.countryChip, { width: cardWidth }]}>
-              <CountryFlag country={country} size={28} />
+              {inView ? (
+                <CountryFlag country={country} size={28} />
+              ) : (
+                <View style={styles.flagPlaceholder} />
+              )}
               <Text style={styles.countryName} numberOfLines={1}>
                 {country.name}
               </Text>
@@ -244,7 +246,7 @@ export function FaqSection() {
             >
               <View style={styles.faqQuestionRow}>
                 <Text style={styles.faqQuestion}>{faq.question}</Text>
-                <MaterialCommunityIcons
+                <LandingIcon
                   name={open ? "minus" : "plus"}
                   size={20}
                   color={open ? landingColors.blueSoft : landingColors.textSubtle}
@@ -301,11 +303,7 @@ export function FinalCta({
             accessibilityRole="button"
           >
             <Text style={styles.primaryButtonText}>Start your path</Text>
-            <MaterialCommunityIcons
-              name="arrow-right"
-              size={18}
-              color="#FFFFFF"
-            />
+            <LandingIcon name="arrow-right" size={18} color="#FFFFFF" />
           </Pressable>
           <Pressable
             onPress={onSignIn}
@@ -495,6 +493,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: landingColors.border,
     backgroundColor: landingColors.panel,
+  },
+  flagPlaceholder: {
+    width: 28,
+    height: 20,
+    borderRadius: 5,
+    backgroundColor: landingColors.panelRaised,
   },
   countryName: {
     flex: 1,

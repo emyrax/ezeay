@@ -152,6 +152,29 @@ export function getFloatingTabBarInset(bottomInset: number, gap = 12): number {
   );
 }
 
+export function getExploreContentInset(width: number): number {
+  if (!Number.isFinite(width) || width < 380) {
+    return EXPLORE.contentInsetCompact;
+  }
+  if (width < BREAKPOINTS.tablet) {
+    return EXPLORE.contentInset;
+  }
+  return EXPLORE.contentInsetWide;
+}
+
+export interface ReelRailLayout {
+  right: number;
+  bottom: number;
+  reserve: number;
+}
+
+export function getReelRailLayout(compact: boolean): ReelRailLayout {
+  if (compact) {
+    return { right: 18, bottom: 18, reserve: 42 };
+  }
+  return { right: 28, bottom: 24, reserve: 56 };
+}
+
 export interface ReelStageLayout {
   compact: boolean;
   veryShort: boolean;

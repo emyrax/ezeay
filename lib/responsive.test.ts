@@ -4,10 +4,12 @@ import {
   getBreakpoint,
   getCarouselTranslate,
   getContentWidth,
+  getExploreContentInset,
   getExploreLayout,
   getFloatingTabBarInset,
   getGridColumns,
   getGutter,
+  getReelRailLayout,
   getReelStageLayout,
   getThreadsLayout,
 } from "./responsive";
@@ -134,6 +136,29 @@ test("getFloatingTabBarInset clears the floating tab bar", () => {
   assert.equal(getFloatingTabBarInset(0), 110);
   assert.equal(getFloatingTabBarInset(34), 144);
   assert.equal(getFloatingTabBarInset(34, 8), 140);
+});
+
+test("getExploreContentInset scales the shared Explore chrome", () => {
+  assert.equal(getExploreContentInset(0), 12);
+  assert.equal(getExploreContentInset(379), 12);
+  assert.equal(getExploreContentInset(380), 16);
+  assert.equal(getExploreContentInset(639), 16);
+  assert.equal(getExploreContentInset(640), 24);
+  assert.equal(getExploreContentInset(1024), 24);
+  assert.equal(getExploreContentInset(Number.NaN), 12);
+});
+
+test("getReelRailLayout keeps the rail inside the card and reserves content", () => {
+  assert.deepEqual(getReelRailLayout(true), {
+    right: 18,
+    bottom: 18,
+    reserve: 42,
+  });
+  assert.deepEqual(getReelRailLayout(false), {
+    right: 28,
+    bottom: 24,
+    reserve: 56,
+  });
 });
 
 test("getReelStageLayout flags compact and very short stages", () => {

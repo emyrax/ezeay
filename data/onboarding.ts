@@ -7,8 +7,11 @@ import type {
 export const MAX_SUBJECTS = 6;
 export const MAX_GOALS = 6;
 export const MIN_AGE = 13;
+export const LEARN_LANGUAGE_GOAL = "Learn a new language";
 
 export const EMPTY_ONBOARDING_ANSWERS: OnboardingAnswers = {
+  appLanguage: "",
+  targetLanguage: "",
   displayName: "",
   birthday: "",
   country: "",
@@ -187,9 +190,16 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     id: "welcome",
     eyebrow: "Welcome to Yuinx",
-    title: "Let’s build your learning path",
+    title: "Let's build your learning path",
     subtitle:
       "A few quick questions so your quests, streaks, and courses fit you from day one.",
+  },
+  {
+    id: "language",
+    eyebrow: "Your language",
+    title: "Which language should we use?",
+    subtitle:
+      "Choose the language for menus, lessons, and everything else in Yuinx.",
   },
   {
     id: "name",
@@ -255,6 +265,12 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     eyebrow: "Your direction",
     title: "What do you want to achieve?",
     subtitle: "Pick up to six goals. We’ll keep your path pointed at them.",
+  },
+  {
+    id: "targetLanguage",
+    eyebrow: "Your new language",
+    title: "Which language do you want to learn?",
+    subtitle: "We'll build courses and challenges around this language.",
   },
   {
     id: "ready",

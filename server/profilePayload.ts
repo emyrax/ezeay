@@ -1,4 +1,9 @@
 import { users } from "../db/schema";
+import {
+  isAppLanguage,
+  isLearningLanguage,
+  normalizeLanguageCode,
+} from "../lib/i18n/languages";
 
 type UserInsert = typeof users.$inferInsert;
 
@@ -28,6 +33,22 @@ function text(value: unknown): string {
 
 function nullableText(value: unknown): string | null {
   return text(value) || null;
+}
+
+function languageOrNull(
+  value: unknown,
+  field: string,
+  isSupported: (code: unknown) => boolean,
+): string | null {
+  const code = normalizeLanguageCode(text(value));
+  if (!code) return null;
+  if (!isSupported(code)) {
+    throw new ProfilePayloadError(
+      `${field} is not a supported language.`,
+      `invalid_${field}`,
+    );
+  }
+  return code;
 }
 
 function parseJson(value: string, field: string): unknown {
@@ -250,6 +271,20 @@ function commonUpdateValues(
       stringArray(body.learningGoals, "learningGoals"),
     );
   }
+  if (has(body, "appLanguage")) {
+    values.appLanguage = languageOrNull(
+      body.appLanguage,
+      "appLanguage",
+      isAppLanguage,
+    );
+  }
+  if (has(body, "targetLanguage")) {
+    values.targetLanguage = languageOrNull(
+      body.targetLanguage,
+      "targetLanguage",
+      isLearningLanguage,
+    );
+  }
   if (has(body, "onBoarded")) {
     values.onBoarded = booleanOrDefault(body.onBoarded, false);
   }
@@ -366,6 +401,8 @@ export function buildUserCreateValues(
     currentStreak: 0,
     longestStreak: 0,
     learningGoals: "[]",
+    appLanguage: null,
+    targetLanguage: null,
     onBoarded: false,
     modelRatings: "{}",
     isPro: false,

@@ -1,0 +1,237 @@
+{
+  "common": {
+    "appName": "Yuinx",
+    "continue": "Continuar",
+    "back": "Voltar",
+    "skip": "Saltar",
+    "optional": "Opcional",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "close": "Fechar",
+    "retry": "Tentar novamente",
+    "loading": "A carregar...",
+    "loadingAccount": "A carregar a sua conta...",
+    "loadingApp": "A carregar o Yuinx...",
+    "search": "Pesquisar",
+    "noResults": "Nenhum resultado encontrado",
+    "understood": "Entendido",
+    "error": "Algo correu mal",
+    "language": "Idioma",
+    "appLanguage": "Idioma da aplicação",
+    "learningLanguage": "Idioma de aprendizagem",
+    "deviceLanguage": "Idioma do dispositivo",
+    "chooseLanguage": "Escolha o seu idioma",
+    "restartTitle": "Reinício necessário",
+    "restartMessage": "Feche e reabra o Yuinx para aplicar a nova direção do texto.",
+    "languageSyncError": "O idioma mudou neste dispositivo, mas não foi possível sincronizar com o seu perfil.",
+    "version": "Versão"
+  },
+  "tabs": {
+    "camp": "Campo",
+    "quests": "Missões",
+    "threads": "Conversas",
+    "profile": "Perfil",
+    "explore": "Explorar",
+    "notes": "Notas",
+    "coach": "Treinador"
+  },
+  "onboarding": {
+    "steps": {
+      "welcome": {
+        "eyebrow": "Bem-vindo ao Yuinx",
+        "title": "Vamos construir o seu percurso de aprendizagem",
+        "subtitle": "Algumas perguntas rápidas para adaptar as suas missões, sequências e cursos desde o primeiro dia."
+      },
+      "language": {
+        "eyebrow": "O seu idioma",
+        "title": "Que idioma devemos usar?",
+        "subtitle": "Escolha o idioma dos menus, lições e de todo o resto no Yuinx."
+      },
+      "name": {
+        "eyebrow": "Tornemos isto pessoal",
+        "title": "Como devemos chamar-lhe?",
+        "subtitle": "É o nome que verá no seu campo e perfil."
+      },
+      "birthday": {
+        "eyebrow": "Sobre si",
+        "title": "Quando nasceu?",
+        "subtitle": "Isto ajuda-nos a manter a experiência adequada à sua idade."
+      },
+      "country": {
+        "eyebrow": "O seu canto de África",
+        "title": "De onde está a aprender?",
+        "subtitle": "Escolha o seu país para adaptarmos os exemplos ao seu mundo."
+      },
+      "region": {
+        "eyebrow": "Torne isto local",
+        "title": "Que região ou cidade?",
+        "subtitle": "Opcional, mas ajuda a aproximar o seu percurso de casa."
+      },
+      "schoolType": {
+        "eyebrow": "A sua fase de aprendizagem",
+        "title": "Onde está a aprender agora?",
+        "subtitle": "Vamos usar isto para propor cursos no nível certo."
+      },
+      "school": {
+        "eyebrow": "O seu local de aprendizagem",
+        "title": "Que escola frequenta?",
+        "subtitle": "Opcional. Adicione uma escola, universidade ou centro de formação."
+      },
+      "grade": {
+        "eyebrow": "O seu nível",
+        "title": "Em que ano está?",
+        "subtitle": "Escolha a opção mais próxima. Pode alterar mais tarde."
+      },
+      "degree": {
+        "eyebrow": "O seu programa",
+        "title": "O que está a estudar?",
+        "subtitle": "Indique o seu nível de formação e área de estudo."
+      },
+      "subjects": {
+        "eyebrow": "A sua curiosidade",
+        "title": "Escolha as suas disciplinas",
+        "subtitle": "Escolha até seis. Estas definem as suas primeiras missões."
+      },
+      "goals": {
+        "eyebrow": "A sua direção",
+        "title": "O que quer alcançar?",
+        "subtitle": "Escolha até seis objetivos. Vamos manter o seu percurso focado neles."
+      },
+      "targetLanguage": {
+        "eyebrow": "O seu novo idioma",
+        "title": "Que idioma quer aprender?",
+        "subtitle": "Vamos criar cursos e desafios em torno deste idioma."
+      },
+      "ready": {
+        "eyebrow": "O seu percurso está pronto",
+        "title": "Último passo",
+        "subtitle": "Crie a sua conta e guardaremos as suas respostas no seu perfil Yuinx."
+      }
+    },
+    "errors": {
+      "chooseLanguage": "Escolha um idioma para continuar.",
+      "chooseTargetLanguage": "Escolha o idioma que quer aprender.",
+      "enterName": "Introduza o nome que devemos usar.",
+      "nameTooLong": "Mantenha o seu nome com menos de {{max}} caracteres.",
+      "birthdayRequired": "Escolha a sua data de nascimento ou salte este passo.",
+      "birthdayInvalid": "Introduza uma data de nascimento válida.",
+      "birthdayFuture": "A data de nascimento não pode estar no futuro.",
+      "ageTooYoung": "Deve ter pelo menos {{age}} anos.",
+      "chooseCountry": "Escolha o seu país.",
+      "chooseSchoolType": "Escolha onde está a aprender.",
+      "chooseSubjects": "Escolha pelo menos uma disciplina.",
+      "tooManySubjects": "Escolha até {{max}} disciplinas.",
+      "chooseGoal": "Escolha pelo menos um objetivo.",
+      "tooManyGoals": "Escolha até {{max}} objetivos.",
+      "form": "Verifique as suas respostas e tente novamente."
+    },
+    "languageHint": "Pode alterar isto mais tarde nas definições.",
+    "targetLanguageHint": "Mostrado porque escolheu aprender um novo idioma.",
+    "targetLanguageRequired": "Necessário para aprender idiomas",
+    "selectionCount": "{{count}}/{{max}} selecionados",
+    "optionalPill": "Opcional",
+    "saveExit": "Guardar e sair",
+    "exit": "Sair do registo",
+    "goBack": "Voltar",
+    "done": "Criar a minha conta",
+    "creating": "A criar a sua conta...",
+    "alreadyHaveAccount": "Já tem uma conta?",
+    "signIn": "Iniciar sessão",
+    "summary": {
+      "appLanguage": "Idioma da aplicação",
+      "learningLanguage": "Idioma de aprendizagem"
+    }
+  },
+  "settings": {
+    "languageSection": "Idioma",
+    "appLanguage": "Idioma da aplicação",
+    "appLanguageDescription": "Altere o idioma usado no Yuinx.",
+    "learningLanguage": "Idioma de aprendizagem",
+    "learningLanguageDescription": "O idioma que os seus cursos vão ensinar.",
+    "languageSavedDevice": "O idioma mudou neste dispositivo, mas não foi possível sincronizar com o seu perfil.",
+    "chooseAppLanguage": "Escolher idioma da aplicação",
+    "chooseLearningLanguage": "Escolher idioma de aprendizagem"
+  },
+  "options": {
+    "subjects": {
+      "mathematics": "Matemática",
+      "biology": "Biologia",
+      "chemistry": "Química",
+      "physics": "Física",
+      "english": "Inglês",
+      "french": "Francês",
+      "portuguese": "Português",
+      "arabic": "Árabe",
+      "swahili": "Suaíli",
+      "history": "História",
+      "geography": "Geografia",
+      "economics": "Economia",
+      "business": "Negócios",
+      "computerScience": "Informática",
+      "aiData": "IA e dados",
+      "engineering": "Engenharia",
+      "psychology": "Psicologia",
+      "artDesign": "Arte e design",
+      "music": "Música",
+      "healthMedicine": "Saúde e medicina",
+      "lawPolitics": "Direito e política",
+      "agriculture": "Agricultura",
+      "environment": "Ambiente",
+      "other": "Outro"
+    },
+    "goals": {
+      "passExams": "Passar nos exames",
+      "learnLanguage": "Aprender um novo idioma",
+      "careerGrowth": "Progressão na carreira",
+      "academicStudy": "Estudos académicos",
+      "sideProject": "Criar um projeto pessoal",
+      "creativeSkills": "Competências criativas",
+      "aiTechnology": "IA e tecnologia",
+      "healthWellness": "Saúde e bem-estar",
+      "startBusiness": "Criar um negócio",
+      "generalCuriosity": "Curiosidade geral"
+    },
+    "schoolTypes": {
+      "middleSchool": {
+        "label": "Ensino básico",
+        "description": "Ciclo preparatório ou ensino fundamental"
+      },
+      "highSchool": {
+        "label": "Ensino secundário",
+        "description": "Escola secundária"
+      },
+      "university": {
+        "label": "Universidade",
+        "description": "Licenciatura ou pós-graduação"
+      },
+      "vocational": {
+        "label": "Formação profissional",
+        "description": "Formação técnica, artesanal ou profissional"
+      },
+      "selfTaught": {
+        "label": "Autodidata",
+        "description": "Aprender de forma independente, fora da escola"
+      },
+      "other": {
+        "label": "Outro",
+        "description": "Um percurso de aprendizagem diferente"
+      }
+    },
+    "degrees": {
+      "certificate": "Certificado",
+      "diploma": "Diploma",
+      "associate": "Curso técnico superior",
+      "bachelors": "Licenciatura",
+      "masters": "Mestrado",
+      "doctorate": "Doutoramento",
+      "other": "Outro"
+    }
+  },
+  "errors": {
+    "generic": "Algo correu mal. Tente novamente.",
+    "network": "Verifique a sua ligação e tente novamente.",
+    "unauthorized": "A sua sessão expirou. Inicie sessão novamente.",
+    "notFound": "Não encontrámos isso.",
+    "courseNotFound": "Curso não encontrado."
+  }
+}

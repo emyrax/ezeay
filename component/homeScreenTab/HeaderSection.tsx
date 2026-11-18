@@ -279,6 +279,7 @@ export default function HeaderSection() {
                 <Image
                   source={images.yuinxLogoTrans}
                   style={styles.actionImageIcon}
+                  resizeMode="contain"
                 />
               ) : (
                 <MaterialCommunityIcons
@@ -507,7 +508,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 6,
-    resizeMode: "contain",
   },
   actionLabel: {
     color: "rgba(255,255,255,0.92)",

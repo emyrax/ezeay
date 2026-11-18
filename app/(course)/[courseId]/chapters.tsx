@@ -477,7 +477,11 @@ export default function CourseChaptersScreen() {
       ]}
     >
       {course.thumbnailUrl ? (
-        <Image source={{ uri: course.thumbnailUrl }} style={styles.summaryThumb} />
+              <Image
+                source={{ uri: course.thumbnailUrl }}
+                style={styles.summaryThumb}
+                resizeMode="cover"
+              />
       ) : null}
       <View style={styles.summaryBody}>
         <Text style={[styles.summaryTitle, { color: theme.text }]}>{course.title}</Text>
@@ -791,7 +795,11 @@ export default function CourseChaptersScreen() {
             ]}
           >
             {course.thumbnailUrl ? (
-              <Image source={{ uri: course.thumbnailUrl }} style={styles.summaryThumb} />
+        <Image
+          source={{ uri: course.thumbnailUrl }}
+          style={styles.summaryThumb}
+          resizeMode="cover"
+        />
             ) : null}
             <View style={styles.summaryBody}>
               <Text style={[styles.summaryTitle, { color: theme.text }]}>{course.title}</Text>
@@ -1145,7 +1153,6 @@ const styles = StyleSheet.create({
   summaryThumb: {
     width: "100%",
     height: 120,
-    resizeMode: "cover",
   },
   summaryBody: {
     padding: 14,

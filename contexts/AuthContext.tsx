@@ -16,6 +16,8 @@ import type { UserProfile, MappedUser } from '../types/user';
 import { useUserStore } from '../store/userStore';
 import { useModelRatingStore } from '../store/modelRatingStore';
 import { useOnboardingStore } from '../store/onboardingStore';
+import { useLanguageStore } from '../store/languageStore';
+import { isAppLanguage } from '../lib/i18n/languages';
 import { resetUserData } from '../lib/resetAppState';
 
 export function toProfile(apiProfile: ApiUserProfile): UserProfile {
@@ -45,6 +47,8 @@ export function toProfile(apiProfile: ApiUserProfile): UserProfile {
     courses: apiProfile.courses ?? [],
     earnedTrophies: apiProfile.earnedTrophies ?? [],
     learningGoals: apiProfile.learningGoals ?? [] as string[],
+    appLanguage: apiProfile.appLanguage ?? undefined,
+    targetLanguage: apiProfile.targetLanguage ?? undefined,
     onBoarded: apiProfile.onBoarded ?? false,
     modelRatings: apiProfile.modelRatings ?? {},
     isPro: apiProfile.isPro ?? false,
@@ -108,6 +112,13 @@ export interface AuthContextType {
   retryAccountLoad: () => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
   saveProfile: (updates: Partial<UserProfile>) => Promise<void>;
+}
+
+function syncProfileLanguage(profile: UserProfile | null) {
+  if (!profile || !isAppLanguage(profile.appLanguage)) return;
+  const languageState = useLanguageStore.getState();
+  if (languageState.hasExplicitChoice) return;
+  languageState.setAppLanguage(profile.appLanguage, { explicit: true });
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -209,6 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const parsed = JSON.parse(cached) as UserProfile;
             setProfile(parsed);
             setStoreProfile(parsed);
+            syncProfileLanguage(parsed);
             setLoadedOnce(true);
             setLoading(false);
           } catch {
@@ -272,6 +284,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (isChanged || !cached) {
             setProfile(userProfile);
             setStoreProfile(userProfile);
+            syncProfileLanguage(userProfile);
             try {
               await AsyncStorage.setItem("userProfile", JSON.stringify(userProfile));
             } catch (err) {

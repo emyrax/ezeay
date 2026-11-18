@@ -1,4 +1,3 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useRef } from "react";
 import {
@@ -16,6 +15,7 @@ import {
 } from "../../constants/landing";
 import { images } from "../../constants/images";
 import MascotAnimation from "../MascotAnimation";
+import LandingIcon, { type LandingIconName } from "./LandingIcon";
 import { createShadow } from "@/lib/shadow";
 
 export default function HeroVisual({ compact = false }: { compact?: boolean }) {
@@ -106,7 +106,7 @@ export default function HeroVisual({ compact = false }: { compact?: boolean }) {
 
         <View style={styles.questCard}>
           <View style={styles.questIcon}>
-            <MaterialCommunityIcons
+            <LandingIcon
               name="rocket-launch-outline"
               size={19}
               color={landingColors.blueSoft}
@@ -132,6 +132,9 @@ export default function HeroVisual({ compact = false }: { compact?: boolean }) {
             framed={false}
             contentFit="contain"
             style={styles.mascot}
+            eager
+            defer
+            priority="high"
           />
         </View>
       </Animated.View>
@@ -152,11 +155,7 @@ export default function HeroVisual({ compact = false }: { compact?: boolean }) {
           },
         ]}
       >
-        <MaterialCommunityIcons
-          name="fire"
-          size={18}
-          color={landingColors.amber}
-        />
+        <LandingIcon name="fire" size={18} color={landingColors.amber} />
         <Text style={styles.floatText}>Keep the streak alive</Text>
       </Animated.View>
 
@@ -167,7 +166,7 @@ export default function HeroVisual({ compact = false }: { compact?: boolean }) {
           { transform: [{ translateY: translate }] },
         ]}
       >
-        <MaterialCommunityIcons
+        <LandingIcon
           name="star-four-points"
           size={17}
           color={landingColors.violet}
@@ -184,7 +183,7 @@ function MiniStat({
   label,
   tone,
 }: {
-  icon: string;
+  icon: LandingIconName;
   value: string;
   label: string;
   tone: "amber" | "violet" | "green";
@@ -197,7 +196,7 @@ function MiniStat({
         : landingColors.green;
   return (
     <View style={styles.miniStat}>
-      <MaterialCommunityIcons name={icon as never} size={16} color={color} />
+      <LandingIcon name={icon} size={16} color={color} />
       <Text style={styles.miniStatValue}>{value}</Text>
       <Text style={styles.miniStatLabel}>{label}</Text>
     </View>

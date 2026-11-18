@@ -1,0 +1,237 @@
+{
+  "common": {
+    "appName": "Yuinx",
+    "continue": "Continue",
+    "back": "Back",
+    "skip": "Skip",
+    "optional": "Optional",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "retry": "Retry",
+    "loading": "Loading...",
+    "loadingAccount": "Loading your account...",
+    "loadingApp": "Loading Yuinx...",
+    "search": "Search",
+    "noResults": "No results found",
+    "understood": "Got it",
+    "error": "Something went wrong",
+    "language": "Language",
+    "appLanguage": "App language",
+    "learningLanguage": "Learning language",
+    "deviceLanguage": "Device language",
+    "chooseLanguage": "Choose your language",
+    "restartTitle": "Restart needed",
+    "restartMessage": "Close and reopen Yuinx to finish applying the new text direction.",
+    "languageSyncError": "Language changed on this device, but it could not sync to your profile.",
+    "version": "Version"
+  },
+  "tabs": {
+    "camp": "Camp",
+    "quests": "Quests",
+    "threads": "Threads",
+    "profile": "Profile",
+    "explore": "Explore",
+    "notes": "Notes",
+    "coach": "Coach"
+  },
+  "onboarding": {
+    "steps": {
+      "welcome": {
+        "eyebrow": "Welcome to Yuinx",
+        "title": "Let's build your learning path",
+        "subtitle": "A few quick questions so your quests, streaks, and courses fit you from day one."
+      },
+      "language": {
+        "eyebrow": "Your language",
+        "title": "Which language should we use?",
+        "subtitle": "Choose the language for menus, lessons, and everything else in Yuinx."
+      },
+      "name": {
+        "eyebrow": "Make it personal",
+        "title": "What should we call you?",
+        "subtitle": "This is the name you'll see across your camp and profile."
+      },
+      "birthday": {
+        "eyebrow": "About you",
+        "title": "When were you born?",
+        "subtitle": "This helps us keep the experience age-appropriate."
+      },
+      "country": {
+        "eyebrow": "Your corner of Africa",
+        "title": "Where are you learning from?",
+        "subtitle": "Pick your country so we can shape examples around your world."
+      },
+      "region": {
+        "eyebrow": "Make it local",
+        "title": "Which region or city?",
+        "subtitle": "Optional, but it helps us make your path feel closer to home."
+      },
+      "schoolType": {
+        "eyebrow": "Your learning stage",
+        "title": "Where are you learning right now?",
+        "subtitle": "We'll use this to pitch courses at the right level."
+      },
+      "school": {
+        "eyebrow": "Your learning home",
+        "title": "What school do you attend?",
+        "subtitle": "Optional. Add a school, university, or training centre."
+      },
+      "grade": {
+        "eyebrow": "Your level",
+        "title": "Which year are you in?",
+        "subtitle": "Choose the closest match. You can change this later."
+      },
+      "degree": {
+        "eyebrow": "Your programme",
+        "title": "What are you studying?",
+        "subtitle": "Tell us your degree level and field of study."
+      },
+      "subjects": {
+        "eyebrow": "Your curiosity",
+        "title": "Pick your subjects",
+        "subtitle": "Choose up to six. These shape your first quests."
+      },
+      "goals": {
+        "eyebrow": "Your direction",
+        "title": "What do you want to achieve?",
+        "subtitle": "Pick up to six goals. We'll keep your path pointed at them."
+      },
+      "targetLanguage": {
+        "eyebrow": "Your new language",
+        "title": "Which language do you want to learn?",
+        "subtitle": "We'll build courses and challenges around this language."
+      },
+      "ready": {
+        "eyebrow": "Your path is ready",
+        "title": "One last step",
+        "subtitle": "Create your account and we'll save your answers to your Yuinx profile."
+      }
+    },
+    "errors": {
+      "chooseLanguage": "Choose an app language to continue.",
+      "chooseTargetLanguage": "Choose the language you want to learn.",
+      "enterName": "Enter the name you want us to use.",
+      "nameTooLong": "Keep your name under {{max}} characters.",
+      "birthdayRequired": "Choose your birthday or skip this step.",
+      "birthdayInvalid": "Enter a valid birthday.",
+      "birthdayFuture": "Birthday cannot be in the future.",
+      "ageTooYoung": "You must be at least {{age}} years old.",
+      "chooseCountry": "Choose your country.",
+      "chooseSchoolType": "Choose where you are learning.",
+      "chooseSubjects": "Pick at least one subject.",
+      "tooManySubjects": "Pick up to {{max}} subjects.",
+      "chooseGoal": "Pick at least one goal.",
+      "tooManyGoals": "Pick up to {{max}} goals.",
+      "form": "Please check your answers and try again."
+    },
+    "languageHint": "You can change this later in Settings.",
+    "targetLanguageHint": "Only shown because you chose to learn a new language.",
+    "targetLanguageRequired": "Required for language learning",
+    "selectionCount": "{{count}}/{{max}} selected",
+    "optionalPill": "Optional",
+    "saveExit": "Save & exit",
+    "exit": "Exit onboarding",
+    "goBack": "Go back",
+    "done": "Create my account",
+    "creating": "Creating your account...",
+    "alreadyHaveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "summary": {
+      "appLanguage": "App language",
+      "learningLanguage": "Learning language"
+    }
+  },
+  "settings": {
+    "languageSection": "Language",
+    "appLanguage": "App language",
+    "appLanguageDescription": "Change the language used across Yuinx.",
+    "learningLanguage": "Learning language",
+    "learningLanguageDescription": "The language your courses will teach.",
+    "languageSavedDevice": "The language changed on this device, but it could not sync to your profile.",
+    "chooseAppLanguage": "Choose app language",
+    "chooseLearningLanguage": "Choose learning language"
+  },
+  "options": {
+    "subjects": {
+      "mathematics": "Mathematics",
+      "biology": "Biology",
+      "chemistry": "Chemistry",
+      "physics": "Physics",
+      "english": "English",
+      "french": "French",
+      "portuguese": "Portuguese",
+      "arabic": "Arabic",
+      "swahili": "Swahili",
+      "history": "History",
+      "geography": "Geography",
+      "economics": "Economics",
+      "business": "Business",
+      "computerScience": "Computer Science",
+      "aiData": "AI & Data",
+      "engineering": "Engineering",
+      "psychology": "Psychology",
+      "artDesign": "Art & Design",
+      "music": "Music",
+      "healthMedicine": "Health & Medicine",
+      "lawPolitics": "Law & Politics",
+      "agriculture": "Agriculture",
+      "environment": "Environment",
+      "other": "Other"
+    },
+    "goals": {
+      "passExams": "Pass my exams",
+      "learnLanguage": "Learn a new language",
+      "careerGrowth": "Career growth",
+      "academicStudy": "Academic study",
+      "sideProject": "Build a side project",
+      "creativeSkills": "Creative skills",
+      "aiTechnology": "AI & technology",
+      "healthWellness": "Health & wellness",
+      "startBusiness": "Start a business",
+      "generalCuriosity": "General curiosity"
+    },
+    "schoolTypes": {
+      "middleSchool": {
+        "label": "Middle school",
+        "description": "Lower secondary or junior high"
+      },
+      "highSchool": {
+        "label": "High school",
+        "description": "Secondary school or senior high"
+      },
+      "university": {
+        "label": "University",
+        "description": "Undergraduate or postgraduate study"
+      },
+      "vocational": {
+        "label": "Vocational / Trade",
+        "description": "Technical, craft, or professional training"
+      },
+      "selfTaught": {
+        "label": "Self-taught",
+        "description": "Learning independently, outside a school"
+      },
+      "other": {
+        "label": "Other",
+        "description": "A different learning path"
+      }
+    },
+    "degrees": {
+      "certificate": "Certificate",
+      "diploma": "Diploma",
+      "associate": "Associate",
+      "bachelors": "Bachelor's",
+      "masters": "Master's",
+      "doctorate": "Doctorate",
+      "other": "Other"
+    }
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Check your connection and try again.",
+    "unauthorized": "Your session expired. Please sign in again.",
+    "notFound": "We couldn't find that.",
+    "courseNotFound": "Course not found."
+  }
+}

@@ -6,6 +6,8 @@ import {
   Alert,
   FlatList,
   Linking,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -27,6 +29,8 @@ import CommunityAvatar from "../CommunityAvatar";
 interface ResourceFeedPaneProps {
   refreshKey?: number;
   bottomInset?: number;
+  horizontalInset?: number;
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
 const TYPE_ICONS: Record<ResourceType, string> = {
@@ -67,6 +71,8 @@ async function openResource(resource: ExploreResourcePost) {
 export default function ResourceFeedPane({
   refreshKey = 0,
   bottomInset = 0,
+  horizontalInset = 16,
+  onScroll,
 }: ResourceFeedPaneProps) {
   const colors = useThemeColors();
   const { getToken } = useAuth();
@@ -81,11 +87,12 @@ export default function ResourceFeedPane({
         <ResourceCard
           resource={resource}
           colors={colors}
+          horizontalInset={horizontalInset}
           onPress={() => openResource(resource)}
         />
       );
     },
-    [colors],
+    [colors, horizontalInset],
   );
 
   return (
@@ -100,6 +107,8 @@ export default function ResourceFeedPane({
         posts.length === 0 && !loading && styles.listContentEmpty,
       ]}
       showsVerticalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={32}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -172,10 +181,12 @@ export default function ResourceFeedPane({
 function ResourceCard({
   resource,
   colors,
+  horizontalInset,
   onPress,
 }: {
   resource: ExploreResourcePost;
   colors: ReturnType<typeof useThemeColors>;
+  horizontalInset: number;
   onPress: () => void;
 }) {
   const tags = resource.tags.slice(0, 3);
@@ -191,6 +202,7 @@ function ResourceCard({
         {
           backgroundColor: colors.surface,
           borderColor: colors.border,
+          marginHorizontal: horizontalInset,
           opacity: pressed ? 0.85 : 1,
         },
       ]}
@@ -330,7 +342,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   card: {
-    marginHorizontal: 16,
     marginTop: 12,
     borderWidth: 1,
     borderRadius: 18,

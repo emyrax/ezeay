@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { safeFont } from "../../constants/themes";
 import { useThemeColors } from "../../hooks/useTheme";
+import { getThreadFeedChrome } from "../../lib/threads/layout";
 
 export type ExploreTab = "threads" | "resources" | "reels" | "other";
 
@@ -14,25 +15,40 @@ const TABS: { key: ExploreTab; label: string }[] = [
   { key: "threads", label: "Threads" },
   { key: "resources", label: "Resources" },
   { key: "reels", label: "Reels" },
-  { key: "other", label: "Other" },
+  { key: "other", label: "Courses" },
 ];
 
 interface ExploreTabsProps {
   active: ExploreTab;
   onChange: (tab: ExploreTab) => void;
+  inset?: number;
+  height?: number;
 }
 
-export default function ExploreTabs({ active, onChange }: ExploreTabsProps) {
+export default function ExploreTabs({
+  active,
+  onChange,
+  inset = 16,
+  height,
+}: ExploreTabsProps) {
   const colors = useThemeColors();
   const { width } = useWindowDimensions();
-  const compact = width < 380;
+  const chrome = getThreadFeedChrome(width, height);
 
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       style={styles.scroller}
-      contentContainerStyle={[styles.row, compact && styles.rowCompact]}
+      contentContainerStyle={[
+        styles.row,
+        {
+          gap: chrome.tabGap,
+          paddingTop: chrome.tabPadTop,
+          paddingBottom: chrome.tabPadBottom,
+          paddingHorizontal: inset,
+        },
+      ]}
       accessibilityRole="tablist"
     >
       {TABS.map((tab) => {
@@ -43,8 +59,10 @@ export default function ExploreTabs({ active, onChange }: ExploreTabsProps) {
             onPress={() => onChange(tab.key)}
             style={[
               styles.tab,
-              compact && styles.tabCompact,
               {
+                minHeight: chrome.tabHeight,
+                paddingHorizontal: chrome.tabPad,
+                borderRadius: chrome.tabHeight / 2,
                 backgroundColor: selected ? colors.primary : colors.surfaceAlt,
                 borderColor: selected ? colors.primary : colors.border,
               },
@@ -52,12 +70,12 @@ export default function ExploreTabs({ active, onChange }: ExploreTabsProps) {
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             accessibilityLabel={`Show ${tab.label}`}
+            hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }}
           >
             <Text
               style={[
                 styles.label,
-                compact && styles.labelCompact,
-                { color: selected ? "#FFFFFF" : colors.textSecondary },
+                { color: selected ? "#FFFFFF" : colors.textSecondary, fontSize: chrome.tabFont },
               ]}
             >
               {tab.label}
@@ -76,34 +94,14 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 6,
-  },
-  rowCompact: {
-    gap: 6,
-    paddingHorizontal: 12,
   },
   tab: {
-    minHeight: 34,
-    paddingHorizontal: 15,
-    borderRadius: 17,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  tabCompact: {
-    minHeight: 32,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-  },
   label: {
     fontFamily: safeFont,
-    fontSize: 12,
     fontWeight: "800",
-  },
-  labelCompact: {
-    fontSize: 11,
   },
 });

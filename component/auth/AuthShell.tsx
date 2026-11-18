@@ -98,7 +98,7 @@ export default function AuthShell({ children, backLabel, onBack }: AuthShellProp
                 <BrandMark size={tablet ? 34 : 30} />
                 {tablet ? (
                   <Text style={styles.compactTagline}>
-                    Learn with momentum. Build a path around your curiosity.
+                    AI-powered adaptive learning, built around your curiosity.
                   </Text>
                 ) : null}
               </View>

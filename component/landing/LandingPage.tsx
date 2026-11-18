@@ -1,4 +1,3 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -25,6 +24,7 @@ import { images } from "../../constants/images";
 import CountryFlag from "../onboarding/CountryFlag";
 import MascotStage from "../mascot/MascotStage";
 import HeroVisual from "./HeroVisual";
+import LandingIcon, { type LandingIconName } from "./LandingIcon";
 import {
     AfricaSection,
     FaqSection,
@@ -72,16 +72,16 @@ export default function LandingPage() {
   return (
     <View style={styles.page}>
       <Head>
-        <title>Yuinx — A learning path built around your curiosity</title>
+        <title>Yuinx — An AI-powered adaptive learning platform built around your curiosity</title>
         <meta
           name="description"
-          content="Yuinx is a gamified learning companion that builds personalized quests around your curiosity, with streaks, trophies, AI study tools, and offline learning."
+          content="Yuinx is an AI-powered adaptive learning platform that builds personalized learning paths around your curiosity, with streaks, trophies, AI study tools, and offline learning."
         />
         <meta name="theme-color" content="#070A10" />
-        <meta property="og:title" content="Yuinx — Learn with momentum" />
+        <meta property="og:title" content="Yuinx — AI-powered adaptive learning" />
         <meta
           property="og:description"
-          content="Personalized quests, visible progress, and a learning path that fits your stage."
+          content="Personalized learning paths built around your curiosity, with progress that adapts to your stage."
         />
         <meta property="og:type" content="website" />
       </Head>
@@ -178,11 +178,7 @@ export default function LandingPage() {
                 ]}
               >
                 <Text style={styles.navCtaText}>Get started</Text>
-                <MaterialCommunityIcons
-                  name="arrow-right"
-                  size={16}
-                  color="#FFFFFF"
-                />
+                <LandingIcon name="arrow-right" size={16} color="#FFFFFF" />
               </Pressable>
             </View>
           </View>
@@ -227,9 +223,9 @@ export default function LandingPage() {
               </Text>
 
               <Text style={styles.heroSub}>
-                Yuinx is a gamified learning companion that builds a path around
-                what you want to learn — then helps you show up long enough to
-                master it.
+                Yuinx is an AI-powered adaptive learning platform that builds a
+                path around what you want to learn — then helps you show up long
+                enough to master it.
               </Text>
 
               <View style={styles.heroActions}>
@@ -242,11 +238,7 @@ export default function LandingPage() {
                   accessibilityRole="button"
                 >
                   <Text style={styles.heroPrimaryText}>Start your path</Text>
-                  <MaterialCommunityIcons
-                    name="arrow-right"
-                    size={18}
-                    color="#FFFFFF"
-                  />
+                  <LandingIcon name="arrow-right" size={18} color="#FFFFFF" />
                 </Pressable>
                 <Pressable
                   onPress={signIn}
@@ -306,10 +298,11 @@ export default function LandingPage() {
                 <Text style={styles.footerBrandText}>Yuinx</Text>
               </View>
               <Text style={styles.footerTagline}>
-                A gamified learning companion built around your curiosity.
+                An AI-powered adaptive learning platform built around your
+                curiosity.
               </Text>
               <View style={styles.footerAfrica}>
-                <MaterialCommunityIcons
+                <LandingIcon
                   name="earth"
                   size={14}
                   color={landingColors.textSubtle}
@@ -369,14 +362,10 @@ export default function LandingPage() {
   );
 }
 
-function TrustItem({ icon, text }: { icon: string; text: string }) {
+function TrustItem({ icon, text }: { icon: LandingIconName; text: string }) {
   return (
     <View style={styles.trustItem}>
-      <MaterialCommunityIcons
-        name={icon as never}
-        size={14}
-        color={landingColors.green}
-      />
+      <LandingIcon name={icon} size={14} color={landingColors.green} />
       <Text style={styles.trustText}>{text}</Text>
     </View>
   );

@@ -1,12 +1,14 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
+import { I18nProvider } from "../contexts/I18nProvider";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useThemeColors } from "../hooks/useTheme";
 import { useOfflineModelSync } from "../hooks/useOfflineModelSync";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClerkProvider } from "@clerk/expo";
+import { useTranslation } from "react-i18next";
 import { tokenCache } from "../lib/tokenCache";
 import { useAiKeysStore } from "../store/aiKeysStore";
 import { initNotifications } from "../lib/notifications";
@@ -14,23 +16,15 @@ import ErrorBoundary from "../component/ErrorBoundary";
 import LoadingScreen from "../component/LoadingScreen";
 import Toast from "../component/Toast";
 import * as SplashScreen from "expo-splash-screen";
-import {
-  useFonts,
-  SpaceGrotesk_300Light,
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from "@expo-google-fonts/space-grotesk";
-import {
-  PlusJakartaSans_400Regular,
-  PlusJakartaSans_500Medium,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-  PlusJakartaSans_800ExtraBold,
-} from "@expo-google-fonts/plus-jakarta-sans";
+import { useFonts } from "@expo-google-fonts/space-grotesk/useFonts";
+import { SpaceGrotesk_400Regular } from "@expo-google-fonts/space-grotesk/400Regular";
+import { SpaceGrotesk_500Medium } from "@expo-google-fonts/space-grotesk/500Medium";
+import { SpaceGrotesk_600SemiBold } from "@expo-google-fonts/space-grotesk/600SemiBold";
+import { SpaceGrotesk_700Bold } from "@expo-google-fonts/space-grotesk/700Bold";
 
-initNotifications();
+if (Platform.OS !== "web") {
+  initNotifications();
+}
 SplashScreen.preventAutoHideAsync();
 
 const SAVED_USER_KEY = "currentUser";
@@ -85,6 +79,7 @@ function NavigationGuard() {
   const segments = useSegments();
   const router = useRouter();
   const theme = useThemeColors();
+  const { t } = useTranslation();
   const prevReadyRef = useRef<boolean>(false);
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [restoreStuck, setRestoreStuck] = useState(false);
@@ -200,10 +195,10 @@ function NavigationGuard() {
     return (
       <View style={[styles.restoreWrap, { backgroundColor: theme.bg }]}>
         <Text style={[styles.restoreTitle, { color: theme.text }]}>
-          {"Couldn't load your account"}
+          {t("errors.accountLoadTitle")}
         </Text>
         <Text style={[styles.restoreMsg, { color: theme.textMuted }]}>
-          {"Check your connection then try again."}
+          {t("errors.accountLoadMessage")}
         </Text>
         <Pressable
           style={[styles.restoreButton, { backgroundColor: theme.primary }]}
@@ -212,16 +207,18 @@ function NavigationGuard() {
             retryAccountLoad();
           }}
         >
-          <Text style={styles.restoreButtonText}>Retry</Text>
+          <Text style={styles.restoreButtonText}>{t("common.retry")}</Text>
         </Pressable>
       </View>
     );
   }
 
-  if (loading) {
+  if (loading && segments[0]) {
     return (
       <LoadingScreen
-        message={user ? "Loading your account..." : "Loading Yuinx..."}
+        message={
+          user ? t("common.loadingAccount") : t("common.loadingApp")
+        }
       />
     );
   }
@@ -245,17 +242,11 @@ export default function RootLayout() {
   if (!publishableKey) {
     throw new Error("Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY — set it in your .env (see .env.example)");
   }
-  const [fontsLoaded] = useFonts({
-    SpaceGrotesk_300Light,
+  useFonts({
     SpaceGrotesk_400Regular,
     SpaceGrotesk_500Medium,
     SpaceGrotesk_600SemiBold,
     SpaceGrotesk_700Bold,
-    PlusJakartaSans_400Regular,
-    PlusJakartaSans_500Medium,
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
-    PlusJakartaSans_800ExtraBold,
   });
 
   useEffect(() => {
@@ -272,17 +263,17 @@ export default function RootLayout() {
 
   useOfflineModelSync();
 
-  if (!fontsLoaded) return null;
-
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <AuthProvider>
-        <ErrorBoundary>
-          <NavigationGuard />
-          <Toast />
-        </ErrorBoundary>
-      </AuthProvider>
-    </ClerkProvider>
+    <I18nProvider>
+      <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+        <AuthProvider>
+          <ErrorBoundary>
+            <NavigationGuard />
+            <Toast />
+          </ErrorBoundary>
+        </AuthProvider>
+      </ClerkProvider>
+    </I18nProvider>
   );
 }
 

@@ -1,4 +1,8 @@
-import { MAX_SUBJECTS, getSchoolTypeOption } from "../../data/onboarding";
+import {
+  LEARN_LANGUAGE_GOAL,
+  MAX_SUBJECTS,
+  getSchoolTypeOption,
+} from "../../data/onboarding";
 import type { OnboardingAnswers } from "../../types/onboarding";
 import type { UserProfile } from "../../types/user";
 import { uniqueStrings } from "./steps";
@@ -12,8 +16,13 @@ export function answersToProfileUpdates(
   const degree = answers.degree.trim();
   const majorCourse = answers.majorCourse.trim() || subjects[0] || "";
   const schoolType = getSchoolTypeOption(answers.schoolType);
+  const learningGoals = uniqueStrings(answers.learningGoals);
 
   return {
+    appLanguage: answers.appLanguage || undefined,
+    targetLanguage: learningGoals.includes(LEARN_LANGUAGE_GOAL)
+      ? answers.targetLanguage || undefined
+      : undefined,
     displayName: answers.displayName.trim() || undefined,
     birthday: answers.birthday.trim() || undefined,
     country: answers.country || undefined,
@@ -25,7 +34,7 @@ export function answersToProfileUpdates(
     majorCourse: majorCourse || undefined,
     subjects,
     interests: subjects,
-    learningGoals: uniqueStrings(answers.learningGoals),
+    learningGoals,
     educationLevel: degree || schoolType?.educationLevel || undefined,
     level: grade || undefined,
     university:
@@ -56,6 +65,8 @@ export function mergeOnboardingIntoProfile(
   return {
     ...current,
     ...updates,
+    appLanguage: updates.appLanguage ?? current.appLanguage,
+    targetLanguage: updates.targetLanguage,
     displayName: updates.displayName ?? current.displayName,
     birthday: updates.birthday ?? current.birthday,
     country: updates.country ?? current.country,

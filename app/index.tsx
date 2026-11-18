@@ -5,7 +5,6 @@ import { useEffect, useRef } from "react";
 import {
     Animated,
     Easing,
-    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -13,7 +12,6 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import LandingPage from "../component/landing/LandingPage";
 import MascotAnimation from "../component/MascotAnimation";
 import MascotStage from "../component/mascot/MascotStage";
 import { appTheme, safeFont } from "../constants/themes";
@@ -22,7 +20,7 @@ import { useResponsive } from "../hooks/useResponsive";
 import { createShadow } from "@/lib/shadow";
 
 export default function Index() {
-  return Platform.OS === "web" ? <LandingPage /> : <NativeWelcome />;
+  return <NativeWelcome />;
 }
 
 function NativeWelcome() {

@@ -1,0 +1,237 @@
+{
+  "common": {
+    "appName": "Yuinx",
+    "continue": "Endelea",
+    "back": "Rudi",
+    "skip": "Ruka",
+    "optional": "Hiari",
+    "save": "Hifadhi",
+    "cancel": "Ghairi",
+    "close": "Funga",
+    "retry": "Jaribu tena",
+    "loading": "Inapakia...",
+    "loadingAccount": "Inapakia akaunti yako...",
+    "loadingApp": "Inapakia Yuinx...",
+    "search": "Tafuta",
+    "noResults": "Hakuna matokeo",
+    "understood": "Nimeelewa",
+    "error": "Kuna kitu kimeenda vibaya",
+    "language": "Lugha",
+    "appLanguage": "Lugha ya programu",
+    "learningLanguage": "Lugha ya kujifunza",
+    "deviceLanguage": "Lugha ya kifaa",
+    "chooseLanguage": "Chagua lugha yako",
+    "restartTitle": "Inahitaji kuanzishwa upya",
+    "restartMessage": "Funga na ufungue Yuinx tena ili mwelekeo mpya wa maandishi utumike.",
+    "languageSyncError": "Lugha imebadilika kwenye kifaa hiki, lakini haikuweza kuunganishwa na wasifu wako.",
+    "version": "Toleo"
+  },
+  "tabs": {
+    "camp": "Kambi",
+    "quests": "Misheni",
+    "threads": "Mazungumzo",
+    "profile": "Wasifu",
+    "explore": "Gundua",
+    "notes": "Maelezo",
+    "coach": "Kocha"
+  },
+  "onboarding": {
+    "steps": {
+      "welcome": {
+        "eyebrow": "Karibu Yuinx",
+        "title": "Tujenge njia yako ya kujifunza",
+        "subtitle": "Maswali machache ya haraka ili misheni, mfululizo na kozi zako zikufae tangu siku ya kwanza."
+      },
+      "language": {
+        "eyebrow": "Lugha yako",
+        "title": "Tutumie lugha ipi?",
+        "subtitle": "Chagua lugha ya menyu, masomo na kila kitu kingine kwenye Yuinx."
+      },
+      "name": {
+        "eyebrow": "Tuifanye iwe yako",
+        "title": "Tukuitaje?",
+        "subtitle": "Hili ni jina utakaloliona kwenye kambi na wasifu wako."
+      },
+      "birthday": {
+        "eyebrow": "Kukuhusu",
+        "title": "Ulizaliwa lini?",
+        "subtitle": "Hii inatusaidia kuweka uzoefu unaofaa umri wako."
+      },
+      "country": {
+        "eyebrow": "Kona yako ya Afrika",
+        "title": "Unajifunza kutoka wapi?",
+        "subtitle": "Chagua nchi yako ili tuweke mifano inayohusiana na mazingira yako."
+      },
+      "region": {
+        "eyebrow": "Ifanye ya hapa",
+        "title": "Mkoa au jiji gani?",
+        "subtitle": "Si lazima, lakini inasaidia njia yako kuhisi karibu na nyumbani."
+      },
+      "schoolType": {
+        "eyebrow": "Hatua yako ya kujifunza",
+        "title": "Unajifunza wapi kwa sasa?",
+        "subtitle": "Tutatumia hii kutoa kozi za kiwango kinachofaa."
+      },
+      "school": {
+        "eyebrow": "Nyumbani kwako kwa kujifunza",
+        "title": "Unasoma shule gani?",
+        "subtitle": "Si lazima. Ongeza shule, chuo kikuu au kituo cha mafunzo."
+      },
+      "grade": {
+        "eyebrow": "Kiwango chako",
+        "title": "Uko mwaka gani?",
+        "subtitle": "Chagua kinachokaribia. Unaweza kubadilisha baadaye."
+      },
+      "degree": {
+        "eyebrow": "Programu yako",
+        "title": "Unasoma nini?",
+        "subtitle": "Tuambie kiwango chako cha shahada na uwanja wa masomo."
+      },
+      "subjects": {
+        "eyebrow": "Udadisi wako",
+        "title": "Chagua masomo yako",
+        "subtitle": "Chagua hadi sita. Haya huunda misheni zako za kwanza."
+      },
+      "goals": {
+        "eyebrow": "Mwelekeo wako",
+        "title": "Unataka kufanikisha nini?",
+        "subtitle": "Chagua malengo hadi sita. Tutaiweka njia yako ikilenga hayo."
+      },
+      "targetLanguage": {
+        "eyebrow": "Lugha yako mpya",
+        "title": "Lugha ipi unataka kujifunza?",
+        "subtitle": "Tutaunda kozi na changamoto kuhusu lugha hii."
+      },
+      "ready": {
+        "eyebrow": "Njia yako iko tayari",
+        "title": "Hatua ya mwisho",
+        "subtitle": "Fungua akaunti yako na tutahifadhi majibu yako kwenye wasifu wako wa Yuinx."
+      }
+    },
+    "errors": {
+      "chooseLanguage": "Chagua lugha ya programu ili kuendelea.",
+      "chooseTargetLanguage": "Chagua lugha unayotaka kujifunza.",
+      "enterName": "Weka jina tunalopaswa kutumia.",
+      "nameTooLong": "Weka jina lenye herufi chini ya {{max}}.",
+      "birthdayRequired": "Chagua siku yako ya kuzaliwa au ruka hatua hii.",
+      "birthdayInvalid": "Weka tarehe halali ya kuzaliwa.",
+      "birthdayFuture": "Tarehe ya kuzaliwa haiwezi kuwa ya baadaye.",
+      "ageTooYoung": "Lazima uwe na angalau miaka {{age}}.",
+      "chooseCountry": "Chagua nchi yako.",
+      "chooseSchoolType": "Chagua mahali unapojifunza.",
+      "chooseSubjects": "Chagua somo moja angalau.",
+      "tooManySubjects": "Chagua masomo hadi {{max}}.",
+      "chooseGoal": "Chagua lengo moja angalau.",
+      "tooManyGoals": "Chagua malengo hadi {{max}}.",
+      "form": "Tafadhali angalia majibu yako na ujaribu tena."
+    },
+    "languageHint": "Unaweza kubadilisha hii baadaye kwenye Mipangilio.",
+    "targetLanguageHint": "Inaonekana kwa sababu umechagua kujifunza lugha mpya.",
+    "targetLanguageRequired": "Inahitajika kwa kujifunza lugha",
+    "selectionCount": "{{count}}/{{max}} zimechaguliwa",
+    "optionalPill": "Hiari",
+    "saveExit": "Hifadhi na toka",
+    "exit": "Toka kwenye usajili",
+    "goBack": "Rudi",
+    "done": "Fungua akaunti yangu",
+    "creating": "Inafungua akaunti yako...",
+    "alreadyHaveAccount": "Tayari una akaunti?",
+    "signIn": "Ingia",
+    "summary": {
+      "appLanguage": "Lugha ya programu",
+      "learningLanguage": "Lugha ya kujifunza"
+    }
+  },
+  "settings": {
+    "languageSection": "Lugha",
+    "appLanguage": "Lugha ya programu",
+    "appLanguageDescription": "Badilisha lugha inayotumika kwenye Yuinx.",
+    "learningLanguage": "Lugha ya kujifunza",
+    "learningLanguageDescription": "Lugha ambayo kozi zako zitafundisha.",
+    "languageSavedDevice": "Lugha imebadilika kwenye kifaa hiki, lakini haikuweza kuunganishwa na wasifu wako.",
+    "chooseAppLanguage": "Chagua lugha ya programu",
+    "chooseLearningLanguage": "Chagua lugha ya kujifunza"
+  },
+  "options": {
+    "subjects": {
+      "mathematics": "Hisabati",
+      "biology": "Biolojia",
+      "chemistry": "Kemia",
+      "physics": "Fizikia",
+      "english": "Kiingereza",
+      "french": "Kifaransa",
+      "portuguese": "Kireno",
+      "arabic": "Kiarabu",
+      "swahili": "Kiswahili",
+      "history": "Historia",
+      "geography": "Jiografia",
+      "economics": "Uchumi",
+      "business": "Biashara",
+      "computerScience": "Sayansi ya Kompyuta",
+      "aiData": "AI na Data",
+      "engineering": "Uhandisi",
+      "psychology": "Saikolojia",
+      "artDesign": "Sanaa na Ubunifu",
+      "music": "Muziki",
+      "healthMedicine": "Afya na Tiba",
+      "lawPolitics": "Sheria na Siasa",
+      "agriculture": "Kilimo",
+      "environment": "Mazingira",
+      "other": "Nyingine"
+    },
+    "goals": {
+      "passExams": "Kufaulu mitihani yangu",
+      "learnLanguage": "Kujifunza lugha mpya",
+      "careerGrowth": "Kukua kazini",
+      "academicStudy": "Masomo ya kitaaluma",
+      "sideProject": "Kujenga mradi wa pembeni",
+      "creativeSkills": "Ujuzi wa ubunifu",
+      "aiTechnology": "AI na teknolojia",
+      "healthWellness": "Afya na ustawi",
+      "startBusiness": "Kuanzisha biashara",
+      "generalCuriosity": "Udadisi wa jumla"
+    },
+    "schoolTypes": {
+      "middleSchool": {
+        "label": "Shule ya kati",
+        "description": "Elimu ya sekondari ya chini"
+      },
+      "highSchool": {
+        "label": "Shule ya upili",
+        "description": "Elimu ya sekondari"
+      },
+      "university": {
+        "label": "Chuo kikuu",
+        "description": "Shahada ya kwanza au uzamili"
+      },
+      "vocational": {
+        "label": "Mafunzo ya ufundi",
+        "description": "Mafunzo ya kiufundi, ufundi au kitaaluma"
+      },
+      "selfTaught": {
+        "label": "Kujifunza binafsi",
+        "description": "Kujifunza kwa kujitegemea nje ya shule"
+      },
+      "other": {
+        "label": "Nyingine",
+        "description": "Njia nyingine ya kujifunza"
+      }
+    },
+    "degrees": {
+      "certificate": "Cheti",
+      "diploma": "Diploma",
+      "associate": "Shahada ya kati",
+      "bachelors": "Shahada ya kwanza",
+      "masters": "Shahada ya uzamili",
+      "doctorate": "Shahada ya uzamifu",
+      "other": "Nyingine"
+    }
+  },
+  "errors": {
+    "generic": "Kuna kitu kimeenda vibaya. Tafadhali jaribu tena.",
+    "network": "Angalia muunganisho wako na ujaribu tena.",
+    "unauthorized": "Kipindi chako kimeisha. Tafadhali ingia tena.",
+    "notFound": "Hatukuweza kupata hiyo.",
+    "courseNotFound": "Kozi haipatikani."
+  }
+}

@@ -38,7 +38,15 @@
       "backgroundColor": "#152A4D"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": true,
+            "default": false
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -79,6 +87,14 @@
         }
       ],
       "expo-font",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["en", "fr", "pt", "sw", "ar"]
+          }
+        }
+      ],
       [
         "expo-ai-kit",
         {

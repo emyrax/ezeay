@@ -564,6 +564,8 @@ type UserRow = {
   currentStreak: number;
   longestStreak: number;
   learningGoals: string;
+  appLanguage: string | null;
+  targetLanguage: string | null;
   onBoarded: boolean;
   modelRatings: string;
   isPro: boolean;
@@ -658,6 +660,8 @@ function mapUser(row: UserRow) {
     currentStreak: row.currentStreak,
     longestStreak: row.longestStreak,
     learningGoals,
+    appLanguage: row.appLanguage ?? undefined,
+    targetLanguage: row.targetLanguage ?? undefined,
     onBoarded: row.onBoarded ?? false,
     modelRatings,
     isPro: row.isPro ?? false,

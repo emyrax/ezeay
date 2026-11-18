@@ -1,5 +1,6 @@
 export type OnboardingStepId =
   | "welcome"
+  | "language"
   | "name"
   | "birthday"
   | "country"
@@ -10,9 +11,12 @@ export type OnboardingStepId =
   | "degree"
   | "subjects"
   | "goals"
+  | "targetLanguage"
   | "ready";
 
 export interface OnboardingAnswers {
+  appLanguage: string;
+  targetLanguage: string;
   displayName: string;
   birthday: string;
   country: string;
@@ -27,6 +31,8 @@ export interface OnboardingAnswers {
 }
 
 export type OnboardingErrorKey =
+  | "appLanguage"
+  | "targetLanguage"
   | "displayName"
   | "birthday"
   | "country"

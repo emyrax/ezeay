@@ -1,5 +1,6 @@
 import { AFRICAN_COUNTRIES } from "../../data/countries";
 import {
+  LEARN_LANGUAGE_GOAL,
   MAX_GOALS,
   MAX_SUBJECTS,
   MIN_AGE,
@@ -7,6 +8,7 @@ import {
   requiresDegree,
   supportsGrade,
 } from "../../data/onboarding";
+import { isAppLanguage, isLearningLanguage } from "../i18n/languages";
 import type {
   OnboardingAnswers,
   OnboardingErrors,
@@ -18,12 +20,17 @@ export function isOnboardingStepId(value: string): value is OnboardingStepId {
   return ONBOARDING_STEPS.some((step) => step.id === value);
 }
 
+export function needsTargetLanguage(answers: OnboardingAnswers): boolean {
+  return answers.learningGoals.includes(LEARN_LANGUAGE_GOAL);
+}
+
 export function isStepVisible(
   step: OnboardingStep,
   answers: OnboardingAnswers,
 ): boolean {
   if (step.id === "grade") return supportsGrade(answers.schoolType);
   if (step.id === "degree") return requiresDegree(answers.schoolType);
+  if (step.id === "targetLanguage") return needsTargetLanguage(answers);
   return true;
 }
 
@@ -102,48 +109,71 @@ export function validateStep(
   const errors: OnboardingErrors = {};
 
   switch (stepId) {
+    case "language": {
+      if (!isAppLanguage(answers.appLanguage)) {
+        errors.appLanguage = "onboarding.errors.chooseLanguage";
+      }
+      break;
+    }
+    case "targetLanguage": {
+      if (!isLearningLanguage(answers.targetLanguage)) {
+        errors.targetLanguage = "onboarding.errors.chooseTargetLanguage";
+      }
+      break;
+    }
     case "name": {
       const name = answers.displayName.trim();
-      if (name.length < 2) errors.displayName = "Enter at least 2 characters.";
-      else if (name.length > 40) errors.displayName = "Keep your name under 40 characters.";
+      if (name.length < 2) errors.displayName = "onboarding.errors.nameMin";
+      else if (name.length > 40) {
+        errors.displayName = "onboarding.errors.nameTooLong";
+      }
       break;
     }
     case "birthday": {
       if (!answers.birthday.trim()) break;
       const parsed = parseBirthdayDate(answers.birthday);
       if (!parsed) {
-        errors.birthday = "Use the format YYYY-MM-DD.";
+        errors.birthday = "onboarding.errors.birthdayInvalid";
         break;
       }
       const age = ageOn(parsed);
-      if (age < MIN_AGE) errors.birthday = `Yuinx is for learners ${MIN_AGE} and older.`;
-      else if (age > 100) errors.birthday = "Please check your date of birth.";
+      if (age < MIN_AGE) {
+        errors.birthday = "onboarding.errors.ageTooYoung";
+      } else if (age > 100) {
+        errors.birthday = "onboarding.errors.birthdayCheck";
+      }
       break;
     }
     case "country": {
-      if (!answers.country) errors.country = "Choose your country.";
-      else if (!AFRICAN_COUNTRIES.some((item) => item.name === answers.country)) {
-        errors.country = "Choose a country from the list.";
+      if (!answers.country) errors.country = "onboarding.errors.chooseCountry";
+      else if (
+        !AFRICAN_COUNTRIES.some((item) => item.name === answers.country)
+      ) {
+        errors.country = "onboarding.errors.countryFromList";
       }
       break;
     }
     case "schoolType": {
-      if (!answers.schoolType) errors.schoolType = "Choose your learning stage.";
+      if (!answers.schoolType) {
+        errors.schoolType = "onboarding.errors.chooseSchoolType";
+      }
       break;
     }
     case "subjects": {
       const subjects = uniqueStrings(answers.subjects);
-      if (subjects.length === 0) errors.subjects = "Pick at least one subject.";
-      else if (subjects.length > MAX_SUBJECTS) {
-        errors.subjects = `Pick up to ${MAX_SUBJECTS} subjects.`;
+      if (subjects.length === 0) {
+        errors.subjects = "onboarding.errors.chooseSubjects";
+      } else if (subjects.length > MAX_SUBJECTS) {
+        errors.subjects = "onboarding.errors.tooManySubjects";
       }
       break;
     }
     case "goals": {
       const goals = uniqueStrings(answers.learningGoals);
-      if (goals.length === 0) errors.learningGoals = "Pick at least one goal.";
-      else if (goals.length > MAX_GOALS) {
-        errors.learningGoals = `Pick up to ${MAX_GOALS} goals.`;
+      if (goals.length === 0) {
+        errors.learningGoals = "onboarding.errors.chooseGoal";
+      } else if (goals.length > MAX_GOALS) {
+        errors.learningGoals = "onboarding.errors.tooManyGoals";
       }
       break;
     }

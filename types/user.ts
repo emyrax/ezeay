@@ -93,6 +93,8 @@ export interface UserProfile {
   yearsOfTradeExperience?: number;
 
   learningGoals?: string[];
+  appLanguage?: string;
+  targetLanguage?: string;
   onBoarded?: boolean;
   modelRatings?: Record<string, number>;
   isPro?: boolean;

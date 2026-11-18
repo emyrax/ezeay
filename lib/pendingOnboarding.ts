@@ -22,6 +22,8 @@ export function normalizeAnswers(value: unknown): OnboardingAnswers {
       : {};
 
   return {
+    appLanguage: asString(input.appLanguage),
+    targetLanguage: asString(input.targetLanguage),
     displayName: asString(input.displayName),
     birthday: asString(input.birthday),
     country: asString(input.country),

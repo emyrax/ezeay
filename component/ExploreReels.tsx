@@ -32,7 +32,11 @@ import {
   normalizeResourceChallenge,
   type NormalizedReelChallenge,
 } from "../lib/reels/challenge";
-import { getExploreLayout, getReelStageLayout } from "../lib/responsive";
+import {
+  getExploreLayout,
+  getReelRailLayout,
+  getReelStageLayout,
+} from "../lib/responsive";
 import { useEnrollmentStore } from "../store/courseEnrollmentStore";
 import { useProgressStore } from "../store/courseProgressStore";
 import { useCourseStore } from "../store/courseStore";
@@ -194,6 +198,7 @@ function ReelCard({
   const liked = item.post.likedByMe;
   const isWide = variant !== "phone";
   const isDesktop = variant === "desktop";
+  const railLayout = getReelRailLayout(compactHeight);
 
   const chapters = useMemo(
     () => parseChapters(course?.chapters),
@@ -585,7 +590,12 @@ function ReelCard({
               </View>
             ) : null}
 
-            <View style={styles.challengeChoiceStack}>
+            <View
+              style={[
+                styles.challengeChoiceStack,
+                { paddingRight: railLayout.reserve },
+              ]}
+            >
               <Text style={[styles.challengePrompt, { color: theme.text }]}>
                 {challenge.challengePrompt}
               </Text>
@@ -763,7 +773,11 @@ function ReelCard({
           </View>
 
           <View
-            style={[styles.reelBottomRow, isWide && styles.reelBottomRowWide]}
+            style={[
+              styles.reelBottomRow,
+              isWide && styles.reelBottomRowWide,
+              { paddingRight: railLayout.reserve },
+            ]}
           >
             <View style={{ flex: 1, gap: 6 }}>
               {completed && (
@@ -870,6 +884,7 @@ function ReelCard({
           styles.rail,
           isWide && styles.railWide,
           compactHeight && styles.railCompact,
+          { right: railLayout.right, bottom: railLayout.bottom },
         ]}
         pointerEvents="box-none"
       >
@@ -1210,6 +1225,7 @@ export default function ExploreReels({
   onRefreshDone,
   embedded = false,
   bottomInset = 0,
+  horizontalInset,
 }: {
   refreshKey?: number;
   refreshing: boolean;
@@ -1218,6 +1234,7 @@ export default function ExploreReels({
   onRefreshDone?: () => void;
   embedded?: boolean;
   bottomInset?: number;
+  horizontalInset?: number;
 }) {
   const theme = useThemeColors();
   const router = useRouter();
@@ -1250,7 +1267,8 @@ export default function ExploreReels({
     : rowMaxWidth !== undefined
       ? Math.min(rowMaxWidth, EXPLORE.topBarMaxWidth)
       : undefined;
-  const cardInset = isPhone ? 16 : Math.min(gutter, 24);
+  const cardInset =
+    horizontalInset ?? (isPhone ? 16 : Math.min(gutter, 24));
   const cardRadius = isPhone
     ? 24
     : breakpoint === "desktop"
@@ -1828,6 +1846,7 @@ export default function ExploreReels({
               backgroundColor: theme.surfaceAlt,
               borderColor: isTabletUp ? theme.border : "transparent",
               marginHorizontal: cardInset,
+              marginTop: embedded ? 8 : 0,
             },
           ]}
         >
@@ -2696,19 +2715,13 @@ const styles = StyleSheet.create({
   },
   rail: {
     position: "absolute",
-    right: 28,
-    bottom: 24,
     gap: 12,
     alignItems: "center",
   },
   railWide: {
-    right: 24,
-    bottom: 28,
     gap: 14,
   },
   railCompact: {
-    right: 14,
-    bottom: 14,
     gap: 8,
   },
   railPill: {

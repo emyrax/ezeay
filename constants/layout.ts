@@ -70,5 +70,8 @@ export const EXPLORE = {
   gapDesktop: 28,
   cardRadius: 28,
   cardRadiusDesktop: 30,
+  contentInsetCompact: 12,
+  contentInset: 16,
+  contentInsetWide: 24,
   webTabBarInset: NAV.tabBarHeight + NAV.tabBarBottomInset + 12,
 } as const;

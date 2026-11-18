@@ -74,6 +74,8 @@ export const users = pgTable("users", {
   languages: text("languages").notNull().default("[]"),
   interests: text("interests").notNull().default("[]"),
   learningGoals: text("learning_goals").notNull().default("[]"),
+  appLanguage: text("app_language"),
+  targetLanguage: text("target_language"),
   onBoarded: boolean("on_boarded").notNull().default(false),
   modelRatings: text("model_ratings").notNull().default("{}"),
   isPro: boolean("is_pro").notNull().default(false),

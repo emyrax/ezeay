@@ -26,6 +26,7 @@ import { eventBus } from "../lib/eventBus";
 import { getFloatingTabBarInset } from "../lib/responsive";
 import { getExploreHubLayout } from "../lib/statsLayout";
 import { threadLessonHref } from "../lib/threads/format";
+import { getThreadFeedChrome } from "../lib/threads/layout";
 import { useThreadLearningStore } from "../store/threadLearningStore";
 import { useThreadStore } from "../store/threadStore";
 import type { FocusSubtopic } from "../types/learning";
@@ -46,7 +47,6 @@ import StatsRightRail from "./stats/StatsRightRail";
 import SubtopicThreadCard from "./SubtopicThreadCard";
 import ThreadQuizModal from "./ThreadQuizModal";
 import VisualLessonModal from "./VisualLessonModal";
-import { createShadow } from "@/lib/shadow";
 
 export default function ThreadFeedScreen({
   variant = "default",
@@ -58,13 +58,15 @@ export default function ThreadFeedScreen({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isTabletUp, threadsLayout } = useResponsive();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const chrome = getThreadFeedChrome(windowWidth, windowHeight);
   const exploreHubLayout = getExploreHubLayout(windowWidth);
   const isExplore = variant === "explore";
   const tabBarInset = isTabletUp
     ? NAV.desktopContentInset
     : getFloatingTabBarInset(insets.bottom);
-  const listBottomInset = isTabletUp ? 32 : tabBarInset + 64;
+  const contentInset = isExplore ? chrome.gutter : 16;
+  const listBottomInset = isTabletUp ? 32 : tabBarInset + chrome.listBottomGap;
   const reelsBottomInset = isTabletUp ? 32 : tabBarInset;
 
   const posts = useThreadStore((s) => s.posts);
@@ -195,6 +197,7 @@ export default function ThreadFeedScreen({
   const showAnalytics = isExplore && exploreHubLayout.showAnalytics;
   const showThreadsLeftRail = !isExplore && threadsLayout.showLeftRail;
   const showThreadsRightRail = !isExplore && threadsLayout.showRightRail;
+  const isRowLayout = showAnalytics || showThreadsRightRail;
   const bordered = !isExplore && threadsLayout.mode !== "mobile";
   const layoutGap = isExplore ? exploreHubLayout.gap : threadsLayout.gap;
   const analyticsWidth = exploreHubLayout.analyticsWidth;
@@ -213,7 +216,12 @@ export default function ThreadFeedScreen({
   const minimizedRight = isTabletUp ? 24 : 16;
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+    <View
+      style={[
+        styles.root,
+        { backgroundColor: colors.bg, paddingTop: insets.top },
+      ]}
+    >
       {showAnalytics || showThreadsLeftRail ? (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <View style={[styles.ambientGlow, styles.ambientGlowOne]} />
@@ -224,7 +232,7 @@ export default function ThreadFeedScreen({
       <View
         style={[
           styles.workspace,
-          (showAnalytics || showThreadsRightRail) && styles.workspaceRow,
+          isRowLayout && styles.workspaceRow,
           showAnalytics && styles.workspaceTwoColumn,
           showThreadsLeftRail && styles.workspaceUltraWide,
           isExplore && styles.workspaceExplore,
@@ -245,6 +253,7 @@ export default function ThreadFeedScreen({
         <View
           style={[
             styles.feedColumn,
+            !isRowLayout && styles.feedColumnStacked,
             bordered && styles.feedColumnBordered,
             showAnalytics && styles.feedColumnTwoColumn,
             {
@@ -256,22 +265,37 @@ export default function ThreadFeedScreen({
           <View
             style={[
               styles.header,
-              collapsed && styles.headerCollapsed,
-              { borderBottomColor: colors.border },
+              {
+                borderBottomColor: colors.border,
+                paddingHorizontal: contentInset,
+                gap: chrome.headerGap,
+                paddingTop: collapsed ? chrome.headerPadTopCollapsed : chrome.headerPadTop,
+                paddingBottom: collapsed
+                  ? chrome.headerPadBottomCollapsed
+                  : chrome.headerPadBottom,
+              },
             ]}
           >
             <View style={styles.headerText}>
               <Text
                 style={[
                   styles.title,
-                  collapsed && styles.titleCollapsed,
-                  { color: colors.text },
+                  {
+                    color: colors.text,
+                    fontSize: collapsed ? chrome.titleCollapsed : chrome.titleSize,
+                  },
                 ]}
               >
                 {isExplore ? "Explore" : "Threads"}
               </Text>
-              {!collapsed ? (
-                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              {!collapsed && chrome.showSubtitle ? (
+                <Text
+                  style={[
+                    styles.subtitle,
+                    { color: colors.textSecondary, fontSize: chrome.subtitleSize },
+                  ]}
+                  numberOfLines={1}
+                >
                   {isExplore
                     ? "Threads, resources, and reels from the camp"
                     : "Learn from every chapter, one part at a time"}
@@ -280,31 +304,59 @@ export default function ThreadFeedScreen({
             </View>
             <Pressable
               onPress={() => setUploadVisible(true)}
-              style={[styles.composeBtn, { backgroundColor: colors.primary }]}
+              style={[
+                styles.composeBtn,
+                {
+                  backgroundColor: colors.primary,
+                  width: chrome.composeSize,
+                  height: chrome.composeSize,
+                  borderRadius: chrome.composeSize / 2,
+                },
+              ]}
               accessibilityRole="button"
               accessibilityLabel="Share a resource"
             >
-              <Ionicons name="add" size={22} color="#FFFFFF" />
+              <Ionicons name="add" size={chrome.composeIcon} color="#FFFFFF" />
             </Pressable>
           </View>
 
           {isExplore ? (
-            <ExploreTabs active={activeTab} onChange={handleTabChange} />
+            <ExploreTabs
+              active={activeTab}
+              onChange={handleTabChange}
+              inset={contentInset}
+              height={windowHeight}
+            />
           ) : null}
 
           {!collapsed && (!isExplore || activeTab === "threads") ? (
-            <View style={styles.filterRow}>
+            <View
+              style={[
+                styles.filterRow,
+                {
+                  paddingHorizontal: contentInset,
+                  paddingTop: chrome.listTop,
+                  paddingBottom: chrome.chipPad,
+                },
+              ]}
+            >
               <FilterChip
                 label="Discover"
                 active={!includeMine}
                 onPress={() => handleFilter(false)}
                 colors={colors}
+                height={chrome.chipHeight}
+                fontSize={chrome.chipFont}
+                paddingHorizontal={chrome.chipPad}
               />
               <FilterChip
                 label="Everyone"
                 active={includeMine}
                 onPress={() => handleFilter(true)}
                 colors={colors}
+                height={chrome.chipHeight}
+                fontSize={chrome.chipFont}
+                paddingHorizontal={chrome.chipPad}
               />
             </View>
           ) : null}
@@ -313,11 +365,14 @@ export default function ThreadFeedScreen({
             <ResourceFeedPane
               refreshKey={resourceRefreshKey}
               bottomInset={bottomPadding}
+              horizontalInset={contentInset}
+              onScroll={handleScroll}
             />
           ) : isExplore && activeTab === "reels" ? (
             <View style={styles.pane}>
               <ExploreReels
                 embedded
+                horizontalInset={contentInset}
                 bottomInset={reelsBottomInset}
                 refreshKey={reelsRefreshKey}
                 refreshing={reelsRefreshing}
@@ -329,11 +384,14 @@ export default function ThreadFeedScreen({
             <CourseFeedPane
               refreshKey={resourceRefreshKey}
               bottomInset={bottomPadding}
+              horizontalInset={contentInset}
+              onScroll={handleScroll}
             />
           ) : (
             <FlatList
               data={posts}
               keyExtractor={(item) => item.id}
+              style={styles.feedList}
               renderItem={({ item }) => (
                 <SubtopicThreadCard
                   post={item}
@@ -344,11 +402,12 @@ export default function ThreadFeedScreen({
                   onPressFocus={(post) => toggleFocus(post)}
                   onPressLesson={openLesson}
                   onPressQuiz={setQuizPost}
+                  horizontalInset={contentInset}
                 />
               )}
               contentContainerStyle={[
                 styles.listContent,
-                { paddingBottom: bottomPadding },
+                { paddingTop: chrome.listTop, paddingBottom: bottomPadding },
                 posts.length === 0 && !loading && styles.listContentEmpty,
               ]}
               showsVerticalScrollIndicator={false}
@@ -373,12 +432,12 @@ export default function ThreadFeedScreen({
               }
               ListEmptyComponent={
                 loading ? (
-                  <ThreadFeedLoading colors={colors} />
+                  <ThreadFeedLoading colors={colors} chrome={chrome} />
                 ) : loaded ? (
-                  <View style={styles.empty}>
+                  <View style={[styles.empty, { paddingHorizontal: chrome.emptyPadH }]}>
                     <MascotAnimation
                       action={error ? "mascot_disappointed" : "mascot_posing"}
-                      height={124}
+                      height={chrome.mascotHeight}
                       framed={false}
                     />
                     <Text style={[styles.emptyTitle, { color: colors.text }]}>
@@ -428,20 +487,6 @@ export default function ThreadFeedScreen({
           />
         ) : null}
       </View>
-
-      {!isTabletUp && activeTab !== "reels" ? (
-        <Pressable
-          onPress={() => setUploadVisible(true)}
-          style={[
-            styles.fab,
-            { backgroundColor: colors.primary, bottom: tabBarInset + 12 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Share a resource"
-        >
-          <Ionicons name="cloud-upload-outline" size={22} color="#FFFFFF" />
-        </Pressable>
-      ) : null}
 
       <ChapterThreadModal
         visible={chapterId !== null}
@@ -513,8 +558,10 @@ export default function ThreadFeedScreen({
 
 function ThreadFeedLoading({
   colors,
+  chrome,
 }: {
   colors: ReturnType<typeof useThemeColors>;
+  chrome: ReturnType<typeof getThreadFeedChrome>;
 }) {
   const pulse = useRef(new Animated.Value(0)).current;
 
@@ -545,10 +592,10 @@ function ThreadFeedLoading({
   });
 
   return (
-    <View style={styles.loadingWrap}>
+    <View style={[styles.loadingWrap, { paddingHorizontal: chrome.gutter }]}>
       <MascotStage
         action="mascot_loading"
-        width={94}
+        width={Math.round(chrome.mascotHeight * 0.76)}
         variant="inline"
         stageColor="#113154"
         fadeColor={colors.bg}
@@ -567,7 +614,11 @@ function ThreadFeedLoading({
             key={index}
             style={[
               styles.skeletonCard,
-              { backgroundColor: colors.surface, borderColor: colors.border },
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                padding: chrome.skeletonPadding,
+              },
             ]}
           >
             <View style={styles.skeletonHeader}>
@@ -627,11 +678,17 @@ function FilterChip({
   active,
   onPress,
   colors,
+  height,
+  fontSize,
+  paddingHorizontal,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
   colors: ReturnType<typeof useThemeColors>;
+  height: number;
+  fontSize: number;
+  paddingHorizontal: number;
 }) {
   return (
     <Pressable
@@ -639,6 +696,9 @@ function FilterChip({
       style={[
         styles.chip,
         {
+          minHeight: height,
+          paddingHorizontal,
+          borderRadius: height / 2,
           backgroundColor: active ? colors.primary + "1F" : colors.surfaceAlt,
           borderColor: active ? colors.primary : colors.border,
         },
@@ -647,7 +707,10 @@ function FilterChip({
       accessibilityState={{ selected: active }}
     >
       <Text
-        style={[styles.chipText, { color: active ? colors.primary : colors.textSecondary }]}
+        style={[
+          styles.chipText,
+          { color: active ? colors.primary : colors.textSecondary, fontSize },
+        ]}
       >
         {label}
       </Text>
@@ -679,6 +742,7 @@ const styles = StyleSheet.create({
   workspace: {
     flex: 1,
     width: "100%",
+    minHeight: 0,
     alignItems: "center",
   },
   workspaceRow: {
@@ -701,6 +765,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: "100%",
     minWidth: 0,
+    minHeight: 0,
+  },
+  feedColumnStacked: {
+    width: "100%",
+  },
+  feedList: {
+    flex: 1,
+    width: "100%",
+    minHeight: 0,
   },
   feedColumnBordered: {
     borderLeftWidth: 1,
@@ -716,71 +789,47 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerCollapsed: {
-    paddingTop: 10,
-    paddingBottom: 8,
   },
   headerText: { flex: 1, minWidth: 0 },
   title: {
     fontFamily: safeFont,
-    fontSize: 26,
     fontWeight: "800",
     letterSpacing: -0.4,
   },
-  titleCollapsed: {
-    fontSize: 20,
-  },
   subtitle: {
     fontFamily: safeFont,
-    fontSize: 13,
     marginTop: 2,
   },
   composeBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   filterRow: {
     flexDirection: "row",
     gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
   },
   chip: {
-    minHeight: 34,
-    paddingHorizontal: 14,
-    borderRadius: 17,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   chipText: {
     fontFamily: safeFont,
-    fontSize: 12,
     fontWeight: "700",
   },
-  listContent: { paddingTop: 12 },
+  listContent: {},
   listContentEmpty: { flexGrow: 1, justifyContent: "center" },
   footer: { paddingVertical: 18, alignItems: "center" },
   empty: {
     alignItems: "center",
-    paddingHorizontal: 32,
     paddingVertical: 40,
     gap: 8,
   },
   loadingWrap: {
     width: "100%",
     alignItems: "center",
-    paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 24,
   },
@@ -805,7 +854,6 @@ const styles = StyleSheet.create({
   skeletonCard: {
     borderWidth: 1,
     borderRadius: 18,
-    padding: 16,
     gap: 10,
   },
   skeletonHeader: {
@@ -869,16 +917,5 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 13,
     fontWeight: "700",
-  },
-  fab: {
-    position: "absolute",
-    right: 20,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
-    ...createShadow("#000000", 0, 4, 6, 0.25),
   },
 });

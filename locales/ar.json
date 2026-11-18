@@ -1,0 +1,237 @@
+{
+  "common": {
+    "appName": "Yuinx",
+    "continue": "متابعة",
+    "back": "رجوع",
+    "skip": "تخطي",
+    "optional": "اختياري",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "close": "إغلاق",
+    "retry": "إعادة المحاولة",
+    "loading": "جارٍ التحميل...",
+    "loadingAccount": "جارٍ تحميل حسابك...",
+    "loadingApp": "جارٍ تحميل Yuinx...",
+    "search": "بحث",
+    "noResults": "لم يتم العثور على نتائج",
+    "understood": "فهمت",
+    "error": "حدث خطأ ما",
+    "language": "اللغة",
+    "appLanguage": "لغة التطبيق",
+    "learningLanguage": "لغة التعلّم",
+    "deviceLanguage": "لغة الجهاز",
+    "chooseLanguage": "اختر لغتك",
+    "restartTitle": "يلزم إعادة التشغيل",
+    "restartMessage": "أغلق Yuinx وأعد فتحه لإكمال تطبيق اتجاه النص الجديد.",
+    "languageSyncError": "تم تغيير اللغة على هذا الجهاز، لكن تعذّرت مزامنتها مع ملفك الشخصي.",
+    "version": "الإصدار"
+  },
+  "tabs": {
+    "camp": "المخيم",
+    "quests": "المهام",
+    "threads": "المحادثات",
+    "profile": "الملف الشخصي",
+    "explore": "استكشاف",
+    "notes": "الملاحظات",
+    "coach": "المدرب"
+  },
+  "onboarding": {
+    "steps": {
+      "welcome": {
+        "eyebrow": "مرحبًا بك في Yuinx",
+        "title": "لنبنِ مسار تعلّمك",
+        "subtitle": "بعض الأسئلة السريعة حتى تناسبك مهامك وسلاسلك ودوراتك من اليوم الأول."
+      },
+      "language": {
+        "eyebrow": "لغتك",
+        "title": "أي لغة نستخدم؟",
+        "subtitle": "اختر لغة القوائم والدروس وكل شيء آخر في Yuinx."
+      },
+      "name": {
+        "eyebrow": "لنجعلها خاصة بك",
+        "title": "بماذا نناديك؟",
+        "subtitle": "هذا هو الاسم الذي ستراه في مخيمك وملفك الشخصي."
+      },
+      "birthday": {
+        "eyebrow": "نبذة عنك",
+        "title": "متى وُلدت؟",
+        "subtitle": "يساعدنا هذا في إبقاء التجربة مناسبة لعمرك."
+      },
+      "country": {
+        "eyebrow": "ركنك من أفريقيا",
+        "title": "من أين تتعلّم؟",
+        "subtitle": "اختر بلدك حتى نصمّم أمثلة قريبة من عالمك."
+      },
+      "region": {
+        "eyebrow": "لنجعلها محلية",
+        "title": "أي منطقة أو مدينة؟",
+        "subtitle": "اختياري، لكنه يجعل مسارك أقرب إلى بيتك."
+      },
+      "schoolType": {
+        "eyebrow": "مرحلتك التعليمية",
+        "title": "أين تتعلّم الآن؟",
+        "subtitle": "سنستخدم هذا لاقتراح دورات بالمستوى المناسب."
+      },
+      "school": {
+        "eyebrow": "مكان تعلّمك",
+        "title": "ما المدرسة التي ترتادها؟",
+        "subtitle": "اختياري. أضف مدرسة أو جامعة أو مركز تدريب."
+      },
+      "grade": {
+        "eyebrow": "مستواك",
+        "title": "في أي سنة أنت؟",
+        "subtitle": "اختر الأقرب. يمكنك تغيير هذا لاحقًا."
+      },
+      "degree": {
+        "eyebrow": "برنامجك",
+        "title": "ماذا تدرس؟",
+        "subtitle": "أخبرنا بمستوى شهادتك ومجال دراستك."
+      },
+      "subjects": {
+        "eyebrow": "فضولك",
+        "title": "اختر موادك",
+        "subtitle": "اختر حتى ست مواد. هذه تشكّل مهامك الأولى."
+      },
+      "goals": {
+        "eyebrow": "وجهتك",
+        "title": "ماذا تريد أن تحقق؟",
+        "subtitle": "اختر حتى ستة أهداف. سنبقي مسارك متجهًا نحوها."
+      },
+      "targetLanguage": {
+        "eyebrow": "لغتك الجديدة",
+        "title": "أي لغة تريد أن تتعلّم؟",
+        "subtitle": "سنبني دورات وتحديات حول هذه اللغة."
+      },
+      "ready": {
+        "eyebrow": "مسارك جاهز",
+        "title": "خطوة أخيرة",
+        "subtitle": "أنشئ حسابك وسنحفظ إجاباتك في ملفك الشخصي على Yuinx."
+      }
+    },
+    "errors": {
+      "chooseLanguage": "اختر لغة التطبيق للمتابعة.",
+      "chooseTargetLanguage": "اختر اللغة التي تريد تعلّمها.",
+      "enterName": "أدخل الاسم الذي تريدنا أن نستخدمه.",
+      "nameTooLong": "اجعل اسمك أقل من {{max}} حرفًا.",
+      "birthdayRequired": "اختر تاريخ ميلادك أو تخطَّ هذه الخطوة.",
+      "birthdayInvalid": "أدخل تاريخ ميلاد صالحًا.",
+      "birthdayFuture": "لا يمكن أن يكون تاريخ الميلاد في المستقبل.",
+      "ageTooYoung": "يجب أن يكون عمرك {{age}} سنوات على الأقل.",
+      "chooseCountry": "اختر بلدك.",
+      "chooseSchoolType": "اختر أين تتعلّم.",
+      "chooseSubjects": "اختر مادة واحدة على الأقل.",
+      "tooManySubjects": "اختر حتى {{max}} مواد.",
+      "chooseGoal": "اختر هدفًا واحدًا على الأقل.",
+      "tooManyGoals": "اختر حتى {{max}} أهداف.",
+      "form": "يرجى مراجعة إجاباتك والمحاولة مجددًا."
+    },
+    "languageHint": "يمكنك تغيير هذا لاحقًا من الإعدادات.",
+    "targetLanguageHint": "يظهر لأنك اخترت تعلّم لغة جديدة.",
+    "targetLanguageRequired": "مطلوب لتعلّم اللغات",
+    "selectionCount": "تم اختيار {{count}}/{{max}}",
+    "optionalPill": "اختياري",
+    "saveExit": "حفظ وخروج",
+    "exit": "الخروج من التسجيل",
+    "goBack": "رجوع",
+    "done": "إنشاء حسابي",
+    "creating": "جارٍ إنشاء حسابك...",
+    "alreadyHaveAccount": "لديك حساب بالفعل؟",
+    "signIn": "تسجيل الدخول",
+    "summary": {
+      "appLanguage": "لغة التطبيق",
+      "learningLanguage": "لغة التعلّم"
+    }
+  },
+  "settings": {
+    "languageSection": "اللغة",
+    "appLanguage": "لغة التطبيق",
+    "appLanguageDescription": "غيّر اللغة المستخدمة في Yuinx.",
+    "learningLanguage": "لغة التعلّم",
+    "learningLanguageDescription": "اللغة التي ستعلّمها دوراتك.",
+    "languageSavedDevice": "تم تغيير اللغة على هذا الجهاز، لكن تعذّرت مزامنتها مع ملفك الشخصي.",
+    "chooseAppLanguage": "اختر لغة التطبيق",
+    "chooseLearningLanguage": "اختر لغة التعلّم"
+  },
+  "options": {
+    "subjects": {
+      "mathematics": "الرياضيات",
+      "biology": "الأحياء",
+      "chemistry": "الكيمياء",
+      "physics": "الفيزياء",
+      "english": "الإنجليزية",
+      "french": "الفرنسية",
+      "portuguese": "البرتغالية",
+      "arabic": "العربية",
+      "swahili": "السواحيلية",
+      "history": "التاريخ",
+      "geography": "الجغرافيا",
+      "economics": "الاقتصاد",
+      "business": "الأعمال",
+      "computerScience": "علوم الحاسوب",
+      "aiData": "الذكاء الاصطناعي والبيانات",
+      "engineering": "الهندسة",
+      "psychology": "علم النفس",
+      "artDesign": "الفن والتصميم",
+      "music": "الموسيقى",
+      "healthMedicine": "الصحة والطب",
+      "lawPolitics": "القانون والسياسة",
+      "agriculture": "الزراعة",
+      "environment": "البيئة",
+      "other": "أخرى"
+    },
+    "goals": {
+      "passExams": "النجاح في امتحاناتي",
+      "learnLanguage": "تعلّم لغة جديدة",
+      "careerGrowth": "التقدم الوظيفي",
+      "academicStudy": "الدراسة الأكاديمية",
+      "sideProject": "بناء مشروع جانبي",
+      "creativeSkills": "المهارات الإبداعية",
+      "aiTechnology": "الذكاء الاصطناعي والتكنولوجيا",
+      "healthWellness": "الصحة والعافية",
+      "startBusiness": "بدء عمل تجاري",
+      "generalCuriosity": "فضول عام"
+    },
+    "schoolTypes": {
+      "middleSchool": {
+        "label": "المدرسة المتوسطة",
+        "description": "التعليم الثانوي الأدنى"
+      },
+      "highSchool": {
+        "label": "المدرسة الثانوية",
+        "description": "التعليم الثانوي"
+      },
+      "university": {
+        "label": "الجامعة",
+        "description": "الدراسة الجامعية أو العليا"
+      },
+      "vocational": {
+        "label": "التدريب المهني",
+        "description": "تدريب تقني أو حرفي أو مهني"
+      },
+      "selfTaught": {
+        "label": "التعلّم الذاتي",
+        "description": "التعلّم بشكل مستقل خارج المدرسة"
+      },
+      "other": {
+        "label": "أخرى",
+        "description": "مسار تعلّم مختلف"
+      }
+    },
+    "degrees": {
+      "certificate": "شهادة",
+      "diploma": "دبلوم",
+      "associate": "شهادة جامعية متوسطة",
+      "bachelors": "بكالوريوس",
+      "masters": "ماجستير",
+      "doctorate": "دكتوراه",
+      "other": "أخرى"
+    }
+  },
+  "errors": {
+    "generic": "حدث خطأ ما. يرجى المحاولة مجددًا.",
+    "network": "تحقق من اتصالك وحاول مجددًا.",
+    "unauthorized": "انتهت جلستك. يرجى تسجيل الدخول مجددًا.",
+    "notFound": "لم نتمكن من العثور على ذلك.",
+    "courseNotFound": "الدورة غير موجودة."
+  }
+}

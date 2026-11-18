@@ -5,6 +5,8 @@ import { useCallback } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -22,11 +24,15 @@ import CommunityAvatar from "../CommunityAvatar";
 interface CourseFeedPaneProps {
   refreshKey?: number;
   bottomInset?: number;
+  horizontalInset?: number;
+  onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
 export default function CourseFeedPane({
   refreshKey = 0,
   bottomInset = 0,
+  horizontalInset = 16,
+  onScroll,
 }: CourseFeedPaneProps) {
   const colors = useThemeColors();
   const router = useRouter();
@@ -46,10 +52,11 @@ export default function CourseFeedPane({
       <CourseCard
         post={item}
         colors={colors}
+        horizontalInset={horizontalInset}
         onPress={() => openCourse(item)}
       />
     ),
-    [colors, openCourse],
+    [colors, horizontalInset, openCourse],
   );
 
   return (
@@ -64,6 +71,8 @@ export default function CourseFeedPane({
         posts.length === 0 && !loading && styles.listContentEmpty,
       ]}
       showsVerticalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={32}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -136,10 +145,12 @@ export default function CourseFeedPane({
 function CourseCard({
   post,
   colors,
+  horizontalInset,
   onPress,
 }: {
   post: CommunityFeedPost;
   colors: ReturnType<typeof useThemeColors>;
+  horizontalInset: number;
   onPress: () => void;
 }) {
   return (
@@ -150,6 +161,7 @@ function CourseCard({
         {
           backgroundColor: colors.surface,
           borderColor: colors.border,
+          marginHorizontal: horizontalInset,
           opacity: pressed ? 0.85 : 1,
         },
       ]}
@@ -290,7 +302,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   card: {
-    marginHorizontal: 16,
     marginTop: 12,
     borderWidth: 1,
     borderRadius: 18,

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import {
   Animated,
   Easing,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -85,6 +86,9 @@ export default function LoadingScreen({ message, fullScreen = true }: Props) {
         contentFit="cover"
         style={styles.bleed}
         accessibilityLabel="Yuinx is loading"
+        motion={Platform.OS === "web" ? "static" : "auto"}
+        eager
+        priority="high"
       />
       <LinearGradient
         colors={SCRIM_COLORS}
