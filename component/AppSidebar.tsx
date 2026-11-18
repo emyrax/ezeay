@@ -202,39 +202,93 @@ export default function AppSidebar() {
               : "Open Notes"
         }
       >
-        <LinearGradient
-          colors={[theme.accent, theme.tabInactive]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[
-            styles.notesButton,
-            { borderColor: isCenterActive ? theme.tabActive : theme.tabBorder },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name={
-              agentEnabled
-                ? "robot-outline"
-                : tutorEnabled
+        {agentEnabled ? (
+          <View
+            style={[
+              styles.coachSidebarBtn,
+              isCenterActive
+                ? [
+                    styles.coachSidebarBtnActive,
+                    {
+                      borderColor: theme.tabActive,
+                      shadowColor: theme.tabActive,
+                    },
+                  ]
+                : styles.coachSidebarBtnInactive,
+            ]}
+          >
+            <LinearGradient
+              colors={
+                isCenterActive
+                  ? [theme.tabActive, theme.accent]
+                  : ["rgba(26, 44, 76, 0.75)", "rgba(14, 25, 45, 0.9)"]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.coachSidebarGradient}
+            >
+              <Image
+                source={images.gradientQMark}
+                style={[
+                  styles.coachSidebarLogo,
+                  !isCenterActive && { opacity: 0.88 },
+                ]}
+                resizeMode="contain"
+              />
+            </LinearGradient>
+          </View>
+        ) : (
+          <LinearGradient
+            colors={[theme.accent, theme.tabInactive]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[
+              styles.notesButton,
+              { borderColor: isCenterActive ? theme.tabActive : theme.tabBorder },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={
+                tutorEnabled
                   ? "school-outline"
                   : "notebook-multiple"
-            }
-            size={22}
-            color={theme.primary}
-          />
-        </LinearGradient>
-        <Text
-          style={[
-            styles.label,
-            sidebarExpanded ? styles.labelExpanded : styles.labelCompact,
-            {
-              color: isCenterActive ? theme.tabActive : theme.tabInactive,
-              fontWeight: isCenterActive ? "700" : "500",
-            },
-          ]}
-        >
-          {agentEnabled ? "COACH" : tutorEnabled ? "TUTOR" : "NOTES"}
-        </Text>
+              }
+              size={22}
+              color={theme.primary}
+            />
+          </LinearGradient>
+        )}
+        <View style={sidebarExpanded ? styles.coachLabelRow : null}>
+          <Text
+            style={[
+              styles.label,
+              sidebarExpanded ? styles.labelExpanded : styles.labelCompact,
+              {
+                color: isCenterActive ? theme.tabActive : theme.tabInactive,
+                fontWeight: isCenterActive ? "700" : "500",
+              },
+            ]}
+          >
+            {agentEnabled ? "COACH" : tutorEnabled ? "TUTOR" : "NOTES"}
+          </Text>
+          {agentEnabled && sidebarExpanded ? (
+            <View
+              style={[
+                styles.coachAiBadge,
+                {
+                  backgroundColor: theme.tabActive + "22",
+                  borderColor: theme.tabActive + "55",
+                },
+              ]}
+            >
+              <Text
+                style={[styles.coachAiBadgeText, { color: theme.tabActive }]}
+              >
+                AI
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </Pressable>
     </View>
   );
@@ -376,5 +430,52 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
+  },
+  coachSidebarBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    overflow: "hidden",
+  },
+  coachSidebarBtnActive: {
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  coachSidebarBtnInactive: {
+    borderColor: "rgba(56, 189, 248, 0.35)",
+    backgroundColor: "rgba(18, 32, 54, 0.9)",
+  },
+  coachSidebarGradient: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  coachSidebarLogo: {
+    width: 26,
+    height: 26,
+  },
+  coachLabelRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingRight: 6,
+  },
+  coachAiBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  coachAiBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
 });

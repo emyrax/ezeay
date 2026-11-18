@@ -1,4 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo, useState } from "react";
 import {
   Platform,
@@ -8,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { images } from "../../constants/images";
 import {
   landingColors,
   landingFonts,
@@ -103,64 +106,154 @@ export function OnboardingStepContent(props: StepContentProps) {
 }
 
 /* =========================================================================
-   1. WELCOME STEP
+   1. WELCOME STEP (Premium visual welcome experience with free-standing mascot)
    ========================================================================= */
 
 function WelcomeStep({ step, onSignIn }: StepContentProps) {
   return (
-    <View style={styles.wrap}>
-      <StepHeader step={step} />
-      <View style={styles.welcomeVisual}>
-        <View style={styles.welcomeGlow} />
+    <View style={styles.welcomeWrap}>
+      {/* Header */}
+      <View style={styles.welcomeHeader}>
+        <View style={styles.welcomeEyebrowPill}>
+          <MaterialCommunityIcons
+            name="star-four-points"
+            size={13}
+            color={landingColors.blueSoft}
+          />
+          <Text style={styles.welcomeEyebrowText}>
+            AI-POWERED ADAPTIVE LEARNING
+          </Text>
+        </View>
+
+        <Text style={styles.welcomeHeading}>
+          Let’s craft your learning path
+        </Text>
+
+        <Text style={styles.welcomeDescription}>
+          Personalized quests, local curriculum, and adaptive milestones
+          tailored to your curiosity.
+        </Text>
+      </View>
+
+      {/* Stand-alone Enlarged Mascot (No Rectangle Box) */}
+      <View style={styles.mascotStandAloneSection}>
+        {/* Ambient Backlight Glow */}
+        <View style={styles.mascotAmbientBackdrop} />
+
+        {/* Freestanding Enlarged Mascot */}
         <MascotStage
           action="mascot_waving"
-          height={196}
-          stageColor="#183454"
-          fadeColor="#0E1524"
+          height={280}
+          stageColor="#152A4D"
+          fadeColor="#07101D"
+          fadeSize={36}
           glow
         />
-      </View>
-      <View style={styles.bulletList}>
-        <Bullet
-          icon="map-marker-radius-outline"
-          text="Built around where you learn."
-        />
-        <Bullet
-          icon="target"
-          text="Quests that match your goals, not a generic feed."
-        />
-        <Bullet
-          icon="chart-timeline-variant"
-          text="Progress you can actually see."
-        />
-      </View>
-      <Pressable
-        onPress={onSignIn}
-        style={styles.textLink}
-        accessibilityRole="button"
-      >
-        <Text style={styles.textLinkText}>I already have an account</Text>
-        <MaterialCommunityIcons
-          name="arrow-right"
-          size={15}
-          color={landingColors.blueSoft}
-        />
-      </Pressable>
-    </View>
-  );
-}
 
-function Bullet({ icon, text }: { icon: string; text: string }) {
-  return (
-    <View style={styles.bullet}>
-      <View style={styles.bulletIcon}>
-        <MaterialCommunityIcons
-          name={icon as never}
-          size={17}
-          color={landingColors.blueSoft}
-        />
+        {/* Ambient Floor Shadow / Glow beneath mascot */}
+        <View style={styles.mascotFloorGlow} />
+
+        {/* Floating Greeting Speech Pill */}
+        <View style={styles.mascotSpeechPill}>
+          <MaterialCommunityIcons
+            name="chat-processing-outline"
+            size={16}
+            color={landingColors.blueSoft}
+          />
+          <Text style={styles.mascotSpeechText}>
+            “Karibu! I’m Yuinx. Ready to build something great together?”
+          </Text>
+        </View>
       </View>
-      <Text style={styles.bulletText}>{text}</Text>
+
+      {/* Borderless, Breathable Feature Highlights (No Rectangles) */}
+      <View style={styles.welcomeHighlightsList}>
+        <View style={styles.welcomeHighlightRow}>
+          <View
+            style={[
+              styles.highlightIconDot,
+              { backgroundColor: "rgba(56, 189, 248, 0.15)" },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="map-marker-radius-outline"
+              size={18}
+              color={landingColors.blueSoft}
+            />
+          </View>
+          <View style={styles.highlightTextWrap}>
+            <Text style={styles.highlightTitle}>Rooted in where you live</Text>
+            <Text style={styles.highlightSubtitle}>
+              Curated for schools, universities, and exams in all 54 African nations.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.welcomeHighlightRow}>
+          <View
+            style={[
+              styles.highlightIconDot,
+              { backgroundColor: "rgba(56, 217, 150, 0.15)" },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="lightning-bolt"
+              size={18}
+              color={landingColors.green}
+            />
+          </View>
+          <View style={styles.highlightTextWrap}>
+            <Text style={styles.highlightTitle}>Adaptive daily quests</Text>
+            <Text style={styles.highlightSubtitle}>
+              Bite-sized challenges that adjust to your pace, subjects, and career goals.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.welcomeHighlightRow}>
+          <View
+            style={[
+              styles.highlightIconDot,
+              { backgroundColor: "rgba(255, 184, 77, 0.15)" },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="trophy-award"
+              size={18}
+              color={landingColors.amber}
+            />
+          </View>
+          <View style={styles.highlightTextWrap}>
+            <Text style={styles.highlightTitle}>Progress you can celebrate</Text>
+            <Text style={styles.highlightSubtitle}>
+              Streaks, XP, and trophies designed to keep your momentum unstoppable.
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Returning User Clean Link (No rectangle box) */}
+      <View style={styles.welcomeSignInRow}>
+        <Text style={styles.welcomeSignInPrompt}>
+          Already learning on Yuinx?
+        </Text>
+        <Pressable
+          onPress={onSignIn}
+          style={({ pressed }) => [
+            styles.welcomeSignInBtn,
+            pressed && { opacity: 0.75 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Sign in to existing account"
+        >
+          <Text style={styles.welcomeSignInText}>Sign in</Text>
+          <MaterialCommunityIcons
+            name="arrow-right"
+            size={14}
+            color={landingColors.blueSoft}
+          />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -1002,57 +1095,152 @@ const styles = StyleSheet.create({
   wrap: {
     gap: 20,
   },
-  welcomeVisual: {
-    height: 220,
-    borderRadius: landingRadii.xl,
-    borderWidth: 1,
-    borderColor: landingColors.border,
-    backgroundColor: "rgba(14,21,36,0.7)",
+  welcomeWrap: {
+    gap: 22,
     alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
   },
-  welcomeGlow: {
-    position: "absolute",
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    backgroundColor: "rgba(47,124,255,0.18)",
-  },
-  bulletList: {
-    gap: 10,
-  },
-  bullet: {
-    flexDirection: "row",
+  welcomeHeader: {
+    gap: 8,
     alignItems: "center",
-    gap: 11,
   },
-  bulletIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: "rgba(47,124,255,0.10)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bulletText: {
-    flex: 1,
-    color: landingColors.textMuted,
-    fontFamily: landingFonts.body,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  textLink: {
+  welcomeEyebrowPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    alignSelf: "flex-start",
-    paddingVertical: 4,
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.28)",
+    borderRadius: landingRadii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
-  textLinkText: {
+  welcomeEyebrowText: {
+    fontSize: 10,
+    fontFamily: landingFonts.bodySemiBold,
     color: landingColors.blueSoft,
-    fontFamily: landingFonts.bodyMedium,
+    letterSpacing: 0.8,
+  },
+  welcomeHeading: {
+    fontSize: 26,
+    fontFamily: landingFonts.heading,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textAlign: "center",
+    lineHeight: 32,
+    marginTop: 2,
+  },
+  welcomeDescription: {
+    fontSize: 14,
+    fontFamily: landingFonts.body,
+    color: landingColors.textMuted,
+    textAlign: "center",
+    lineHeight: 21,
+    maxWidth: 480,
+  },
+  mascotStandAloneSection: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 14,
+    position: "relative",
+    width: "100%",
+  },
+  mascotAmbientBackdrop: {
+    position: "absolute",
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    top: 10,
+  },
+  mascotFloorGlow: {
+    position: "absolute",
+    bottom: -6,
+    width: 220,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(56, 189, 248, 0.25)",
+  },
+  mascotSpeechPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(14, 25, 45, 0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    borderRadius: landingRadii.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 18,
+    maxWidth: 480,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  mascotSpeechText: {
     fontSize: 13,
+    fontFamily: landingFonts.body,
+    color: landingColors.text,
+    lineHeight: 18,
+    flex: 1,
+  },
+  welcomeHighlightsList: {
+    gap: 16,
+    width: "100%",
+    paddingHorizontal: 8,
+    marginTop: 4,
+  },
+  welcomeHighlightRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+  },
+  highlightIconDot: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  highlightTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  highlightTitle: {
+    fontSize: 15,
+    fontFamily: landingFonts.heading,
+    fontWeight: "600",
+    color: landingColors.text,
+  },
+  highlightSubtitle: {
+    fontSize: 13,
+    fontFamily: landingFonts.body,
+    color: landingColors.textSubtle,
+    lineHeight: 18,
+  },
+  welcomeSignInRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 8,
+    paddingVertical: 6,
+  },
+  welcomeSignInPrompt: {
+    fontSize: 13,
+    fontFamily: landingFonts.body,
+    color: landingColors.textSubtle,
+  },
+  welcomeSignInBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  welcomeSignInText: {
+    fontSize: 13,
+    fontFamily: landingFonts.bodySemiBold,
+    color: landingColors.blueSoft,
   },
   fieldWrap: {
     gap: 8,

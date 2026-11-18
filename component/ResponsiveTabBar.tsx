@@ -1,9 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useSegments } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { images } from "../constants/images";
 import { NAV } from "../constants/layout";
 import {
   COACH_HREF,
@@ -93,6 +95,7 @@ function CoachTabButton({
   title,
   accessibilityLabel,
   theme,
+  isCoach,
 }: {
   isActive: boolean;
   onPress: () => void;
@@ -100,6 +103,7 @@ function CoachTabButton({
   title: string;
   accessibilityLabel: string;
   theme: ReturnType<typeof useThemeColors>;
+  isCoach?: boolean;
 }) {
   return (
     <Pressable
@@ -112,12 +116,51 @@ function CoachTabButton({
       <View
         style={[
           styles.coachIconBox,
+          isCoach && styles.coachIconBoxElevated,
           isActive
-            ? [styles.coachIconBoxActive, { shadowColor: theme.tabActive }]
-            : { backgroundColor: withAlpha(theme.tabInactive, 0.2) },
+            ? [
+                styles.coachIconBoxActive,
+                {
+                  shadowColor: theme.tabActive,
+                  borderColor: isCoach ? theme.tabActive : "transparent",
+                },
+              ]
+            : [
+                isCoach
+                  ? styles.coachIconBoxInactiveCoach
+                  : { backgroundColor: withAlpha(theme.tabInactive, 0.2) },
+              ],
         ]}
       >
-        {isActive ? (
+        {isCoach ? (
+          isActive ? (
+            <LinearGradient
+              colors={[theme.tabActive, theme.accent]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.coachGradientFill}
+            >
+              <Image
+                source={images.gradientQMark}
+                style={styles.coachLogoActive}
+                contentFit="contain"
+              />
+            </LinearGradient>
+          ) : (
+            <LinearGradient
+              colors={["rgba(30, 58, 100, 0.65)", "rgba(14, 25, 45, 0.85)"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.coachGradientFill}
+            >
+              <Image
+                source={images.gradientQMark}
+                style={styles.coachLogoInactive}
+                contentFit="contain"
+              />
+            </LinearGradient>
+          )
+        ) : isActive ? (
           <LinearGradient
             colors={[theme.tabActive, theme.accent]}
             start={{ x: 0, y: 0 }}
@@ -251,6 +294,7 @@ export default function ResponsiveTabBar({ state, navigation }: BottomTabBarProp
           title={centerTitle}
           accessibilityLabel={centerAccessibilityLabel}
           theme={theme}
+          isCoach={agentEnabled}
         />
 
         {rightRoutes.map((entry) => renderTab(entry))}
@@ -295,18 +339,38 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  coachIconBoxElevated: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1.5,
+  },
   coachIconBoxActive: {
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  coachIconBoxInactiveCoach: {
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.35)",
+    backgroundColor: "rgba(18, 32, 54, 0.9)",
   },
   coachGradientFill: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: "100%",
+    height: "100%",
+    borderRadius: 23,
     justifyContent: "center",
     alignItems: "center",
+  },
+  coachLogoActive: {
+    width: 26,
+    height: 26,
+  },
+  coachLogoInactive: {
+    width: 24,
+    height: 24,
+    opacity: 0.88,
   },
   iconBoxActive: {
     width: 40,
