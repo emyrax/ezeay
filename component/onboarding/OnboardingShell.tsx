@@ -267,9 +267,22 @@ function SidePanel({
 
         <SideRow
           icon="map-marker-outline"
-          label="Country"
-          value={country?.name ?? "Not chosen"}
+          label="Location"
+          value={
+            country?.name
+              ? answers.region
+                ? `${answers.region}, ${country.name}`
+                : country.name
+              : "Not chosen"
+          }
         />
+        {answers.school ? (
+          <SideRow
+            icon="school-outline"
+            label="Institution"
+            value={answers.school}
+          />
+        ) : null}
         <SideRow
           icon="book-open-page-variant-outline"
           label="Subjects"

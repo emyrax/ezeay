@@ -1,46 +1,55 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import {
-    landingColors,
-    landingFonts,
-    landingRadii,
+  landingColors,
+  landingFonts,
+  landingRadii,
 } from "../../constants/landing";
 import { findAfricanCountry } from "../../data/countries";
 import {
-    DEGREE_OPTIONS,
-    GOALS,
-    MAX_GOALS,
-    MAX_SUBJECTS,
-    SCHOOL_TYPES,
-    SUBJECTS,
-    getGradeOptions,
-    getSchoolTypeLabel,
-    getSchoolTypeOption,
+  DEGREE_OPTIONS,
+  GOALS,
+  MAX_GOALS,
+  MAX_SUBJECTS,
+  SCHOOL_TYPES,
+  SUBJECTS,
+  getGradeOptions,
+  getSchoolTypeLabel,
+  getSchoolTypeOption,
 } from "../../data/onboarding";
+import { initI18n } from "../../lib/i18n";
+import {
+  APP_LANGUAGES,
+  LEARNING_LANGUAGES,
+  isAppLanguage,
+  type AppLanguageCode,
+} from "../../lib/i18n/languages";
 import { parseBirthdayDate, uniqueStrings } from "../../lib/onboarding/steps";
 import MascotStage from "../mascot/MascotStage";
 import type {
-    OnboardingAnswers,
-    OnboardingErrors,
-    OnboardingStep,
+  OnboardingAnswers,
+  OnboardingErrors,
+  OnboardingStep,
 } from "../../types/onboarding";
+import BirthdayPicker from "./BirthdayPicker";
 import CountryFlag from "./CountryFlag";
+import LocationSelector from "./LocationSelector";
+import UniversitySelector from "./UniversitySelector";
 import {
-    ChoiceCard,
-    InlineError,
-    SelectChip,
-    SelectionCount,
-    StepHeader,
-    TextField,
+  ChoiceCard,
+  InlineError,
+  SelectChip,
+  SelectionCount,
+  StepHeader,
+  TextField,
 } from "./primitives";
 
 export interface StepContentProps {
@@ -62,6 +71,8 @@ export function OnboardingStepContent(props: StepContentProps) {
   switch (props.step.id) {
     case "welcome":
       return <WelcomeStep {...props} />;
+    case "language":
+      return <LanguageStep {...props} />;
     case "name":
       return <NameStep {...props} />;
     case "birthday":
@@ -82,12 +93,18 @@ export function OnboardingStepContent(props: StepContentProps) {
       return <SubjectsStep {...props} />;
     case "goals":
       return <GoalsStep {...props} />;
+    case "targetLanguage":
+      return <TargetLanguageStep {...props} />;
     case "ready":
       return <ReadyStep {...props} />;
     default:
       return null;
   }
 }
+
+/* =========================================================================
+   1. WELCOME STEP
+   ========================================================================= */
 
 function WelcomeStep({ step, onSignIn }: StepContentProps) {
   return (
@@ -148,6 +165,164 @@ function Bullet({ icon, text }: { icon: string; text: string }) {
   );
 }
 
+/* =========================================================================
+   2. LANGUAGE STEP (Premium visual language picker)
+   ========================================================================= */
+
+const LANGUAGE_DETAILS: Record<
+  string,
+  { greeting: string; badge: string; icon: string }
+> = {
+  en: {
+    greeting: "Hello, explorer! Let's shape your learning path.",
+    badge: "International",
+    icon: "earth",
+  },
+  fr: {
+    greeting: "Bonjour explorateur ! Façonnons votre parcours.",
+    badge: "Francophonie",
+    icon: "translate",
+  },
+  pt: {
+    greeting: "Olá, explorador! Vamos moldar a sua jornada.",
+    badge: "Lusofonia",
+    icon: "book-open-page-variant",
+  },
+  sw: {
+    greeting: "Habari msafiri! Tuanze safari yako ya masomo.",
+    badge: "Afrika Mashariki",
+    icon: "compass-rose",
+  },
+  ar: {
+    greeting: "مرحباً بك! فلنبدأ معاً رحلتك التعليمية الممتعة.",
+    badge: "شمال أفريقيا",
+    icon: "star-crescent",
+  },
+};
+
+function LanguageStep({
+  step,
+  answers,
+  errors,
+  setAnswer,
+}: StepContentProps) {
+  const selectedLang = answers.appLanguage || "en";
+  const selectedInfo = LANGUAGE_DETAILS[selectedLang] ?? LANGUAGE_DETAILS.en;
+
+  function handleSelectLanguage(code: string) {
+    if (isAppLanguage(code)) {
+      initI18n(code as AppLanguageCode);
+    }
+    setAnswer("appLanguage", code);
+  }
+
+  return (
+    <View style={styles.wrap}>
+      <StepHeader step={step} />
+
+      {/* Mascot Speech Banner */}
+      <View style={styles.langSpeechCard}>
+        <View style={styles.langMascotWrap}>
+          <MascotStage
+            action="mascot_posing"
+            width={84}
+            height={84}
+            variant="inline"
+            glow
+          />
+        </View>
+        <View style={styles.langSpeechContent}>
+          <View style={styles.speechBubbleTail} />
+          <Text style={styles.speechEyebrow}>LIVE PREVIEW</Text>
+          <Text style={styles.speechText}>
+            “{selectedInfo.greeting}”
+          </Text>
+        </View>
+      </View>
+
+      {/* Language Cards */}
+      <View style={styles.langCardsList}>
+        {APP_LANGUAGES.map((lang) => {
+          const isSelected = selectedLang === lang.code;
+          const info = LANGUAGE_DETAILS[lang.code] ?? LANGUAGE_DETAILS.en;
+
+          return (
+            <Pressable
+              key={lang.code}
+              onPress={() => handleSelectLanguage(lang.code)}
+              style={({ pressed }) => [
+                styles.langCard,
+                isSelected && styles.langCardSelected,
+                pressed && { opacity: 0.85 },
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+            >
+              <View style={styles.langCardLeft}>
+                <View
+                  style={[
+                    styles.langIconWrap,
+                    isSelected && styles.langIconWrapSelected,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={info.icon as never}
+                    size={22}
+                    color={
+                      isSelected
+                        ? landingColors.blueSoft
+                        : landingColors.textMuted
+                    }
+                  />
+                </View>
+                <View style={styles.langTextWrap}>
+                  <View style={styles.langTitleRow}>
+                    <Text
+                      style={[
+                        styles.langNativeName,
+                        isSelected && styles.langNativeNameSelected,
+                      ]}
+                    >
+                      {lang.nativeName}
+                    </Text>
+                    {lang.nativeName !== lang.englishName ? (
+                      <Text style={styles.langEnglishName}>
+                        ({lang.englishName})
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.langBadge}>{info.badge}</Text>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.radioCircle,
+                  isSelected && styles.radioCircleSelected,
+                ]}
+              >
+                {isSelected ? (
+                  <View style={styles.radioInnerDot} />
+                ) : null}
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <InlineError message={errors.appLanguage} />
+
+      <Text style={styles.helperText}>
+        You can switch your interface language anytime from your profile settings.
+      </Text>
+    </View>
+  );
+}
+
+/* =========================================================================
+   3. NAME STEP
+   ========================================================================= */
+
 function NameStep({ step, answers, errors, setAnswer }: StepContentProps) {
   return (
     <View style={styles.wrap}>
@@ -178,87 +353,30 @@ function toYmd(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function BirthdayStep({ step, answers, errors, setAnswer }: StepContentProps) {
-  const [showPicker, setShowPicker] = useState(false);
-  const parsed = parseBirthdayDate(answers.birthday);
-  const isWeb = Platform.OS === "web";
+/* =========================================================================
+   4. BIRTHDAY STEP
+   ========================================================================= */
 
+function BirthdayStep({ step, answers, errors, setAnswer }: StepContentProps) {
   return (
     <View style={styles.wrap}>
       <StepHeader step={step} />
-      {isWeb ? (
-        <TextField
-          label="Date of birth"
-          value={answers.birthday}
-          onChangeText={(value) => setAnswer("birthday", value)}
-          placeholder="YYYY-MM-DD"
-          keyboardType="numbers-and-punctuation"
-          maxLength={10}
-          error={errors.birthday}
-        />
-      ) : (
-        <View style={styles.fieldWrap}>
-          <Text style={styles.fieldLabel}>Date of birth</Text>
-          <Pressable
-            onPress={() => setShowPicker(true)}
-            style={[styles.pickerField, errors.birthday && styles.inputError]}
-            accessibilityRole="button"
-          >
-            <Text
-              style={[
-                styles.pickerFieldText,
-                !parsed && { color: landingColors.textSubtle },
-              ]}
-            >
-              {parsed
-                ? parsed.toLocaleDateString("en-US", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })
-                : "Choose your birthday"}
-            </Text>
-            <MaterialCommunityIcons
-              name="calendar-month"
-              size={19}
-              color={landingColors.textSubtle}
-            />
-          </Pressable>
-          {errors.birthday ? (
-            <Text style={styles.errorTextInline}>{errors.birthday}</Text>
-          ) : null}
-          {showPicker ? (
-            <View style={styles.datePickerWrap}>
-              <DateTimePicker
-                value={parsed ?? new Date(2005, 0, 1)}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                maximumDate={new Date()}
-                onValueChange={(_event, selected) => {
-                  if (Platform.OS === "android") setShowPicker(false);
-                  if (selected) setAnswer("birthday", toYmd(selected));
-                }}
-                onDismiss={() => setShowPicker(false)}
-              />
-              {Platform.OS === "ios" ? (
-                <Pressable
-                  onPress={() => setShowPicker(false)}
-                  style={styles.dateDone}
-                >
-                  <Text style={styles.dateDoneText}>Done</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
-      )}
+      <BirthdayPicker
+        value={answers.birthday}
+        onChange={(val) => setAnswer("birthday", val)}
+        error={errors.birthday}
+      />
       <Text style={styles.helperText}>
-        Yuinx is for learners {13} and older. We only use this to keep your
+        Yuinx is for learners 13 and older. We only use this to keep your
         experience age-appropriate.
       </Text>
     </View>
   );
 }
+
+/* =========================================================================
+   5. COUNTRY STEP
+   ========================================================================= */
 
 function CountryStep({
   step,
@@ -320,27 +438,37 @@ function CountryStep({
   );
 }
 
-function RegionStep({ step, answers, errors, setAnswer }: StepContentProps) {
+/* =========================================================================
+   6. REGION / LOCATION STEP (States based on selected country)
+   ========================================================================= */
+
+function RegionStep({
+  step,
+  answers,
+  errors,
+  setAnswer,
+  onOpenCountry,
+}: StepContentProps) {
   return (
     <View style={styles.wrap}>
       <StepHeader step={step} />
-      <TextField
-        label="Region or city"
-        value={answers.region}
-        onChangeText={(value) => setAnswer("region", value)}
-        placeholder="e.g. Lagos, Nairobi, Accra"
-        autoCapitalize="words"
-        returnKeyType="next"
-        maxLength={80}
-        error={errors.form}
+      <LocationSelector
+        country={answers.country}
+        selectedState={answers.region}
+        onSelectState={(state) => setAnswer("region", state)}
+        onChangeCountry={onOpenCountry}
+        error={errors.country || errors.form}
       />
       <Text style={styles.helperText}>
-        Optional. This helps us tune examples without needing your exact
-        address.
+        Optional. Selecting your state helps us tailor local learning communities and opportunities.
       </Text>
     </View>
   );
 }
+
+/* =========================================================================
+   7. SCHOOL TYPE STEP
+   ========================================================================= */
 
 function SchoolTypeStep({
   step,
@@ -368,15 +496,44 @@ function SchoolTypeStep({
   );
 }
 
-function SchoolStep({ step, answers, errors, setAnswer }: StepContentProps) {
+/* =========================================================================
+   8. SCHOOL / UNIVERSITY STEP (Country & State driven + custom university)
+   ========================================================================= */
+
+function SchoolStep({
+  step,
+  answers,
+  errors,
+  setAnswer,
+}: StepContentProps) {
+  const isUniversity = answers.schoolType === "university";
+
+  if (isUniversity) {
+    return (
+      <View style={styles.wrap}>
+        <StepHeader step={step} />
+        <UniversitySelector
+          country={answers.country}
+          state={answers.region}
+          selectedUniversity={answers.school}
+          onSelectUniversity={(uni) => setAnswer("school", uni)}
+          error={errors.form}
+        />
+        <Text style={styles.helperText}>
+          Optional. You can change your university or add your faculty anytime later in your profile.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrap}>
       <StepHeader step={step} />
       <TextField
-        label="School, university, or training centre"
+        label="School, academy, or training centre"
         value={answers.school}
         onChangeText={(value) => setAnswer("school", value)}
-        placeholder="Start typing the name"
+        placeholder="Start typing the name of your school"
         autoCapitalize="words"
         returnKeyType="next"
         maxLength={120}
@@ -388,6 +545,10 @@ function SchoolStep({ step, answers, errors, setAnswer }: StepContentProps) {
     </View>
   );
 }
+
+/* =========================================================================
+   9. GRADE STEP
+   ========================================================================= */
 
 function GradeStep({ step, answers, setAnswer }: StepContentProps) {
   const options = getGradeOptions(answers.schoolType);
@@ -421,6 +582,10 @@ function GradeStep({ step, answers, setAnswer }: StepContentProps) {
   );
 }
 
+/* =========================================================================
+   10. DEGREE STEP
+   ========================================================================= */
+
 function DegreeStep({ step, answers, setAnswer }: StepContentProps) {
   return (
     <View style={styles.wrap}>
@@ -453,6 +618,10 @@ function DegreeStep({ step, answers, setAnswer }: StepContentProps) {
     </View>
   );
 }
+
+/* =========================================================================
+   11. SUBJECTS STEP
+   ========================================================================= */
 
 function SubjectsStep({ step, answers, errors, setAnswers }: StepContentProps) {
   const [custom, setCustom] = useState("");
@@ -550,6 +719,10 @@ function SubjectsStep({ step, answers, errors, setAnswers }: StepContentProps) {
   );
 }
 
+/* =========================================================================
+   12. GOALS STEP
+   ========================================================================= */
+
 function GoalsStep({ step, answers, errors, setAnswers }: StepContentProps) {
   const [custom, setCustom] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
@@ -646,6 +819,80 @@ function GoalsStep({ step, answers, errors, setAnswers }: StepContentProps) {
   );
 }
 
+/* =========================================================================
+   13. TARGET LANGUAGE STEP
+   ========================================================================= */
+
+function TargetLanguageStep({
+  step,
+  answers,
+  errors,
+  setAnswer,
+}: StepContentProps) {
+  const [search, setSearch] = useState("");
+
+  const filteredLanguages = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return LEARNING_LANGUAGES;
+    return LEARNING_LANGUAGES.filter(
+      (lang) =>
+        lang.englishName.toLowerCase().includes(q) ||
+        lang.nativeName.toLowerCase().includes(q),
+    );
+  }, [search]);
+
+  return (
+    <View style={styles.wrap}>
+      <StepHeader step={step} />
+
+      <View style={styles.searchBar}>
+        <MaterialCommunityIcons
+          name="magnify"
+          size={18}
+          color={landingColors.textSubtle}
+        />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search language (e.g. Swahili, French, Spanish...)"
+          placeholderTextColor={landingColors.textSubtle}
+          style={styles.searchInput}
+          autoCapitalize="words"
+        />
+      </View>
+
+      <View style={styles.chipWrap}>
+        {filteredLanguages.map((lang) => {
+          const isSelected = answers.targetLanguage === lang.code;
+          return (
+            <SelectChip
+              key={lang.code}
+              label={`${lang.nativeName} (${lang.englishName})`}
+              selected={isSelected}
+              onPress={() =>
+                setAnswer(
+                  "targetLanguage",
+                  isSelected ? "" : lang.code,
+                )
+              }
+            />
+          );
+        })}
+      </View>
+
+      <InlineError message={errors.targetLanguage} />
+
+      <Text style={styles.helperText}>
+        We’ll tailor quizzes, conversation quests, and vocabulary bounties for this language.
+      </Text>
+    </View>
+  );
+}
+
+/* =========================================================================
+   14. READY STEP
+   ========================================================================= */
+
 function ReadyStep({ step, answers, isSignedIn, email }: StepContentProps) {
   const country = findAfricanCountry(answers.country);
   const schoolType = getSchoolTypeLabel(answers.schoolType);
@@ -669,6 +916,7 @@ function ReadyStep({ step, answers, isSignedIn, email }: StepContentProps) {
             </Text>
             <Text style={styles.summarySub}>
               {country ? `${country.name} · ` : ""}
+              {answers.region ? `${answers.region} · ` : ""}
               {schoolType || "Learner"}
             </Text>
           </View>
@@ -676,6 +924,14 @@ function ReadyStep({ step, answers, isSignedIn, email }: StepContentProps) {
         </View>
 
         <View style={styles.summaryDivider} />
+
+        {answers.school ? (
+          <SummaryRow
+            icon="school"
+            label="Institution"
+            value={answers.school}
+          />
+        ) : null}
 
         <SummaryRow
           icon="school-outline"
@@ -737,6 +993,10 @@ function SummaryRow({
     </View>
   );
 }
+
+/* =========================================================================
+   STYLES
+   ========================================================================= */
 
 const styles = StyleSheet.create({
   wrap: {
@@ -1014,5 +1274,154 @@ const styles = StyleSheet.create({
     fontFamily: landingFonts.body,
     fontSize: 12,
     lineHeight: 18,
+  },
+
+  /* Language Step Specific Styles */
+  langSpeechCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(18, 32, 54, 0.65)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.22)",
+    borderRadius: landingRadii.lg,
+    padding: 12,
+    gap: 12,
+  },
+  langMascotWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  langSpeechContent: {
+    flex: 1,
+    backgroundColor: "rgba(9, 16, 28, 0.75)",
+    borderRadius: landingRadii.md,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.15)",
+    padding: 12,
+    gap: 4,
+  },
+  speechBubbleTail: {
+    position: "absolute",
+    left: -6,
+    top: 20,
+    width: 10,
+    height: 10,
+    backgroundColor: "rgba(9, 16, 28, 0.75)",
+    transform: [{ rotate: "45deg" }],
+    borderLeftWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.15)",
+  },
+  speechEyebrow: {
+    fontSize: 10,
+    fontFamily: landingFonts.body,
+    fontWeight: "700",
+    color: landingColors.blueSoft,
+    letterSpacing: 0.5,
+  },
+  speechText: {
+    fontSize: 13,
+    fontFamily: landingFonts.bodyMedium,
+    color: landingColors.text,
+    lineHeight: 19,
+    fontStyle: "italic",
+  },
+  langCardsList: {
+    gap: 10,
+  },
+  langCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(18, 32, 54, 0.5)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: landingRadii.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  langCardSelected: {
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderColor: "rgba(56, 189, 248, 0.45)",
+  },
+  langCardLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    flex: 1,
+  },
+  langIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  langIconWrapSelected: {
+    backgroundColor: "rgba(56, 189, 248, 0.18)",
+  },
+  langTextWrap: {
+    gap: 3,
+    flex: 1,
+  },
+  langTitleRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  langNativeName: {
+    fontSize: 16,
+    fontFamily: landingFonts.heading,
+    color: landingColors.text,
+  },
+  langNativeNameSelected: {
+    color: "#FFFFFF",
+  },
+  langEnglishName: {
+    fontSize: 13,
+    fontFamily: landingFonts.body,
+    color: landingColors.textSubtle,
+  },
+  langBadge: {
+    fontSize: 11,
+    fontFamily: landingFonts.body,
+    color: landingColors.blueSoft,
+  },
+  radioCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: landingColors.borderStrong,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioCircleSelected: {
+    borderColor: landingColors.blueSoft,
+  },
+  radioInnerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: landingColors.blueSoft,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(18, 30, 50, 0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: landingRadii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: landingFonts.body,
+    color: landingColors.text,
   },
 });

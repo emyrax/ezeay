@@ -245,7 +245,15 @@ export default function OnboardingFlow() {
         visible={countryOpen}
         selected={answers.country}
         onSelect={(country) => {
-          setAnswer("country", country);
+          if (country !== answers.country) {
+            setAnswers({
+              country,
+              region: "",
+              school: answers.schoolType === "university" ? "" : answers.school,
+            });
+          } else {
+            setAnswer("country", country);
+          }
           setErrors((prev) => ({ ...prev, country: undefined }));
         }}
         onClose={() => setCountryOpen(false)}
