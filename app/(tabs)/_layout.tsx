@@ -3,17 +3,24 @@ import { StyleSheet, View } from "react-native";
 import AppSidebar from "../../component/AppSidebar";
 import ResponsiveTabBar from "../../component/ResponsiveTabBar";
 import SpinWheel from "../../component/SpinWheel";
-import { appTheme } from "../../constants/themes";
 import { useResponsive } from "../../hooks/useResponsive";
+import { useThemeColors } from "../../hooks/useTheme";
 
 export default function TabLayout() {
   const { showSidebar } = useResponsive();
+  const theme = useThemeColors();
 
   return (
-    <View style={[styles.root, showSidebar && styles.rootWide]}>
+    <View
+      style={[
+        styles.root,
+        { backgroundColor: theme.bg },
+        showSidebar && styles.rootWide,
+      ]}
+    >
       {showSidebar ? <AppSidebar /> : null}
 
-      <View style={styles.content}>
+      <View style={[styles.content, { backgroundColor: theme.bg }]}>
         <Tabs
           tabBar={(props) => (showSidebar ? null : <ResponsiveTabBar {...props} />)}
           screenOptions={{ headerShown: false }}
@@ -34,7 +41,6 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: appTheme.bg,
   },
   rootWide: {
     flexDirection: "row",
@@ -42,6 +48,5 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     minWidth: 0,
-    backgroundColor: appTheme.bg,
   },
 });

@@ -8,7 +8,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { Image, type ImageProps } from "expo-image";
-import { appTheme } from "../constants/themes";
+import { useThemeColors } from "../hooks/useTheme";
 import { images } from "../constants/images";
 import {
   gamificationImages,
@@ -85,6 +85,7 @@ export default function MascotAnimation({
   const [deferredReady, setDeferredReady] = useState(
     () => !defer || Platform.OS !== "web",
   );
+  const theme = useThemeColors();
   const loadStartedAt = useRef(Date.now());
   const networkQuality = useNetworkProfile();
   const reducedMotion = usePrefersReducedMotion();
@@ -174,6 +175,7 @@ export default function MascotAnimation({
       style={[
         styles.container,
         showFrame && styles.frame,
+        showFrame && { backgroundColor: theme.bg, borderColor: theme.border },
         { width: resolvedWidth, height: resolvedHeight },
         style,
       ]}
@@ -203,9 +205,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   frame: {
-    backgroundColor: appTheme.bg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: appTheme.border,
     borderRadius: 20,
   },
   image: {

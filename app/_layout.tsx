@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { I18nProvider } from "../contexts/I18nProvider";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { useThemeColors } from "../hooks/useTheme";
+import { useThemeColors, useThemeMode } from "../hooks/useTheme";
 import { useOfflineModelSync } from "../hooks/useOfflineModelSync";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClerkProvider } from "@clerk/expo";
@@ -79,6 +79,7 @@ function NavigationGuard() {
   const segments = useSegments();
   const router = useRouter();
   const theme = useThemeColors();
+  const resolvedTheme = useThemeMode();
   const { t } = useTranslation();
   const prevReadyRef = useRef<boolean>(false);
   const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -225,7 +226,7 @@ function NavigationGuard() {
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={resolvedTheme === "light" ? "dark" : "light"} />
       <Stack
         screenOptions={{
           headerShown: false,

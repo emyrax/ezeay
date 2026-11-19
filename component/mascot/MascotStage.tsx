@@ -2,7 +2,7 @@ import React from "react";
 import { StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import type { ImageProps } from "expo-image";
-import { appTheme } from "../../constants/themes";
+import { useThemeColors } from "../../hooks/useTheme";
 import type { GamificationAction } from "../../constants/gamificationImages";
 import { MASCOT_META, MASCOT_STAGE_COLORS } from "../../lib/mascot/actions";
 import MascotAnimation from "../MascotAnimation";
@@ -32,7 +32,7 @@ export default function MascotStage({
   width,
   height,
   stageColor,
-  fadeColor = appTheme.bg,
+  fadeColor: fadeColorProp,
   fadeSize,
   glow = false,
   variant = "stage",
@@ -40,12 +40,14 @@ export default function MascotStage({
   style,
   accessibilityLabel,
 }: MascotStageProps) {
+  const theme = useThemeColors();
   const meta = MASCOT_META[action];
   const resolvedWidth = width ?? (height ? height * meta.aspectRatio : 120);
   const resolvedHeight = height ?? resolvedWidth / meta.aspectRatio;
   const radius = variant === "mark" ? 14 : variant === "inline" ? 18 : 26;
   const edge = fadeSize ?? (variant === "mark" ? 6 : variant === "inline" ? 18 : 28);
-  const background = stageColor ?? MASCOT_STAGE_COLORS[action] ?? appTheme.surface;
+  const fadeColor = fadeColorProp ?? theme.bg;
+  const background = stageColor ?? MASCOT_STAGE_COLORS[action] ?? theme.surface;
   const clear = transparent(fadeColor);
 
   return (

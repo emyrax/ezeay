@@ -1,15 +1,19 @@
 import React from "react";
 import { Platform, StatusBar } from "react-native";
 import { Stack } from "expo-router";
-import { useThemeColors } from "../../hooks/useTheme";
+import { useThemeColors, useThemeMode } from "../../hooks/useTheme";
 
 export default function NotesLayout() {
   const theme = useThemeColors();
+  const resolvedTheme = useThemeMode();
 
   return (
     <>
       {Platform.OS === "android" && (
-        <StatusBar barStyle="light-content" backgroundColor={theme.bg} />
+        <StatusBar
+          barStyle={resolvedTheme === "light" ? "dark-content" : "light-content"}
+          backgroundColor={theme.bg}
+        />
       )}
       <Stack
         screenOptions={{

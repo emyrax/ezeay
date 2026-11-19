@@ -1,11 +1,13 @@
 import { StyleSheet, View } from "react-native";
 import ErrorBoundary from "../../component/ErrorBoundary";
 import ThreadFeedScreen from "../../component/ThreadFeedScreen";
-import { appTheme } from "../../constants/themes";
+import { useThemeColors } from "../../hooks/useTheme";
 
 export default function ExploreScreen() {
+  const theme = useThemeColors();
+
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: theme.bg }]}>
       <ErrorBoundary>
         <ThreadFeedScreen variant="explore" />
       </ErrorBoundary>
@@ -14,5 +16,5 @@ export default function ExploreScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: appTheme.bg },
+  root: { flex: 1 },
 });

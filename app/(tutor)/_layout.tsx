@@ -2,10 +2,11 @@ import React from "react";
 import { Platform, StatusBar } from "react-native";
 import { Redirect, Stack } from "expo-router";
 import { useFeatureFlags } from "../../hooks/useFeatureFlags";
-import { useThemeColors } from "../../hooks/useTheme";
+import { useThemeColors, useThemeMode } from "../../hooks/useTheme";
 
 export default function TutorLayout() {
   const theme = useThemeColors();
+  const resolvedTheme = useThemeMode();
   const { agent, tutor } = useFeatureFlags();
 
   if (!agent && !tutor) {
@@ -15,7 +16,10 @@ export default function TutorLayout() {
   return (
     <>
       {Platform.OS === "android" && (
-        <StatusBar barStyle="light-content" backgroundColor={theme.bg} />
+        <StatusBar
+          barStyle={resolvedTheme === "light" ? "dark-content" : "light-content"}
+          backgroundColor={theme.bg}
+        />
       )}
       <Stack
         screenOptions={{

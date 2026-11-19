@@ -12,6 +12,7 @@ import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { appTheme, safeFont } from "../constants/themes";
+import { useThemeColors } from "../hooks/useTheme";
 import MascotAnimation from "./MascotAnimation";
 
 interface Props {
@@ -28,6 +29,7 @@ const SCRIM_COLORS = [
 export default function LoadingScreen({ message, fullScreen = true }: Props) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const theme = useThemeColors();
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -70,7 +72,9 @@ export default function LoadingScreen({ message, fullScreen = true }: Props) {
           contentFit="cover"
           style={styles.inlineMascot}
         />
-        {message ? <Text style={styles.inlineText}>{message}</Text> : null}
+        {message ? (
+          <Text style={[styles.inlineText, { color: theme.text }]}>{message}</Text>
+        ) : null}
       </View>
     );
   }
@@ -177,7 +181,6 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 14,
     fontWeight: "600",
-    color: appTheme.text,
     textAlign: "center",
   },
 });

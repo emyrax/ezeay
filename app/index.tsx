@@ -14,9 +14,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import MascotAnimation from "../component/MascotAnimation";
 import MascotStage from "../component/mascot/MascotStage";
-import { appTheme, safeFont } from "../constants/themes";
+import { safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useResponsive } from "../hooks/useResponsive";
+import { useThemeColors } from "../hooks/useTheme";
 import { createShadow } from "@/lib/shadow";
 
 export default function Index() {
@@ -27,6 +28,7 @@ function NativeWelcome() {
   const router = useRouter();
   const { user, profile, loading } = useAuth();
   const { isWebWide } = useResponsive();
+  const theme = useThemeColors();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -87,7 +89,9 @@ function NativeWelcome() {
         { transform: [{ translateY: floatTranslate }] },
       ]}
     >
-      <View style={styles.glowBackdrop} />
+      <View
+        style={[styles.glowBackdrop, { backgroundColor: theme.primaryLight }]}
+      />
       <MascotAnimation
         action="mascot_emitting_energy"
         width={260}
@@ -101,15 +105,35 @@ function NativeWelcome() {
 
   const copy = (
     <View style={[styles.textBlock, isWebWide && styles.textBlockWide]}>
-      <View style={styles.pillBadge}>
-        <Ionicons name="sparkles" size={13} color={appTheme.primary} />
-        <Text style={styles.pillText}>Gamified Learning Companion</Text>
+      <View
+        style={[
+          styles.pillBadge,
+          {
+            backgroundColor: theme.primaryLight,
+            borderColor: theme.border,
+          },
+        ]}
+      >
+        <Ionicons name="sparkles" size={13} color={theme.primary} />
+        <Text style={[styles.pillText, { color: theme.text }]}>
+          Gamified Learning Companion
+        </Text>
       </View>
-      <Text style={[styles.title, isWebWide && styles.titleWide]}>
+      <Text
+        style={[styles.title, isWebWide && styles.titleWide, { color: theme.text }]}
+      >
         Built Around{"\n"}
-        <Text style={styles.titleHighlight}>Your Curiosity</Text>
+        <Text style={[styles.titleHighlight, { color: theme.primary }]}>
+          Your Curiosity
+        </Text>
       </Text>
-      <Text style={[styles.subtitle, isWebWide && styles.subtitleWide]}>
+      <Text
+        style={[
+          styles.subtitle,
+          isWebWide && styles.subtitleWide,
+          { color: theme.textSecondary },
+        ]}
+      >
         Personalized paths, gamified quests, and real mastery. Tailored for your
         unique ambition.
       </Text>
@@ -127,22 +151,21 @@ function NativeWelcome() {
       <Pressable
         style={({ pressed }) => [
           styles.primaryBtn,
+          createShadow(theme.primary, 0, 4, 10, 0.25),
           pressed && styles.primaryBtnPressed,
         ]}
         onPress={() => router.push("/onboarding")}
       >
         <LinearGradient
-          colors={[
-            appTheme.gradientStart,
-            appTheme.gradientMid,
-            appTheme.gradientEnd,
-          ]}
+          colors={[theme.gradientStart, theme.gradientMid, theme.gradientEnd]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.primaryBtnGradient}
         >
-          <Text style={styles.primaryBtnText}>Get Started</Text>
-          <Ionicons name="arrow-forward" size={18} color={appTheme.bg} />
+          <Text style={[styles.primaryBtnText, { color: theme.bg }]}>
+            Get Started
+          </Text>
+          <Ionicons name="arrow-forward" size={18} color={theme.bg} />
         </LinearGradient>
       </Pressable>
 
@@ -153,19 +176,21 @@ function NativeWelcome() {
         ]}
         onPress={() => router.push("/login")}
       >
-        <Text style={styles.secondaryBtnText}>
+        <Text style={[styles.secondaryBtnText, { color: theme.textSecondary }]}>
           Already have an account?{" "}
-          <Text style={styles.secondaryBtnHighlight}>Sign In</Text>
+          <Text style={[styles.secondaryBtnHighlight, { color: theme.primary }]}>
+            Sign In
+          </Text>
         </Text>
       </Pressable>
     </Animated.View>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* Background gradient lighting */}
       <LinearGradient
-        colors={["#152A4D", "#1B3560", "#152A4D"]}
+        colors={[theme.bg, theme.surface, theme.bg]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -189,10 +214,12 @@ function NativeWelcome() {
                 height={38}
                 variant="mark"
                 contentPosition="top"
-                stageColor="#183454"
-                fadeColor="#152A4D"
+                stageColor={theme.surface}
+                fadeColor={theme.bg}
               />
-              <Text style={styles.brandTitle}>Yuinx</Text>
+              <Text style={[styles.brandTitle, { color: theme.text }]}>
+                Yuinx
+              </Text>
             </View>
           </Animated.View>
 
@@ -230,7 +257,6 @@ function NativeWelcome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#152A4D",
   },
   safeArea: {
     flex: 1,
@@ -295,7 +321,6 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 22,
     fontWeight: "800",
-    color: appTheme.text,
     letterSpacing: 0.5,
   },
   heroContent: {
@@ -316,7 +341,6 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: "rgba(149, 208, 253, 0.15)",
     transform: [{ scale: 1.2 }],
   },
   illustration: {
@@ -332,9 +356,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: appTheme.primaryLight,
     borderWidth: 1,
-    borderColor: appTheme.border,
     borderRadius: 20,
     paddingVertical: 5,
     paddingHorizontal: 12,
@@ -344,25 +366,20 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 12,
     fontWeight: "600",
-    color: appTheme.text,
   },
   title: {
     fontFamily: safeFont,
     fontSize: 34,
     fontWeight: "800",
-    color: appTheme.text,
     textAlign: "center",
     lineHeight: 42,
     letterSpacing: -0.5,
     marginBottom: 10,
   },
-  titleHighlight: {
-    color: appTheme.primary,
-  },
+  titleHighlight: {},
   subtitle: {
     fontFamily: safeFont,
     fontSize: 15,
-    color: appTheme.textSecondary,
     textAlign: "center",
     lineHeight: 22,
     letterSpacing: 0.1,
@@ -378,7 +395,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
     elevation: 4,
-    ...createShadow(appTheme.primary, 0, 4, 10, 0.25),
   },
   primaryBtnPressed: {
     opacity: 0.9,
@@ -397,7 +413,6 @@ const styles = StyleSheet.create({
     fontFamily: safeFont,
     fontSize: 16,
     fontWeight: "700",
-    color: appTheme.bg,
     letterSpacing: 0.3,
   },
   secondaryBtn: {
@@ -411,10 +426,8 @@ const styles = StyleSheet.create({
   secondaryBtnText: {
     fontFamily: safeFont,
     fontSize: 14,
-    color: appTheme.textSecondary,
   },
   secondaryBtnHighlight: {
-    color: appTheme.primary,
     fontWeight: "700",
   },
 });

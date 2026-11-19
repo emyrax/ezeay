@@ -140,14 +140,12 @@ function WelcomeStep({ step, onSignIn }: StepContentProps) {
         {/* Ambient Backlight Glow */}
         <View style={styles.mascotAmbientBackdrop} />
 
-        {/* Freestanding Enlarged Mascot */}
-        <MascotStage
-          action="mascot_waving"
-          height={280}
-          stageColor="#152A4D"
-          fadeColor="#07101D"
-          fadeSize={36}
-          glow
+        {/* Freestanding Enlarged Mascot from Side Nav */}
+        <Image
+          source={images.yuinxLogoTrans}
+          style={styles.mascotStandingImage}
+          contentFit="contain"
+          accessibilityLabel="Yuinx Mascot"
         />
 
         {/* Ambient Floor Shadow / Glow beneath mascot */}
@@ -165,7 +163,29 @@ function WelcomeStep({ step, onSignIn }: StepContentProps) {
           </Text>
         </View>
       </View>
-
+         {/* Returning User Clean Link (No rectangle box) */}
+      <View style={styles.welcomeSignInRow}>
+        <Text style={styles.welcomeSignInPrompt}>
+          Already learning on Yuinx?
+        </Text>
+        <Pressable
+          onPress={onSignIn}
+          style={({ pressed }) => [
+            styles.welcomeSignInBtn,
+            pressed && { opacity: 0.75 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Sign in to existing account"
+        >
+          <Text style={styles.welcomeSignInText}>Sign in</Text>
+          <MaterialCommunityIcons
+            name="arrow-right"
+            size={14}
+            color={landingColors.blueSoft}
+          />
+        </Pressable>
+      </View>
+ 
       {/* Borderless, Breathable Feature Highlights (No Rectangles) */}
       <View style={styles.welcomeHighlightsList}>
         <View style={styles.welcomeHighlightRow}>
@@ -181,6 +201,9 @@ function WelcomeStep({ step, onSignIn }: StepContentProps) {
               color={landingColors.blueSoft}
             />
           </View>
+       
+
+
           <View style={styles.highlightTextWrap}>
             <Text style={styles.highlightTitle}>Rooted in where you live</Text>
             <Text style={styles.highlightSubtitle}>
@@ -232,28 +255,7 @@ function WelcomeStep({ step, onSignIn }: StepContentProps) {
         </View>
       </View>
 
-      {/* Returning User Clean Link (No rectangle box) */}
-      <View style={styles.welcomeSignInRow}>
-        <Text style={styles.welcomeSignInPrompt}>
-          Already learning on Yuinx?
-        </Text>
-        <Pressable
-          onPress={onSignIn}
-          style={({ pressed }) => [
-            styles.welcomeSignInBtn,
-            pressed && { opacity: 0.75 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Sign in to existing account"
-        >
-          <Text style={styles.welcomeSignInText}>Sign in</Text>
-          <MaterialCommunityIcons
-            name="arrow-right"
-            size={14}
-            color={landingColors.blueSoft}
-          />
-        </Pressable>
-      </View>
+      
     </View>
   );
 }
@@ -332,6 +334,11 @@ function LanguageStep({
           </Text>
         </View>
       </View>
+      <InlineError message={errors.appLanguage} />
+
+      <Text style={styles.helperText}>
+        You can switch your interface language anytime from your profile settings.
+      </Text>
 
       {/* Language Cards */}
       <View style={styles.langCardsList}>
@@ -358,6 +365,7 @@ function LanguageStep({
                     isSelected && styles.langIconWrapSelected,
                   ]}
                 >
+                  
                   <MaterialCommunityIcons
                     name={info.icon as never}
                     size={22}
@@ -403,11 +411,7 @@ function LanguageStep({
         })}
       </View>
 
-      <InlineError message={errors.appLanguage} />
-
-      <Text style={styles.helperText}>
-        You can switch your interface language anytime from your profile settings.
-      </Text>
+      
     </View>
   );
 }
@@ -1146,19 +1150,29 @@ const styles = StyleSheet.create({
   },
   mascotAmbientBackdrop: {
     position: "absolute",
-    width: 280,
-    height: 280,
-    borderRadius: 140,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
     backgroundColor: "rgba(56, 189, 248, 0.12)",
-    top: 10,
+    top: -10,
+  },
+  mascotStandingImage: {
+    width: 270,
+    height: 270,
+    zIndex: 2,
   },
   mascotFloorGlow: {
     position: "absolute",
-    bottom: -6,
-    width: 220,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(56, 189, 248, 0.25)",
+    bottom: 28,
+    width: 200,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(56, 189, 248, 0.22)",
+    shadowColor: "#38BDF8",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 6,
   },
   mascotSpeechPill: {
     flexDirection: "row",
@@ -1228,7 +1242,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   welcomeSignInPrompt: {
-    fontSize: 13,
+    fontSize: 16,
     fontFamily: landingFonts.body,
     color: landingColors.textSubtle,
   },
@@ -1238,7 +1252,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   welcomeSignInText: {
-    fontSize: 13,
+    fontSize: 18,
     fontFamily: landingFonts.bodySemiBold,
     color: landingColors.blueSoft,
   },
