@@ -1,7 +1,7 @@
 # Theme Reference
 
 Yuinx ships **two palettes** — a dark theme (`appTheme`) and a premium light
-theme (`lightTheme`, "Iris") — plus a runtime appearance picker
+theme (`lightTheme`, "Azure") — plus a runtime appearance picker
 (Light / Dark / System).
 
 - Source of truth: `constants/themes.ts` (`appTheme`, `lightTheme`, `themeFor`)
@@ -60,36 +60,36 @@ colors belong in inline overrides.
 | `gradientStart/Mid/End` | `#f8fcff` / `#0487eb` / `#068ff7` |
 | `shadow` | `#058ff8` |
 
-## Light palette (`lightTheme` — "Iris")
+## Light palette (`lightTheme` — "Azure")
 
 Premium light theme inspired by the Coach surface. The primary is a confident
-indigo-violet (`#6D5BF5`) that clears WCAG AA (≈4.5:1) against both white and
+premium blue (`#2563EB`) that clears WCAG AA (≈5:1) against both white and
 dark text, so it works as an accent fill *and* accent-on-surface text.
 
 | Token | Value |
 |-------|-------|
-| `bg` | `#F5F6FB` |
+| `bg` | `#F5F7FB` |
 | `surface` | `#FFFFFF` |
-| `surfaceAlt` | `#EEF1F8` |
+| `surfaceAlt` | `#EEF2F9` |
 | `glass` | `rgba(255, 255, 255, 0.82)` |
 | `text` | `#0F172A` |
 | `textSecondary` | `#475569` |
 | `textMuted` | `#64748B` |
-| `primary` | `#6D5BF5` |
-| `primaryLight` | `rgba(109, 91, 245, 0.12)` |
-| `accent` | `#8B7EF8` |
+| `primary` | `#2563EB` |
+| `primaryLight` | `rgba(37, 99, 235, 0.12)` |
+| `accent` | `#3B82F6` |
 | `success` | `#16A34A` |
 | `warning` | `#D97706` |
 | `danger` | `#DC2626` |
-| `info` | `#4F46E5` |
-| `border` | `#E4E7F0` |
-| `borderLight` | `#EEF1F7` |
-| `cardBg` / `cardBgLight` | `#FFFFFF` / `#F5F6FB` |
+| `info` | `#2563EB` |
+| `border` | `#E3E8F1` |
+| `borderLight` | `#EDF1F7` |
+| `cardBg` / `cardBgLight` | `#FFFFFF` / `#F5F7FB` |
 | `tabBg` | `rgba(255, 255, 255, 0.92)` |
-| `tabBorder` | `#E4E7F0` |
-| `tabActive` / `tabInactive` | `#6D5BF5` / `#64748B` |
-| `gradientStart/Mid/End` | `#A78BFA` / `#7C6CF8` / `#6D5BF5` |
-| `shadow` | `#6D5BF5` |
+| `tabBorder` | `#E3E8F1` |
+| `tabActive` / `tabInactive` | `#2563EB` / `#64748B` |
+| `gradientStart/Mid/End` | `#60A5FA` / `#3B82F6` / `#2563EB` |
+| `shadow` | `#2563EB` |
 
 Hex tokens concatenated with alpha suffixes in code (for example
 `theme.primary + "16"`) must remain 6-digit hex values — all tokens above are.

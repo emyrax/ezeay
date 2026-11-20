@@ -22,6 +22,8 @@ export function useExploreFeed(
   getToken: () => Promise<string | null>,
   filter: ExploreFeedFilter,
   refreshKey = 0,
+  profileUid: string | undefined,
+  enrolledCourseIds: string[] | undefined,
 ) {
   const [posts, setPosts] = useState<CommunityFeedPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +72,8 @@ export function useExploreFeed(
           rawFetched += feed.posts.length;
           for (const post of feed.posts) {
             if (!matchesExploreFeedFilter(post, filter)) continue;
+            if (profileUid && post.creatorId === profileUid) continue;
+            if (enrolledCourseIds && post.courseId && enrolledCourseIds.includes(post.courseId)) continue;
             if (seen.has(post.id)) continue;
             seen.add(post.id);
             matched.push(post);
@@ -110,7 +114,7 @@ export function useExploreFeed(
         setLoadingMore(false);
       }
     },
-    [filter],
+    [filter, profileUid, enrolledCourseIds],
   );
 
   useEffect(() => {

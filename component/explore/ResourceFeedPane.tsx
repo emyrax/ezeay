@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { safeFont } from "../../constants/themes";
 import { useAuth } from "../../contexts/AuthContext";
+import { useEnrollmentStore } from "../../store/courseEnrollmentStore";
 import { useExploreFeed } from "../../hooks/useExploreFeed";
 import { useThemeColors } from "../../hooks/useTheme";
 import { formatCount, formatRelativeTime } from "../../lib/threads/format";
@@ -75,9 +76,11 @@ export default function ResourceFeedPane({
   onScroll,
 }: ResourceFeedPaneProps) {
   const colors = useThemeColors();
-  const { getToken } = useAuth();
+  const { getToken, profile } = useAuth();
+  const profileUid = profile?.uid ?? "";
+  const enrolledCourseIds = useEnrollmentStore((s) => s.enrollments?.map((e) => e.courseId)) ?? [];
   const { posts, loading, refreshing, loadingMore, error, refresh, loadMore } =
-    useExploreFeed(getToken, "resources", refreshKey);
+    useExploreFeed(getToken, "resources", refreshKey, profileUid, enrolledCourseIds);
 
   const renderItem = useCallback(
     ({ item }: { item: CommunityFeedPost }) => {

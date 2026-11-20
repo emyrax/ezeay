@@ -12,7 +12,7 @@ import { getThreadFeedChrome } from "../../lib/threads/layout";
 export type ExploreTab = "threads" | "resources" | "reels" | "other";
 
 const TABS: { key: ExploreTab; label: string }[] = [
-  { key: "threads", label: "Threads" },
+  { key: "threads", label: "Uinx" },
   { key: "resources", label: "Resources" },
   { key: "reels", label: "Reels" },
   { key: "other", label: "Courses" },

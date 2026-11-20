@@ -66,40 +66,40 @@ export const appTheme: ThemeColors = {
 };
 
 /**
- * Light palette — "Iris" premium light theme.
+ * Light palette — "Azure" premium light theme.
  *
- * Inspired by the Coach surface (soft neutrals + a calm indigo accent) and
- * elevated into a confident, premium violet. `primary` (#6D5BF5) clears 4.5:1
- * against both white and dark text so it reads as an accessible accent fill and
+ * Inspired by the Coach surface (soft neutrals + a calm accent) and elevated
+ * into a confident, premium blue. `primary` (#2563EB) clears 4.5:1 against both
+ * white and dark text so it reads as an accessible accent fill and
  * accent-on-surface text.
  */
 export const lightTheme: ThemeColors = {
-  bg: "#F5F6FB",
+  bg: "#F5F7FB",
   surface: "#FFFFFF",
-  surfaceAlt: "#EEF1F8",
+  surfaceAlt: "#EEF2F9",
   glass: "rgba(255, 255, 255, 0.82)",
   text: "#0F172A",
   textSecondary: "#475569",
   textMuted: "#64748B",
-  primary: "#6D5BF5",
-  primaryLight: "rgba(109, 91, 245, 0.12)",
-  accent: "#8B7EF8",
+  primary: "#2563EB",
+  primaryLight: "rgba(37, 99, 235, 0.12)",
+  accent: "#3B82F6",
   success: "#16A34A",
   warning: "#D97706",
   danger: "#DC2626",
-  info: "#4F46E5",
-  border: "#E4E7F0",
-  borderLight: "#EEF1F7",
+  info: "#2563EB",
+  border: "#E3E8F1",
+  borderLight: "#EDF1F7",
   cardBg: "#FFFFFF",
-  cardBgLight: "#F5F6FB",
+  cardBgLight: "#F5F7FB",
   tabBg: "rgba(255, 255, 255, 0.92)",
-  tabBorder: "#E4E7F0",
-  tabActive: "#6D5BF5",
+  tabBorder: "#E3E8F1",
+  tabActive: "#2563EB",
   tabInactive: "#64748B",
-  gradientStart: "#A78BFA",
-  gradientMid: "#7C6CF8",
-  gradientEnd: "#6D5BF5",
-  shadow: "#6D5BF5",
+  gradientStart: "#60A5FA",
+  gradientMid: "#3B82F6",
+  gradientEnd: "#2563EB",
+  shadow: "#2563EB",
 };
 
 /** Backwards-compatible alias — `appTheme` is the dark theme. */

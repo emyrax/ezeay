@@ -61,13 +61,19 @@ const FEED_PAGE_SIZE = 5;
 const FEED_SKELETON_FALLBACK = 440;
 
 const REEL_GRADIENTS: { colors: [string, string, string] }[] = [
-  { colors: ["#312E81", "#1E1B4B", "#0F0A2E"] },
-  { colors: ["#065F46", "#022C22", "#001716"] },
-  { colors: ["#4C1D95", "#2E1065", "#150B33"] },
-  { colors: ["#7C2D12", "#431407", "#1C0A04"] },
-  { colors: ["#881337", "#4C0519", "#20030A"] },
-  { colors: ["#155E75", "#083344", "#041E2A"] },
+  { colors: ["#E0E7FF", "#C7D2FE", "#A5B4FC"] },
+  { colors: ["#D1FAE5", "#A7F3D0", "#6EE7B7"] },
+  { colors: ["#EDE9FE", "#DDD6FE", "#C4B5FD"] },
+  { colors: ["#FFEDD5", "#FED7AA", "#FDBA74"] },
+  { colors: ["#FFE4E6", "#FECDD3", "#FDA4AF"] },
+  { colors: ["#CFFAFE", "#A5F3FC", "#67E8F9"] },
 ];
+
+const REEL_INK = "#0F172A";
+const REEL_INK_SOFT = "#334155";
+const REEL_INK_MUTED = "#475569";
+const REEL_HAIRLINE = "rgba(15,23,42,0.12)";
+const REEL_GLASS = "rgba(255,255,255,0.55)";
 
 function pickReelGradient(post: CommunityFeedPost): [string, string, string] {
   let hash = 0;
@@ -467,7 +473,7 @@ function ReelCard({
           ]}
         >
           <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.4)"]}
+            colors={["transparent", "rgba(15,23,42,0.06)"]}
             start={{ x: 0, y: 0.55 }}
             end={{ x: 0, y: 1 }}
             pointerEvents="none"
@@ -486,7 +492,7 @@ function ReelCard({
             </View>
             <View style={styles.topRightGroup}>
               <Text
-                style={[styles.chapterTag, { color: theme.textMuted }]}
+                style={[styles.chapterTag, { color: REEL_INK_MUTED }]}
                 numberOfLines={1}
               >
                 {item.chapterTitle}
@@ -508,7 +514,7 @@ function ReelCard({
                   styles.iconWrap,
                   isWide && styles.iconWrapWide,
                   compactHeight && styles.iconWrapShort,
-                  { backgroundColor: theme.surfaceAlt },
+                  { backgroundColor: REEL_GLASS },
                 ]}
               >
                 <MaterialCommunityIcons
@@ -525,7 +531,7 @@ function ReelCard({
                 isWide && styles.postTitleWide,
                 compactHeight && styles.postTitleShort,
                 veryShort && styles.postTitleVeryShort,
-                { color: theme.text },
+                { color: REEL_INK },
               ]}
               numberOfLines={2}
             >
@@ -543,7 +549,7 @@ function ReelCard({
                   style={[
                     styles.creatorName,
                     isWide && styles.creatorNameWide,
-                    { color: theme.textSecondary },
+                    { color: REEL_INK_SOFT },
                   ]}
                   numberOfLines={1}
                 >
@@ -551,8 +557,8 @@ function ReelCard({
                 </Text>
                 {Boolean(item.post.sharedAt) && (
                   <>
-                    <Text style={{ color: theme.textMuted }}>·</Text>
-                    <Text style={[styles.sharedAt, { color: theme.textMuted }]}>
+                    <Text style={{ color: REEL_INK_MUTED }}>·</Text>
+                    <Text style={[styles.sharedAt, { color: REEL_INK_MUTED }]}>
                       {formatSharedAt(item.post.sharedAt)}
                     </Text>
                   </>
@@ -565,8 +571,8 @@ function ReelCard({
                 style={[
                   styles.hookBlock,
                   {
-                    backgroundColor: "rgba(255,255,255,0.09)",
-                    borderColor: "rgba(255,255,255,0.12)",
+                    backgroundColor: REEL_GLASS,
+                    borderColor: "rgba(15,23,42,0.10)",
                   },
                 ]}
               >
@@ -574,15 +580,15 @@ function ReelCard({
                   <Text style={[styles.hookTone, { color: theme.primary }]}>
                     {challenge.toneLabel}
                   </Text>
-                  <Text style={[styles.hookDivider, { color: theme.textMuted }]}>
+                  <Text style={[styles.hookDivider, { color: REEL_INK_MUTED }]}>
                     ·
                   </Text>
-                  <Text style={[styles.hookType, { color: theme.textMuted }]}>
+                  <Text style={[styles.hookType, { color: REEL_INK_MUTED }]}>
                     {challenge.challengeLabel}
                   </Text>
                 </View>
                 <Text
-                  style={[styles.hookText, { color: theme.text }]}
+                  style={[styles.hookText, { color: REEL_INK }]}
                   numberOfLines={3}
                 >
                   {challenge.hook}
@@ -596,7 +602,7 @@ function ReelCard({
                 { paddingRight: railLayout.reserve },
               ]}
             >
-              <Text style={[styles.challengePrompt, { color: theme.text }]}>
+              <Text style={[styles.challengePrompt, { color: REEL_INK }]}>
                 {challenge.challengePrompt}
               </Text>
               <View style={styles.challengeChoiceRow}>
@@ -611,14 +617,14 @@ function ReelCard({
                       ? theme.danger
                       : isSelected
                         ? theme.primary
-                        : "rgba(255,255,255,0.1)";
+                        : REEL_HAIRLINE;
                   const textColor = isCorrect
                     ? theme.success
                     : isWrong
                       ? theme.danger
                       : isSelected
                         ? theme.primary
-                        : theme.text;
+                        : REEL_INK;
                   return (
                     <Pressable
                       key={option}
@@ -633,7 +639,7 @@ function ReelCard({
                           backgroundColor:
                             isCorrect || isWrong || isSelected
                               ? borderColor + "18"
-                              : "rgba(255,255,255,0.04)",
+                              : "rgba(255,255,255,0.5)",
                           borderColor,
                           opacity: answered && !isSelected && !isCorrect ? 0.55 : 1,
                         },
@@ -658,7 +664,7 @@ function ReelCard({
               {submitting && (
                 <View style={styles.answerStatus}>
                   <ActivityIndicator size="small" color={theme.primary} />
-                  <Text style={[styles.answerStatusText, { color: theme.textMuted }]}>
+                  <Text style={[styles.answerStatusText, { color: REEL_INK_MUTED }]}>
                     Checking your answer…
                   </Text>
                 </View>
@@ -696,7 +702,7 @@ function ReelCard({
                       </Text>
                     )}
                   </View>
-                  <Text style={[styles.revealText, { color: theme.text }]}>
+                  <Text style={[styles.revealText, { color: REEL_INK }]}>
                     {attempt.revealText || challenge.revealText}
                   </Text>
                   {attempt.bonusXp > 0 && (
@@ -729,7 +735,7 @@ function ReelCard({
                   isWide && styles.subtopicTitleWide,
                   isDesktop && styles.subtopicTitleDesktop,
                   compactHeight && styles.subtopicTitleShort,
-                  { color: theme.text },
+                  { color: REEL_INK },
                 ]}
               >
                 {item.subtopicTitle}
@@ -743,7 +749,7 @@ function ReelCard({
                     styles.contentText,
                     isWide && styles.contentTextWide,
                     compactHeight && styles.contentTextShort,
-                    { color: theme.textSecondary },
+                    { color: REEL_INK_SOFT },
                   ]}
                   numberOfLines={compactHeight ? 4 : isWide ? 6 : 7}
                 >
@@ -755,14 +761,14 @@ function ReelCard({
                     styles.contentLoading,
                     isWide && styles.contentLoadingWide,
                     compactHeight && styles.contentLoadingShort,
-                    { borderColor: theme.border },
+                    { borderColor: REEL_HAIRLINE },
                   ]}
                 >
                   <ActivityIndicator size="small" color={theme.primary} />
                   <Text
                     style={[
                       styles.contentLoadingText,
-                      { color: theme.textMuted },
+                      { color: REEL_INK_MUTED },
                     ]}
                   >
                     Loading lesson…
@@ -799,7 +805,7 @@ function ReelCard({
                   style={[
                     styles.metaText,
                     isWide && styles.metaTextWide,
-                    { color: theme.textMuted },
+                    { color: REEL_INK_MUTED },
                   ]}
                 >
                   {subtopicCount} topics · {item.post.category.replace("-", " ")}
@@ -810,7 +816,7 @@ function ReelCard({
                   <Text
                     style={[
                       styles.hintText,
-                      { color: theme.textMuted, opacity: 0.8 },
+                      { color: REEL_INK_MUTED, opacity: 0.8 },
                     ]}
                   >
                     Tap to explore · Double-tap to like
@@ -889,7 +895,7 @@ function ReelCard({
         pointerEvents="box-none"
       >
         {!compactHeight && (
-          <BlurView intensity={72} tint="dark" style={styles.railPill}>
+          <BlurView intensity={72} tint="light" style={styles.railPill}>
             <View style={styles.railAvatarWrap}>
               <Animated.View
                 pointerEvents="none"
@@ -928,7 +934,7 @@ function ReelCard({
         {!isResource && (
           <BlurView
             intensity={72}
-            tint="dark"
+            tint="light"
             style={[styles.railPill, compactHeight && styles.railPillCompact]}
           >
             <Pressable
@@ -944,7 +950,7 @@ function ReelCard({
                 <MaterialCommunityIcons
                   name={liked ? "heart" : "heart-outline"}
                   size={compactHeight ? 20 : isWide ? 28 : 26}
-                  color={liked ? theme.primary : "#FFFFFF"}
+                  color={liked ? theme.primary : REEL_INK}
                 />
               </Animated.View>
             </Pressable>
@@ -952,7 +958,7 @@ function ReelCard({
               style={[
                 styles.railCount,
                 compactHeight && styles.railCountCompact,
-                { color: "#FFFFFF", transform: [{ scale: countPop }] },
+                { color: REEL_INK, transform: [{ scale: countPop }] },
               ]}
             >
               {item.post.likeCount}
@@ -962,7 +968,7 @@ function ReelCard({
 
         <BlurView
           intensity={72}
-          tint="dark"
+          tint="light"
           style={[styles.railPill, compactHeight && styles.railPillCompact]}
         >
           <Pressable
@@ -976,7 +982,7 @@ function ReelCard({
               <MaterialCommunityIcons
                 name="share-variant-outline"
                 size={compactHeight ? 19 : isWide ? 26 : 24}
-                color="#FFFFFF"
+                color={REEL_INK}
               />
             </Animated.View>
           </Pressable>
@@ -984,7 +990,7 @@ function ReelCard({
             style={[
               styles.railCount,
               compactHeight && styles.railCountCompact,
-              { color: "#FFFFFF" },
+              { color: REEL_INK },
             ]}
           >
             Share
@@ -994,7 +1000,7 @@ function ReelCard({
         {isResource && (
           <BlurView
             intensity={72}
-            tint="dark"
+            tint="light"
             style={[styles.railPill, compactHeight && styles.railPillCompact]}
           >
             <Pressable
@@ -1007,25 +1013,25 @@ function ReelCard({
               <MaterialCommunityIcons
                 name="open-in-new"
                 size={compactHeight ? 19 : isWide ? 26 : 24}
-                color="#FFFFFF"
+                color={REEL_INK}
               />
             </Pressable>
             <Text
               style={[
-                styles.railCount,
-                compactHeight && styles.railCountCompact,
-                { color: "#FFFFFF" },
-              ]}
-            >
-              Open
-            </Text>
+              styles.railCount,
+              compactHeight && styles.railCountCompact,
+              { color: REEL_INK },
+            ]}
+          >
+            Open
+          </Text>
           </BlurView>
         )}
 
         {!isResource && (
           <BlurView
             intensity={72}
-            tint="dark"
+            tint="light"
             style={[styles.railPill, compactHeight && styles.railPillCompact]}
           >
             <Pressable
@@ -1041,7 +1047,7 @@ function ReelCard({
                 <MaterialCommunityIcons
                   name={enrolled ? "bookmark" : "bookmark-outline"}
                   size={compactHeight ? 19 : isWide ? 26 : 24}
-                  color={enrolled ? theme.primary : "#FFFFFF"}
+                  color={enrolled ? theme.primary : REEL_INK}
                 />
               </Animated.View>
             </Pressable>
@@ -1049,7 +1055,7 @@ function ReelCard({
               style={[
                 styles.railCount,
                 compactHeight && styles.railCountCompact,
-                { color: enrolled ? theme.primary : "#FFFFFF" },
+                { color: enrolled ? theme.primary : REEL_INK },
               ]}
             >
               {enrolled ? "Enrolled" : "Save"}
@@ -1058,13 +1064,13 @@ function ReelCard({
         )}
 
         {!compactHeight && (
-          <BlurView intensity={72} tint="dark" style={styles.railPill}>
+          <BlurView intensity={72} tint="light" style={styles.railPill}>
             <MaterialCommunityIcons
               name="eye-outline"
               size={isWide ? 26 : 24}
-              color="#FFFFFF"
+              color={REEL_INK}
             />
-            <Text style={[styles.railCount, { color: "#FFFFFF" }]}>
+            <Text style={[styles.railCount, { color: REEL_INK }]}>
               {formatCount(item.post.viewCount)}
             </Text>
           </BlurView>
@@ -1085,7 +1091,6 @@ function FeedSkeleton({
   radius?: number;
   padding?: number;
 }) {
-  const theme = useThemeColors();
   const shimmer = useRef(new Animated.Value(0.35)).current;
 
   useEffect(() => {
@@ -1110,7 +1115,7 @@ function FeedSkeleton({
   return (
     <Animated.View style={{ flex: 1, opacity: shimmer }}>
       <LinearGradient
-        colors={[theme.surface, theme.surfaceAlt]}
+        colors={["#EEF2FF", "#E0E7FF"]}
         style={[
           styles.reel,
           { height, marginHorizontal: inset, borderRadius: radius, padding },
@@ -1119,18 +1124,18 @@ function FeedSkeleton({
         <View
           style={[
             styles.skeletonLine,
-            { backgroundColor: theme.border, width: "30%", height: 14 },
+            { backgroundColor: "rgba(15,23,42,0.08)", width: "30%", height: 14 },
           ]}
         />
         <View style={styles.reelBody}>
           <View
-            style={[styles.skeletonCircle, { backgroundColor: theme.border }]}
+            style={[styles.skeletonCircle, { backgroundColor: "rgba(15,23,42,0.08)" }]}
           />
           <View
             style={[
               styles.skeletonLine,
               {
-                backgroundColor: theme.border,
+                backgroundColor: "rgba(15,23,42,0.08)",
                 width: "80%",
                 height: 18,
                 marginTop: 14,
@@ -1141,7 +1146,7 @@ function FeedSkeleton({
             style={[
               styles.skeletonLine,
               {
-                backgroundColor: theme.border,
+                backgroundColor: "rgba(15,23,42,0.08)",
                 width: "50%",
                 height: 12,
                 marginTop: 10,
@@ -1152,7 +1157,7 @@ function FeedSkeleton({
             style={[
               styles.skeletonLine,
               {
-                backgroundColor: theme.border,
+                backgroundColor: "rgba(15,23,42,0.08)",
                 width: "92%",
                 height: 28,
                 marginTop: 22,
@@ -1163,7 +1168,7 @@ function FeedSkeleton({
             style={[
               styles.skeletonLine,
               {
-                backgroundColor: theme.border,
+                backgroundColor: "rgba(15,23,42,0.08)",
                 width: "100%",
                 height: 12,
                 marginTop: 16,
@@ -1174,7 +1179,7 @@ function FeedSkeleton({
             style={[
               styles.skeletonLine,
               {
-                backgroundColor: theme.border,
+                backgroundColor: "rgba(15,23,42,0.08)",
                 width: "88%",
                 height: 12,
                 marginTop: 8,
@@ -1185,7 +1190,7 @@ function FeedSkeleton({
             style={[
               styles.skeletonLine,
               {
-                backgroundColor: theme.border,
+                backgroundColor: "rgba(15,23,42,0.08)",
                 width: "60%",
                 height: 12,
                 marginTop: 8,
@@ -2320,9 +2325,9 @@ const styles = StyleSheet.create({
   },
   reelWide: {
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(15,23,42,0.08)",
     elevation: 8,
-    ...createShadow("#000000", 0, 10, 24, 0.22),
+    ...createShadow("#0F172A", 0, 10, 24, 0.16),
   },
   reelShort: {
     justifyContent: "center",
@@ -2707,7 +2712,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(15,23,42,0.08)",
   },
   hintText: {
     fontSize: 12,

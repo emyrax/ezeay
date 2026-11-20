@@ -714,10 +714,7 @@ export default function QuestsScreen() {
                   <Text style={styles.gemText}>{profile?.coins ?? 0} Gems</Text>
                 </View>
                 <View style={styles.avatarStack}>
-                  <Image
-                    source={images.userProfilePhoto}
-                    style={[styles.avatar, { borderColor: theme.accent }]}
-                  />
+                  
                   <View
                     style={[
                       styles.notificationBadge,
@@ -1900,7 +1897,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   coinIcon: { width: 18, height: 18 },
-  gemText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700", marginLeft: 4 },
+  gemText: { color: "#354497", fontSize: 13, fontWeight: "700", marginLeft: 4 },
   avatarStack: { position: "relative" },
   avatar: {
     width: 36,
@@ -2168,7 +2165,7 @@ const styles = StyleSheet.create({
   coursesTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#596bbe",
     marginHorizontal: 20,
     marginTop: 28,
   },

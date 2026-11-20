@@ -291,7 +291,7 @@ export default function ProfileCardModal({
                 <View style={[styles.selfNote, { backgroundColor: colors.surfaceAlt }]}>
                   <Ionicons name="person-circle-outline" size={18} color={colors.textMuted} />
                   <Text style={[styles.selfNoteText, { color: colors.textSecondary }]}>
-                    This is you. Your threads are visible in the feed.
+                    This is you. Your Uinx posts are visible in the feed.
                   </Text>
                 </View>
               )}

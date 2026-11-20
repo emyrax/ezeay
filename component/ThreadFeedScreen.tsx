@@ -80,7 +80,6 @@ export default function ThreadFeedScreen({
   const loadMore = useThreadStore((s) => s.loadMore);
   const refresh = useThreadStore((s) => s.refresh);
   const hydrate = useThreadLearningStore((s) => s.hydrate);
-  const toggleFocus = useThreadLearningStore((s) => s.toggleFocus);
 
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [profileTarget, setProfileTarget] = useState<{ userId: string; postId: string } | null>(
@@ -286,7 +285,7 @@ export default function ThreadFeedScreen({
                   },
                 ]}
               >
-                {isExplore ? "Explore" : "Threads"}
+                {isExplore ? "Explore" : "Uinx"}
               </Text>
               {!collapsed && chrome.showSubtitle ? (
                 <Text
@@ -297,7 +296,7 @@ export default function ThreadFeedScreen({
                   numberOfLines={1}
                 >
                   {isExplore
-                    ? "Threads, resources, and reels from the camp"
+                    ? "Uinx, resources, and reels from the camp"
                     : "Learn from every chapter, one part at a time"}
                 </Text>
               ) : null}
@@ -399,7 +398,6 @@ export default function ThreadFeedScreen({
                   onPressChapterThread={setChapterId}
                   onPressProfile={handlePressProfile}
                   onPressComments={(post) => setCommentsPostId(post.id)}
-                  onPressFocus={(post) => toggleFocus(post)}
                   onPressLesson={openLesson}
                   onPressQuiz={setQuizPost}
                   horizontalInset={contentInset}
@@ -441,7 +439,7 @@ export default function ThreadFeedScreen({
                       framed={false}
                     />
                     <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                      {error ? "Threads couldn't load" : "No threads yet"}
+                      {error ? "Uinx couldn't load" : "No posts yet"}
                     </Text>
                     <Text
                       style={[

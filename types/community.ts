@@ -142,6 +142,7 @@ export interface CommunityFeedPost {
   likedByMe: boolean;
   viewCount: number;
   chapterIndex: FeedChapter[];
+  courseId?: string;
   /** Populated for resource posts from ExploreResourcePost */
   resourcePost?: ExploreResourcePost;
 }

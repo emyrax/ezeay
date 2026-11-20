@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   Linking,
   Pressable,
@@ -13,12 +13,14 @@ import {
 import { safeFont } from "../constants/themes";
 import { useAuth } from "../contexts/AuthContext";
 import { useThemeColors } from "../hooks/useTheme";
+import { eventBus } from "../lib/eventBus";
 import {
   chapterDisplayNumber,
   formatCount,
   formatRelativeTime,
 } from "../lib/threads/format";
 import { getThreadCardMetrics } from "../lib/threads/layout";
+import { useEnrollmentStore } from "../store/courseEnrollmentStore";
 import { useProgressStore } from "../store/courseProgressStore";
 import { useThreadLearningStore } from "../store/threadLearningStore";
 import { useThreadStore } from "../store/threadStore";
@@ -33,7 +35,6 @@ interface SubtopicThreadCardProps {
   onPressComments?: (post: ThreadPost) => void;
   onPressQuiz?: (post: ThreadPost) => void;
   onPressLesson?: (post: ThreadPost) => void;
-  onPressFocus?: (post: ThreadPost) => void;
   hideAuthorActions?: boolean;
   horizontalInset?: number;
 }
@@ -46,7 +47,6 @@ export default function SubtopicThreadCard({
   onPressComments,
   onPressQuiz,
   onPressLesson,
-  onPressFocus,
   hideAuthorActions = false,
   horizontalInset = 16,
 }: SubtopicThreadCardProps) {
@@ -56,16 +56,64 @@ export default function SubtopicThreadCard({
   const { getToken, profile } = useAuth();
   const likePost = useThreadStore((s) => s.likePost);
   const followUser = useThreadStore((s) => s.followUser);
-  const challengeUser = useThreadStore((s) => s.challengeUser);
-  const focused = useThreadLearningStore((s) => !!s.focus[post.id]);
+  const enrollments = useEnrollmentStore((s) => s.enrollments);
+  const enroll = useEnrollmentStore((s) => s.enroll);
+  const unenroll = useEnrollmentStore((s) => s.unenroll);
   const quizSession = useThreadLearningStore((s) => s.quizSessions[post.id]);
   const lessonDone = useThreadLearningStore((s) => !!s.completedLessons[post.id]);
   const quizPassed = useProgressStore((s) =>
     s.isQuizPassed(post.courseId, post.chapterIndex, post.subtopicIndex),
   );
 
+  const enrollment = enrollments.find((e) => e.courseId === post.courseId);
+  const enrolled = !!enrollment;
+  const [enrollPending, setEnrollPending] = useState(false);
+
   const isOwn = !!profile?.uid && profile.uid === post.authorId;
   const showAuthorActions = !isOwn && !hideAuthorActions;
+
+  const handleToggleEnroll = useCallback(async () => {
+    if (enrollPending) return;
+    if (!profile?.uid) {
+      eventBus.emit("toast:error", { title: "Sign in to enroll" });
+      return;
+    }
+    setEnrollPending(true);
+    try {
+      if (enrollment) {
+        const res = await unenroll(enrollment.id, getToken);
+        if (res.success) {
+          eventBus.emit("toast:success", { title: "Left course" });
+        } else {
+          eventBus.emit("toast:error", {
+            title: res.error ?? "Couldn't leave course.",
+          });
+        }
+      } else {
+        const res = await enroll(profile.uid, post.courseId, getToken);
+        if (res.success) {
+          eventBus.emit("toast:success", { title: "Enrolled" });
+        } else {
+          eventBus.emit("toast:error", {
+            title: res.error ?? "Couldn't enroll.",
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[SubtopicThreadCard] enroll toggle failed:", err);
+      eventBus.emit("toast:error", { title: "Couldn't update enrollment." });
+    } finally {
+      setEnrollPending(false);
+    }
+  }, [
+    enroll,
+    enrollPending,
+    enrollment,
+    getToken,
+    post.courseId,
+    profile?.uid,
+    unenroll,
+  ]);
 
   const handleShare = useCallback(async () => {
     const message = `${post.subtopicTitle} — ${post.content}\n\nLearn on Yuinx`;
@@ -323,35 +371,36 @@ export default function SubtopicThreadCard({
         ),
       )}
 
-      {onPressFocus || onPressQuiz || onPressLesson ? (
-        <View style={[styles.studyRow, { gap: metrics.studyGap }]}>
+      <View style={[styles.studyRow, { gap: metrics.studyGap }]}>
         <Pressable
-          onPress={() => (onPressFocus ? onPressFocus(post) : undefined)}
+          onPress={handleToggleEnroll}
+          disabled={enrollPending}
           style={[
             styles.studyBtn,
             {
-              borderColor: focused ? colors.primary : colors.border,
-              backgroundColor: focused ? colors.primary + "12" : colors.surfaceAlt,
+              borderColor: enrolled ? colors.primary : colors.border,
+              backgroundColor: enrolled ? colors.primary + "12" : colors.surfaceAlt,
               minHeight: metrics.studyHeight,
               paddingHorizontal: metrics.studyPad,
               gap: Math.max(4, metrics.studyGap - 2),
+              opacity: enrollPending ? 0.6 : 1,
             },
           ]}
           accessibilityRole="button"
-          accessibilityLabel={focused ? "Remove from focus" : "Add to focus"}
+          accessibilityLabel={enrolled ? "Leave course" : "Enroll in course"}
         >
           <Ionicons
-            name={focused ? "bookmark" : "bookmark-outline"}
+            name={enrolled ? "bookmark" : "bookmark-outline"}
             size={metrics.studyIcon}
-            color={focused ? colors.primary : colors.textSecondary}
+            color={enrolled ? colors.primary : colors.textSecondary}
           />
           <Text
             style={[
               styles.studyText,
-              { color: focused ? colors.primary : colors.textSecondary, fontSize: metrics.studyFont },
+              { color: enrolled ? colors.primary : colors.textSecondary, fontSize: metrics.studyFont },
             ]}
           >
-            {focused ? "Focused" : "Focus"}
+            {enrolled ? "Enrolled" : "Enroll"}
           </Text>
         </Pressable>
 
@@ -377,49 +426,7 @@ export default function SubtopicThreadCard({
             </Text>
           </Pressable>
         ) : null}
-
-        {post.subtopicDetails.trim() ? (
-          <Pressable
-            onPress={() => onPressQuiz?.(post)}
-            style={[
-              styles.studyBtn,
-              {
-                borderColor: quizPassed ? colors.success : colors.border,
-                backgroundColor: quizPassed ? colors.success + "12" : colors.surfaceAlt,
-                minHeight: metrics.studyHeight,
-                paddingHorizontal: metrics.studyPad,
-                gap: Math.max(4, metrics.studyGap - 2),
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={quizPassed ? "Retake quiz" : "Take quiz"}
-          >
-            <Ionicons
-              name={quizPassed ? "checkmark-circle" : "help-circle-outline"}
-              size={metrics.studyIcon}
-              color={quizPassed ? colors.success : colors.textSecondary}
-            />
-            <Text
-              style={[
-                styles.studyText,
-                {
-                  color: quizPassed ? colors.success : colors.textSecondary,
-                  fontSize: metrics.studyFont,
-                },
-              ]}
-            >
-              {quizPassed
-                ? "Passed"
-                : quizSession?.status === "generating"
-                  ? "Building..."
-                  : quizSession?.questions.length
-                    ? "Take quiz"
-                    : "Quiz"}
-            </Text>
-          </Pressable>
-        ) : null}
-        </View>
-      ) : null}
+      </View>
 
       <View
         style={[
@@ -499,9 +506,9 @@ export default function SubtopicThreadCard({
           ) : null}
         </Pressable>
 
-        {showAuthorActions && (
+        {onPressQuiz && post.subtopicDetails.trim() ? (
           <Pressable
-            onPress={() => challengeUser(post.authorId, post.id, getToken)}
+            onPress={() => onPressQuiz(post)}
             style={[
               styles.actionBtn,
               !metrics.showActionLabels && styles.actionBtnIconOnly,
@@ -512,27 +519,34 @@ export default function SubtopicThreadCard({
               },
             ]}
             accessibilityRole="button"
-            accessibilityLabel={
-              post.author.isChallenged ? "Already challenged" : "Challenge author"
-            }
+            accessibilityLabel={quizPassed ? "Retake quiz" : "Take quiz"}
           >
-            <MaterialCommunityIcons
-              name={post.author.isChallenged ? "check-circle" : "sword-cross"}
+            <Ionicons
+              name={quizPassed ? "checkmark-circle" : "help-circle-outline"}
               size={metrics.actionIcon}
-              color={post.author.isChallenged ? colors.success : colors.textSecondary}
+              color={quizPassed ? colors.success : colors.textSecondary}
             />
             {metrics.showActionLabels ? (
               <Text
                 style={[
                   styles.actionText,
-                  { color: post.author.isChallenged ? colors.success : colors.textSecondary, fontSize: metrics.actionFont },
+                  {
+                    color: quizPassed ? colors.success : colors.textSecondary,
+                    fontSize: metrics.actionFont,
+                  },
                 ]}
               >
-                {post.author.isChallenged ? "Challenged" : "Challenge"}
+                {quizPassed
+                  ? "Passed"
+                  : quizSession?.status === "generating"
+                    ? "Building..."
+                    : quizSession?.questions.length
+                      ? "Take quiz"
+                      : "Quiz"}
               </Text>
             ) : null}
           </Pressable>
-        )}
+        ) : null}
       </View>
     </View>
   );

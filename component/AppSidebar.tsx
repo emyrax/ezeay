@@ -77,7 +77,7 @@ export default function AppSidebar() {
               Yuinx
             </Text>
             <Text style={[styles.brandSubtitle, { color: theme.textMuted }]}>
-              Learning threads
+              Learning with Uinx
             </Text>
           </View>
         ) : null}

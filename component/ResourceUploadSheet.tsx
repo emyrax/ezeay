@@ -312,7 +312,7 @@ export default function ResourceUploadSheet({
         );
         Alert.alert(
           "Published!",
-          "Your post is live on Threads. Open X to share it with your followers.",
+          "Your post is live on Uinx. Open X to share it with your followers.",
           [
             { text: "Not now", onPress: finish },
             {
@@ -331,7 +331,7 @@ export default function ResourceUploadSheet({
         );
       } else {
         eventBus.emit("toast:success", {
-          title: "Published to Threads",
+          title: "Published to Uinx",
           message: "Your resource is live. +20 XP",
         });
         finish();
@@ -406,7 +406,7 @@ export default function ResourceUploadSheet({
                   {profile?.displayName || "Learner"}
                 </Text>
                 <Text style={[styles.authorMeta, { color: theme.textMuted }]}>
-                  Posting to Threads · Everyone
+                  Posting to Uinx · Everyone
                 </Text>
               </View>
             </View>
